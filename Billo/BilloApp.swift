@@ -12,7 +12,11 @@ import SwiftData
 struct BilloApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Bill.self,
+            Payment.self,
+            RecurrenceRule.self,
+            Income.self,
+            CustomCategory.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -23,9 +27,29 @@ struct BilloApp: App {
         }
     }()
 
+    @State private var billsModel: BillsModel?
+    @State private var paymentHistoryModel: PaymentHistoryModel?
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if let billsModel, let paymentHistoryModel {
+                BillsListView()
+                    .environment(billsModel)
+                    .environment(paymentHistoryModel)
+            } else {
+                ProgressView()
+                    .task {
+                        let context = sharedModelContainer.mainContext
+                        let historyModel = PaymentHistoryModel(modelContext: context)
+                        let bills = BillsModel(
+                            modelContext: context,
+                            paymentHistoryRefresher: historyModel
+                        )
+
+                        paymentHistoryModel = historyModel
+                        billsModel = bills
+                    }
+            }
         }
         .modelContainer(sharedModelContainer)
     }
