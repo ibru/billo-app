@@ -2,6 +2,35 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
+
+// MARK: - Preview Stubs
+
+@MainActor
+private final class PreviewNotificationCoordinator: NotificationCoordinating {
+    func currentAuthorizationStatus() async -> UNAuthorizationStatus { .notDetermined }
+    func requestAuthorization() async throws -> Bool { false }
+    func cancelReminders(for occurrenceIDs: [BillOccurrence.OccurrenceID]) async {}
+    func cancelAllReminders(forBillID billID: String) async {}
+    func scheduleReminders(for occurrences: [BillOccurrence]) async throws {}
+    func rescheduleReminders(forBillID billID: String, newOccurrences: [BillOccurrence]) async throws {}
+    func updateBadge(unpaidCount: Int) async {}
+    func clearBadge() async {}
+    func refreshAllNotifications(for bills: [Bill]) async throws {}
+    func scheduleDigest(billsDueCount: Int, totalAmount: Decimal?, currencyCode: String?) async throws {}
+    func cancelDigest() async {}
+}
+
+@MainActor
+private final class PreviewNotificationPreferences: NotificationPreferencesReading {
+    var remindersEnabled: Bool { true }
+    var reminderOffsets: [Int] { [0, 3] }
+    var reminderTime: DateComponents { DateComponents(hour: 9, minute: 0) }
+    var digestEnabled: Bool { false }
+    var digestLookaheadDays: Int { 5 }
+    var digestTime: DateComponents { DateComponents(hour: 9, minute: 0) }
+    var badgeMode: BadgeMode { .daysBefore(3) }
+}
 
 @MainActor
 struct BilloPreviewContainer {
@@ -70,7 +99,9 @@ struct BilloPreviewContainer {
             modelContext: context,
             calendar: calendar,
             currentDate: { referenceDate },
-            paymentHistoryRefresher: paymentHistoryModel
+            paymentHistoryRefresher: paymentHistoryModel,
+            notificationCoordinator: PreviewNotificationCoordinator(),
+            notificationPreferences: PreviewNotificationPreferences()
         )
         try? billsModel.refresh()
 
@@ -100,7 +131,9 @@ struct BilloPreviewContainer {
             modelContext: context,
             calendar: Calendar.current,
             currentDate: { referenceDate },
-            paymentHistoryRefresher: paymentHistoryModel
+            paymentHistoryRefresher: paymentHistoryModel,
+            notificationCoordinator: PreviewNotificationCoordinator(),
+            notificationPreferences: PreviewNotificationPreferences()
         )
         try? billsModel.refresh()
 

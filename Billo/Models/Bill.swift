@@ -194,6 +194,28 @@ extension Bill {
 
     // MARK: - Occurrence Generation with Partial Payment Support
 
+    /// Returns unpaid occurrences around a reference date (typically "today")
+    ///
+    /// This method uses frequency-based lookback/lookahead windows to include:
+    /// - Overdue occurrences within the lookback window (e.g., 24 months for monthly bills)
+    /// - Current and future occurrences within the lookahead window (e.g., 36 months for monthly bills)
+    ///
+    /// **Window Policy:**
+    /// - Generates occurrences from the bill's original `dueDate` to preserve weekday alignment
+    /// - Filters to `[referenceDate - lookback, referenceDate + lookahead]`
+    /// - Prevents unbounded historical queries while including relevant overdue bills
+    ///
+    /// **Usage:**
+    /// For notification scheduling and badge counts, callers should filter the results to their horizon:
+    /// ```swift
+    /// let occurrences = bill.unpaidOccurrences(aroundDate: today, calendar: calendar)
+    ///     .filter { $0 <= horizonEnd }  // Limit to scheduling/display horizon
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - referenceDate: The date to center the search window around (typically "today")
+    ///   - calendar: Calendar for date calculations
+    /// - Returns: Sorted array of dates for unpaid occurrences within the window
     @MainActor
     func unpaidOccurrences(
         aroundDate referenceDate: Date,

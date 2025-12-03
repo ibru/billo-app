@@ -194,6 +194,11 @@ struct BillEditView: View {
             } else {
                 bill.recurrenceRule = nil
             }
+
+            // Notify model so notifications get rescheduled when due date changes
+            Task {
+                try? await billsModel.updateBill(bill)
+            }
         }
 
         do {

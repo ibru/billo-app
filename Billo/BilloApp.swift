@@ -7,9 +7,12 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main
 struct BilloApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Bill.self,
@@ -29,28 +32,105 @@ struct BilloApp: App {
 
     @State private var billsModel: BillsModel?
     @State private var paymentHistoryModel: PaymentHistoryModel?
+    @State private var notificationCoordinator: NotificationCoordinator?
+    @State private var preferencesStore: NotificationPreferencesStore?
+    private let notificationDelegate = NotificationDelegate()
+
+    init() {
+        // Register notification categories
+        registerNotificationCategories()
+
+        // Set notification delegate (strongly held by the app)
+        UNUserNotificationCenter.current().delegate = notificationDelegate
+    }
 
     var body: some Scene {
         WindowGroup {
-            if let billsModel, let paymentHistoryModel {
+            if let billsModel, let paymentHistoryModel, let notificationCoordinator, let preferencesStore {
                 BillsListView()
                     .environment(billsModel)
                     .environment(paymentHistoryModel)
+                    .environment(notificationCoordinator)
+                    .environment(preferencesStore)
             } else {
                 ProgressView()
                     .task {
                         let context = sharedModelContainer.mainContext
+
+                        // Set up notification system
+                        let center = UNUserNotificationCenter.current()
+                        let preferences = NotificationPreferencesStore()
+                        let coordinator = NotificationCoordinator(
+                            notificationCenter: center,
+                            preferences: preferences,
+                            occurrenceProvider: BillOccurrenceProvider(),
+                            calendar: .current,
+                            currentDate: { Date() }
+                        )
+
+                        // Set up notification delegate references
+                        notificationDelegate.modelContainer = sharedModelContainer
+                        notificationDelegate.notificationCoordinator = coordinator
+                        notificationDelegate.notificationPreferences = preferences
+
                         let historyModel = PaymentHistoryModel(modelContext: context)
                         let bills = BillsModel(
                             modelContext: context,
-                            paymentHistoryRefresher: historyModel
+                            paymentHistoryRefresher: historyModel,
+                            notificationCoordinator: coordinator,
+                            notificationPreferences: preferences
                         )
 
                         paymentHistoryModel = historyModel
                         billsModel = bills
+                        notificationCoordinator = coordinator
+                        preferencesStore = preferences
                     }
             }
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .active {
+                handleAppBecameActive()
+            }
+        }
+    }
+
+    private func handleAppBecameActive() {
+        guard let billsModel, let notificationCoordinator else { return }
+
+        Task {
+            // Full refresh on every foreground
+            try? await notificationCoordinator.refreshAllNotifications(
+                for: billsModel.bills
+            )
+        }
+    }
+
+    private func registerNotificationCategories() {
+        let markPaidAction = UNNotificationAction(
+            identifier: NotificationAction.markPaid,
+            title: String(localized: "Mark Paid"),
+            options: [.authenticationRequired]
+        )
+
+        let billReminderCategory = UNNotificationCategory(
+            identifier: NotificationCategory.billReminder,
+            actions: [markPaidAction],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+
+        let digestCategory = UNNotificationCategory(
+            identifier: NotificationCategory.dailyDigest,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([
+            billReminderCategory,
+            digestCategory
+        ])
     }
 }

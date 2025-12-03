@@ -10,7 +10,10 @@ final class BillsModel {
     @ObservationIgnored private let modelContext: ModelContext
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let currentDate: () -> Date
-    @ObservationIgnored private let paymentHistoryRefresher: PaymentHistoryRefreshing?
+    @ObservationIgnored private let paymentHistoryRefresher: PaymentHistoryRefreshing
+    @ObservationIgnored private let notificationCoordinator: NotificationCoordinating
+    @ObservationIgnored private let notificationPreferences: NotificationPreferencesReading
+    @ObservationIgnored private let badgeCalculator: BadgeCalculator
 
     private(set) var bills: [Bill] = []
     private(set) var sections: BillsListSections = .empty
@@ -19,12 +22,17 @@ final class BillsModel {
         modelContext: ModelContext,
         calendar: Calendar = .current,
         currentDate: @escaping () -> Date = { Date() },
-        paymentHistoryRefresher: PaymentHistoryRefreshing? = nil
+        paymentHistoryRefresher: PaymentHistoryRefreshing,
+        notificationCoordinator: NotificationCoordinating,
+        notificationPreferences: NotificationPreferencesReading
     ) {
         self.modelContext = modelContext
         self.calendar = calendar
         self.currentDate = currentDate
         self.paymentHistoryRefresher = paymentHistoryRefresher
+        self.notificationCoordinator = notificationCoordinator
+        self.notificationPreferences = notificationPreferences
+        self.badgeCalculator = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
     }
 
     func refresh() throws {
@@ -42,26 +50,28 @@ final class BillsModel {
         amount: Decimal? = nil,
         date: Date? = nil,
         confirmationNumber: String? = nil
-    ) throws {
-        let payment = Payment(
+    ) async throws {
+        let recorder = PaymentRecorder()
+
+        _ = try await recorder.recordPayment(
+            for: occurrence.bill,
+            occurrenceDate: occurrence.dueDate,
             amount: amount ?? occurrence.amount,
             datePaid: date ?? currentDate(),
-            occurrenceDate: occurrence.dueDate,
             confirmationNumber: confirmationNumber,
-            bill: occurrence.bill
+            context: modelContext,
+            notificationCoordinator: notificationCoordinator,
+            badgeCalculator: badgeCalculator,
+            badgeMode: notificationPreferences.badgeMode,
+            allBills: bills,
+            currentDate: currentDate
         )
 
-        modelContext.insert(payment)
-        try modelContext.save()
-
-        cancelReminder(for: occurrence)
-
         try refresh()
-
-        notifyPaymentHistoryRefresh()
+        try await paymentHistoryRefresher.refresh()
     }
 
-    func markUnpaid(_ occurrence: BillOccurrence) throws {
+    func markUnpaid(_ occurrence: BillOccurrence) async throws {
         let payments = occurrence.bill.payments.filter { payment in
             calendar.isDate(payment.occurrenceDate, inSameDayAs: occurrence.dueDate)
         }
@@ -69,55 +79,62 @@ final class BillsModel {
         for payment in payments {
             modelContext.delete(payment)
         }
-
         try modelContext.save()
 
-        rescheduleReminder(for: occurrence)
+        // Reschedule and update badge
+        try? await notificationCoordinator.scheduleReminders(for: [occurrence])
+        let unpaidCount = calculateUnpaidCount()
+        await notificationCoordinator.updateBadge(unpaidCount: unpaidCount)
 
         try refresh()
-
-        notifyPaymentHistoryReload()
+        try await paymentHistoryRefresher.reloadVisibleWindow()
     }
 
-    private func cancelReminder(for occurrence: BillOccurrence) {
-        // TODO: Implement notification cancellation when reminder system is added
-        // This will use UNUserNotificationCenter to remove pending notifications
-        // identified by the occurrence ID
-    }
+    func deleteBill(_ bill: Bill) async throws {
+        // Cancel notifications BEFORE deleting
+        let billID = String(describing: bill.persistentModelID)
+        await notificationCoordinator.cancelAllReminders(forBillID: billID)
 
-    private func rescheduleReminder(for occurrence: BillOccurrence) {
-        // TODO: Implement notification rescheduling when reminder system is added
-        // This will recreate the notification for this specific occurrence
-        // without affecting other future occurrences
-    }
-
-    func deleteBill(_ bill: Bill) throws {
         modelContext.delete(bill)
         try modelContext.save()
         try refresh()
+
+        let unpaidCount = calculateUnpaidCount()
+        await notificationCoordinator.updateBadge(unpaidCount: unpaidCount)
     }
 
-    private func notifyPaymentHistoryRefresh() {
-        guard let paymentHistoryRefresher else { return }
+    func updateBill(_ bill: Bill) async throws {
+        try modelContext.save()
+        try refresh()
 
-        Task { @MainActor in
-            do {
-                try await paymentHistoryRefresher.refresh()
-            } catch {
-                print("Payment history refresh failed: \(error)")
-            }
+        // Reschedule notifications for this bill
+        guard let horizonEnd = calendar.date(byAdding: .day, value: 90, to: currentDate()) else {
+            return
         }
+
+        // Use unpaidOccurrences(aroundDate:) which includes appropriate lookback window
+        // Then filter to the horizon to avoid scheduling far-future occurrences
+        let unpaidDates = bill.unpaidOccurrences(
+            aroundDate: currentDate(),
+            calendar: calendar
+        )
+        .filter { $0 <= horizonEnd }  // Keep occurrences within horizon (includes overdue)
+
+        let newOccurrences = unpaidDates.map { BillOccurrence(bill: bill, dueDate: $0) }
+
+        let billID = String(describing: bill.persistentModelID)
+        try? await notificationCoordinator.rescheduleReminders(
+            forBillID: billID,
+            newOccurrences: newOccurrences
+        )
     }
 
-    private func notifyPaymentHistoryReload() {
-        guard let paymentHistoryRefresher else { return }
-
-        Task { @MainActor in
-            do {
-                try await paymentHistoryRefresher.reloadVisibleWindow()
-            } catch {
-                print("Payment history reload failed: \(error)")
-            }
-        }
+    private func calculateUnpaidCount() -> Int {
+        // Use BadgeCalculator to respect user's badge window preference
+        return badgeCalculator.calculateBadgeCount(
+            bills: bills,
+            badgeMode: notificationPreferences.badgeMode,
+            referenceDate: currentDate()
+        )
     }
 }

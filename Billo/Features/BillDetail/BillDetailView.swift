@@ -148,11 +148,13 @@ struct BillDetailView: View {
     }
 
     private func deleteBill() {
-        do {
-            try billsModel.deleteBill(bill)
-            dismiss()
-        } catch {
-            print("Failed to delete bill: \(error)")
+        Task {
+            do {
+                try await billsModel.deleteBill(bill)
+                dismiss()
+            } catch {
+                print("Failed to delete bill: \(error)")
+            }
         }
     }
 
@@ -321,18 +323,20 @@ struct MarkPaidSheet: View {
 
         let occurrence = BillOccurrence(bill: bill, dueDate: occurrenceDate)
 
-        do {
-            let confirmation = confirmationNumber.isEmpty ? nil : confirmationNumber
-            try billsModel.markPaid(
-                occurrence,
-                amount: amount,
-                date: datePaid,
-                confirmationNumber: confirmation
-            )
-            try billsModel.refresh()
-            dismiss()
-        } catch {
-            print("Failed to mark bill as paid: \(error)")
+        Task {
+            do {
+                let confirmation = confirmationNumber.isEmpty ? nil : confirmationNumber
+                try await billsModel.markPaid(
+                    occurrence,
+                    amount: amount,
+                    date: datePaid,
+                    confirmationNumber: confirmation
+                )
+                try billsModel.refresh()
+                dismiss()
+            } catch {
+                print("Failed to mark bill as paid: \(error)")
+            }
         }
     }
 

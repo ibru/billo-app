@@ -12,7 +12,7 @@ struct BillsModelTests {
     @Suite("refresh")
     struct Refresh {
         @Test func whenRefreshed_thenFetchesBillsFromModelContext() throws {
-            let (sut, _, _) = try makeSUT(billCount: 3)
+            let (sut, _, _, _, _, _) = try makeSUT(billCount: 3)
 
             try sut.refresh()
 
@@ -21,7 +21,7 @@ struct BillsModelTests {
         }
 
         @Test func whenRefreshed_thenBuildsSections() throws {
-            let (sut, _, _) = try makeSUT(billCount: 2)
+            let (sut, _, _, _, _, _) = try makeSUT(billCount: 2)
 
             try sut.refresh()
 
@@ -32,150 +32,173 @@ struct BillsModelTests {
     @MainActor
     @Suite("markPaid")
     struct MarkPaid {
-        @Test func whenMarkingOccurrencePaid_thenCreatesPayment() throws {
-            let (sut, bills, _) = try makeSUT(billCount: 1)
+        @Test func whenMarkingOccurrencePaid_thenCreatesPayment() async throws {
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let occurrence = makeOccurrence(for: bills[0])
 
-            try sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence)
 
             #expect(bills[0].payments.count == 1)
             #expect(bills[0].payments[0].amount == bills[0].amount)
         }
 
-        @Test func whenMarkingPaidWithCustomAmount_thenUsesCustomAmount() throws {
-            let (sut, bills, _) = try makeSUT(billCount: 1)
+        @Test func whenMarkingPaidWithCustomAmount_thenUsesCustomAmount() async throws {
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let occurrence = makeOccurrence(for: bills[0])
             let customAmount = Decimal(75)
 
-            try sut.markPaid(occurrence, amount: customAmount)
+            try await sut.markPaid(occurrence, amount: customAmount)
 
             #expect(bills[0].payments[0].amount == customAmount)
         }
 
-        @Test func whenMarkingPaidWithConfirmation_thenStoresConfirmationNumber() throws {
-            let (sut, bills, _) = try makeSUT(billCount: 1)
+        @Test func whenMarkingPaidWithConfirmation_thenStoresConfirmationNumber() async throws {
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let occurrence = makeOccurrence(for: bills[0])
 
-            try sut.markPaid(occurrence, confirmationNumber: "CONF123")
+            try await sut.markPaid(occurrence, confirmationNumber: "CONF123")
 
             #expect(bills[0].payments[0].confirmationNumber == "CONF123")
         }
 
-        @Test func whenMarkingPaid_thenRefreshesSections() throws {
-            let (sut, bills, _) = try makeSUT(billCount: 1)
+        @Test func whenMarkingPaid_thenRefreshesSections() async throws {
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let occurrence = makeOccurrence(for: bills[0])
 
-            try sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence)
 
             let allOccurrences = sut.sections.occurrencesBySection.values.flatMap { $0 }
             #expect(allOccurrences.isEmpty)
         }
 
-        @Test func whenMarkingPaid_thenMonthlyTotalsReflectPayment() throws {
+        @Test func whenMarkingPaid_thenMonthlyTotalsReflectPayment() async throws {
             let referenceDate = makeDate(year: 2025, month: 1, day: 20)
-            let (sut, bills, _) = try makeSUT(billCount: 1, referenceDate: referenceDate)
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1, referenceDate: referenceDate)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let occurrence = makeOccurrence(for: bills[0])
 
             #expect(sut.sections.monthlyTotals.remaining == bills[0].amount)
 
-            try sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence)
 
             #expect(sut.sections.monthlyTotals.totalPaid == bills[0].amount)
             #expect(sut.sections.monthlyTotals.remaining == 0)
         }
 
         @Test func whenMarkingPaid_thenNotifiesPaymentHistory() async throws {
-            let spy = PaymentHistoryRefreshingSpy()
-            let (sut, bills, _) = try makeSUT(billCount: 1, paymentHistoryRefresher: spy)
+            let (sut, bills, _, historyRefresher, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let occurrence = makeOccurrence(for: bills[0])
 
-            try sut.markPaid(occurrence)
-            await spy.waitForMessages(count: 1)
+            try await sut.markPaid(occurrence)
+            await historyRefresher.waitForMessages(count: 1)
 
-            let messages = spy.recordedMessages()
+            let messages = historyRefresher.recordedMessages()
             #expect(messages == [.refresh])
+        }
+
+        @Test func whenMarkingPaid_thenCancelsRemindersAndUpdatesBadge() async throws {
+            let (sut, bills, _, _, coordinator, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+
+            try await sut.markPaid(occurrence)
+
+            #expect(coordinator.cancelRemindersCalls.contains(where: { $0.contains(occurrence.id) }))
+            #expect(coordinator.updateBadgeCalls.last == 0)
         }
     }
 
     @MainActor
     @Suite("markUnpaid")
     struct MarkUnpaid {
-        @Test func whenMarkingOccurrenceUnpaid_thenRemovesPayment() throws {
-            let (sut, bills, _) = try makeSUT(billCount: 1)
+        @Test func whenMarkingOccurrenceUnpaid_thenRemovesPayment() async throws {
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
-            try sut.markPaid(occurrence)
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
 
-            try sut.markUnpaid(occurrence)
+            try await sut.markUnpaid(occurrence)
 
             #expect(bills[0].payments.isEmpty)
         }
 
-        @Test func whenMarkingUnpaid_thenRefreshesSections() throws {
-            let (sut, bills, _) = try makeSUT(billCount: 1)
+        @Test func whenMarkingUnpaid_thenRefreshesSections() async throws {
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
-            try sut.markPaid(occurrence)
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
 
-            try sut.markUnpaid(occurrence)
+            try await sut.markUnpaid(occurrence)
 
             let allOccurrences = sut.sections.occurrencesBySection.values.flatMap { $0 }
             #expect(allOccurrences.count == 1)
         }
 
-        @Test func whenMarkingUnpaid_thenMonthlyTotalsIncrease() throws {
+        @Test func whenMarkingUnpaid_thenMonthlyTotalsIncrease() async throws {
             let referenceDate = makeDate(year: 2025, month: 1, day: 18)
-            let (sut, bills, _) = try makeSUT(billCount: 1, referenceDate: referenceDate)
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1, referenceDate: referenceDate)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
-            try sut.markPaid(occurrence)
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
             #expect(sut.sections.monthlyTotals.remaining == 0)
 
-            try sut.markUnpaid(occurrence)
+            try await sut.markUnpaid(occurrence)
 
             #expect(sut.sections.monthlyTotals.totalPaid == 0)
             #expect(sut.sections.monthlyTotals.remaining == bills[0].amount)
         }
 
         @Test func whenMarkingUnpaid_thenReloadsPaymentHistoryWindow() async throws {
-            let spy = PaymentHistoryRefreshingSpy()
-            let (sut, bills, _) = try makeSUT(billCount: 1, paymentHistoryRefresher: spy)
+            let (sut, bills, _, historyRefresher, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
-            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
-            try sut.markPaid(occurrence)
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
 
-            try sut.markUnpaid(occurrence)
-            await spy.waitForMessages(count: 2)
+            try await sut.markUnpaid(occurrence)
+            await historyRefresher.waitForMessages(count: 2)
 
-            let messages = spy.recordedMessages()
+            let messages = historyRefresher.recordedMessages()
             #expect(messages == [.refresh, .reload])
+        }
+
+        @Test func whenMarkingUnpaid_thenSchedulesRemindersAndUpdatesBadge() async throws {
+            let (sut, bills, _, _, coordinator, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence) // create payment first
+
+            try await sut.markUnpaid(occurrence)
+
+            #expect(coordinator.scheduleRemindersCalls.last?.contains(where: { $0.id == occurrence.id }) == true)
+            #expect(coordinator.updateBadgeCalls.last == 1)
         }
     }
 
     @MainActor
     @Suite("deleteBill")
     struct DeleteBill {
-        @Test func whenDeletingBill_thenRemovesFromModelContext() throws {
-            let (sut, bills, modelContext) = try makeSUT(billCount: 2)
+        @Test func whenDeletingBill_thenRemovesFromModelContext() async throws {
+            let (sut, bills, modelContext, _, _, _) = try makeSUT(billCount: 2)
             try sut.refresh()
 
-            try sut.deleteBill(bills[0])
+            try await sut.deleteBill(bills[0])
 
             let descriptor = FetchDescriptor<Bill>()
             let remainingBills = try modelContext.fetch(descriptor)
@@ -183,14 +206,42 @@ struct BillsModelTests {
             #expect(remainingBills[0].name == "Bill 2")
         }
 
-        @Test func whenDeletingBill_thenRefreshesList() throws {
-            let (sut, bills, _) = try makeSUT(billCount: 2)
+        @Test func whenDeletingBill_thenRefreshesList() async throws {
+            let (sut, bills, _, _, _, _) = try makeSUT(billCount: 2)
             try sut.refresh()
 
-            try sut.deleteBill(bills[0])
+            try await sut.deleteBill(bills[0])
 
             #expect(sut.bills.count == 1)
             #expect(sut.bills[0].name == "Bill 2")
+        }
+
+        @Test func whenDeletingBill_thenCancelsAllRemindersAndUpdatesBadge() async throws {
+            let (sut, bills, _, _, coordinator, _) = try makeSUT(billCount: 2)
+            try sut.refresh()
+
+            try await sut.deleteBill(bills[0])
+
+            #expect(coordinator.cancelAllRemindersCalls.contains(where: { $0.contains(String(describing: bills[0].persistentModelID)) }))
+            #expect(coordinator.updateBadgeCalls.last == 1) // one bill remains
+        }
+    }
+
+    @MainActor
+    @Suite("updateBill")
+    struct UpdateBill {
+        @Test func whenUpdatingBill_thenReschedulesReminders() async throws {
+            let (sut, bills, _, _, coordinator, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let bill = bills[0]
+            bill.dueDate = Calendar.current.date(byAdding: .day, value: 10, to: bill.dueDate)!
+
+            try await sut.updateBill(bill)
+
+            #expect(coordinator.rescheduleRemindersCalls.count == 1)
+            #expect(coordinator.rescheduleRemindersCalls.first?.billID == String(describing: bill.persistentModelID))
+            #expect(coordinator.rescheduleRemindersCalls.first?.occurrences.isEmpty == false)
         }
     }
 }
@@ -201,9 +252,20 @@ struct BillsModelTests {
 private func makeSUT(
     billCount: Int,
     referenceDate: Date = makeDate(year: 2025, month: 1, day: 15),
-    calendar: Calendar = Calendar(identifier: .gregorian),
-    paymentHistoryRefresher: PaymentHistoryRefreshing? = nil
-) throws -> (BillsModel, [Bill], ModelContext) {
+    calendar: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        cal.locale = Locale(identifier: "en_US")
+        return cal
+    }()
+) throws -> (
+    BillsModel,
+    [Bill],
+    ModelContext,
+    PaymentHistoryRefreshingSpy,
+    NotificationCoordinatorSpy,
+    NotificationPreferencesStub
+) {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: Bill.self, Payment.self, configurations: config)
     let modelContext = ModelContext(container)
@@ -222,23 +284,36 @@ private func makeSUT(
 
     try modelContext.save()
 
+    let historyRefresher = PaymentHistoryRefreshingSpy()
+    let coordinator = NotificationCoordinatorSpy()
+    let preferences = NotificationPreferencesStub()
+
     let sut = BillsModel(
         modelContext: modelContext,
         calendar: calendar,
         currentDate: { referenceDate },
-        paymentHistoryRefresher: paymentHistoryRefresher
+        paymentHistoryRefresher: historyRefresher,
+        notificationCoordinator: coordinator,
+        notificationPreferences: preferences
     )
 
-    return (sut, bills, modelContext)
+    return (sut, bills, modelContext, historyRefresher, coordinator, preferences)
 }
 
 private func makeDate(year: Int = 2025, month: Int = 1, day: Int) -> Date {
-    let calendar = Calendar.current
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    calendar.locale = Locale(identifier: "en_US")
     var components = DateComponents()
     components.year = year
     components.month = month
     components.day = day
     return calendar.date(from: components)!
+}
+
+@MainActor
+private func makeOccurrence(for bill: Bill, dueDate: Date? = nil) -> BillOccurrence {
+    BillOccurrence(bill: bill, dueDate: dueDate ?? bill.dueDate)
 }
 
 // MARK: - Test Doubles

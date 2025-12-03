@@ -1,0 +1,459 @@
+//  Created by Jiri Urbasek on 12/02/25.
+
+import Foundation
+import UserNotifications
+import SwiftData
+import Observation
+
+@Observable
+@MainActor
+final class NotificationCoordinator: NotificationCoordinating {
+    private struct NotificationOccurrenceSnapshot: Sendable {
+        let billIDString: String
+        let name: String
+        let amount: Decimal
+        let currencyCode: String
+        let dueDate: Date
+    }
+
+    // MARK: - Dependencies (all injected)
+
+    private let notificationCenter: UNNotificationCenterProtocol
+    private let preferences: NotificationPreferencesReading
+    private let occurrenceProvider: BillOccurrenceProviding
+    private let dateCalculator: NotificationDateCalculator
+    private let contentBuilder: NotificationContentBuilder
+    private let badgeCalculator: BadgeCalculator
+    private let calendar: Calendar
+    private let currentDate: () -> Date
+
+    // MARK: - Configuration
+
+    private let maxNotifications = 64
+    private let reservedSlots = 4  // 1 digest + 3 buffer
+    private let baseHorizonDays = 90
+    private let minHorizonDays = 14  // Never shrink below 2 weeks
+
+    // MARK: - Init
+
+    init(
+        notificationCenter: UNNotificationCenterProtocol,
+        preferences: NotificationPreferencesReading,
+        occurrenceProvider: BillOccurrenceProviding = BillOccurrenceProvider(),
+        dateCalculator: NotificationDateCalculator = NotificationDateCalculator(),
+        contentBuilder: NotificationContentBuilder = NotificationContentBuilder(),
+        calendar: Calendar = .current,
+        currentDate: @escaping () -> Date = { Date() }
+    ) {
+        self.notificationCenter = notificationCenter
+        self.preferences = preferences
+        self.occurrenceProvider = occurrenceProvider
+        self.dateCalculator = dateCalculator
+        self.contentBuilder = contentBuilder
+        self.badgeCalculator = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
+        self.calendar = calendar
+        self.currentDate = currentDate
+    }
+
+    // MARK: - Permission
+
+    func currentAuthorizationStatus() async -> UNAuthorizationStatus {
+        await notificationCenter.authorizationStatus()
+    }
+
+    func requestAuthorization() async throws -> Bool {
+        try await notificationCenter.requestAuthorization(options: [.alert, .badge, .sound])
+    }
+
+    // MARK: - Refresh All
+
+    func refreshAllNotifications(for bills: [Bill]) async throws {
+        let referenceDate = currentDate()
+
+        // 1. Check permission first - if not authorized, clear everything and return
+        let status = await currentAuthorizationStatus()
+        guard status == .authorized else {
+            await clearBadge()
+            await cancelDigest()
+            await cancelAllBillReminders()
+            return
+        }
+
+        // 2. Calculate occurrences for both reminders and digest (using full horizon)
+        let allOccurrences = await occurrenceProvider.unpaidOccurrences(
+            from: bills,
+            referenceDate: referenceDate,
+            horizonDays: baseHorizonDays,
+            calendar: calendar
+        )
+
+        // 3. Handle bill reminders (independent of digest)
+        await cancelAllBillReminders()
+
+        if preferences.remindersEnabled {
+            // Calculate effective horizon (shrink if cap would be exceeded)
+            let effectiveHorizon = await calculateEffectiveHorizon(
+                bills: bills,
+                referenceDate: referenceDate
+            )
+
+            // Get occurrences within effective horizon for scheduling
+            let schedulingOccurrences = await occurrenceProvider.unpaidOccurrences(
+                from: bills,
+                referenceDate: referenceDate,
+                horizonDays: effectiveHorizon,
+                calendar: calendar
+            )
+
+            // Schedule within cap
+            let scheduled = try await scheduleRemindersInternal(
+                for: schedulingOccurrences,
+                referenceDate: referenceDate
+            )
+
+            // Log horizon adjustment or cap status
+            if effectiveHorizon < baseHorizonDays {
+                print("[Notifications] Horizon reduced to \(effectiveHorizon) days to fit cap")
+            }
+            let (_, skipped) = dateCalculator.schedulingPlan(
+                occurrences: schedulingOccurrences,
+                offsets: preferences.reminderOffsets,
+                maxSlots: maxNotifications - reservedSlots
+            )
+            if skipped > 0 {
+                print("[Notifications] Cap reached: scheduled \(scheduled), skipped \(skipped)")
+            }
+        }
+
+        // 4. Handle daily digest (independent of reminders)
+        if preferences.digestEnabled {
+            try await scheduleDigestIfNeeded(
+                occurrences: allOccurrences,
+                referenceDate: referenceDate
+            )
+        } else {
+            await cancelDigest()
+        }
+
+        // 5. Update badge using user-selected badge window (independent of reminders/digest)
+        let badgeCount = badgeCalculator.calculateBadgeCount(
+            bills: bills,
+            badgeMode: preferences.badgeMode,
+            referenceDate: referenceDate
+        )
+
+        if badgeCount == 0 {
+            await clearBadge()
+        } else {
+            await updateBadge(unpaidCount: badgeCount)
+        }
+    }
+
+    /// Calculates horizon that fits within notification cap
+    /// Shrinks from baseHorizonDays down to minHorizonDays if needed
+    private func calculateEffectiveHorizon(
+        bills: [Bill],
+        referenceDate: Date
+    ) async -> Int {
+        let availableSlots = maxNotifications - reservedSlots
+        let offsetCount = preferences.reminderOffsets.count
+
+        // Try progressively shorter horizons
+        for horizon in stride(from: baseHorizonDays, through: minHorizonDays, by: -7) {
+            let occurrences = await occurrenceProvider.unpaidOccurrences(
+                from: bills,
+                referenceDate: referenceDate,
+                horizonDays: horizon,
+                calendar: calendar
+            )
+            let requiredSlots = occurrences.count * offsetCount
+
+            if requiredSlots <= availableSlots {
+                return horizon
+            }
+        }
+
+        // Even minHorizonDays exceeds cap - use it anyway, cap will truncate
+        return minHorizonDays
+    }
+
+    /// Schedules digest, handling mixed currencies gracefully
+    private func scheduleDigestIfNeeded(
+        occurrences: [BillOccurrence],
+        referenceDate: Date
+    ) async throws {
+        let dueWithinLookahead = dateCalculator.occurrencesWithinLookahead(
+            occurrences,
+            lookaheadDays: preferences.digestLookaheadDays,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        guard !dueWithinLookahead.isEmpty else { return }
+
+        // Check if all occurrences share the same currency
+        let currencies = Set(dueWithinLookahead.map(\.currencyCode))
+
+        if currencies.count == 1, let currency = currencies.first {
+            // Single currency: show total amount
+            let total = dueWithinLookahead.reduce(Decimal.zero) { $0 + $1.amount }
+            try await scheduleDigest(
+                billsDueCount: dueWithinLookahead.count,
+                totalAmount: total,
+                currencyCode: currency
+            )
+        } else {
+            // Mixed currencies: count-only (no misleading total)
+            try await scheduleDigest(
+                billsDueCount: dueWithinLookahead.count,
+                totalAmount: nil,
+                currencyCode: nil
+            )
+        }
+    }
+
+    // MARK: - Internal Scheduling
+
+    private func scheduleRemindersInternal(
+        for occurrences: [BillOccurrence],
+        referenceDate: Date
+    ) async throws -> Int {
+        let availableSlots = maxNotifications - reservedSlots
+        let offsets = preferences.reminderOffsets
+        let reminderTime = preferences.reminderTime
+        let calendar = calendar
+
+        let snapshots: [NotificationOccurrenceSnapshot] = occurrences.map {
+            NotificationOccurrenceSnapshot(
+                billIDString: String(describing: $0.bill.persistentModelID),
+                name: $0.name,
+                amount: $0.amount,
+                currencyCode: $0.currencyCode,
+                dueDate: $0.dueDate
+            )
+        }
+
+        let plan = await Task.detached(priority: .userInitiated) { () -> [(NotificationOccurrenceSnapshot, Int, Date)] in
+            var scheduled: [(NotificationOccurrenceSnapshot, Int, Date)] = []
+
+            for snapshot in snapshots {
+                guard scheduled.count < availableSlots else { break }
+
+                for offset in offsets {
+                    guard scheduled.count < availableSlots else { break }
+
+                    guard let targetDay = calendar.date(byAdding: .day, value: -offset, to: snapshot.dueDate) else {
+                        continue
+                    }
+
+                    var components = calendar.dateComponents([.year, .month, .day], from: targetDay)
+                    components.hour = reminderTime.hour ?? 9
+                    components.minute = reminderTime.minute ?? 0
+
+                    guard var notificationDate = calendar.date(from: components) else { continue }
+
+                    if notificationDate <= referenceDate {
+                        let sameDay = calendar.isDate(targetDay, inSameDayAs: referenceDate)
+                        if sameDay {
+                            notificationDate = calendar.date(byAdding: .minute, value: 1, to: referenceDate) ?? referenceDate
+                        } else {
+                            continue
+                        }
+                    }
+
+                    scheduled.append((snapshot, offset, notificationDate))
+                }
+            }
+
+            return scheduled
+        }.value
+
+        for (snapshot, offset, notificationDate) in plan {
+            let request = createNotificationRequest(
+                snapshot: snapshot,
+                notificationDate: notificationDate,
+                offsetDays: offset
+            )
+            try await notificationCenter.add(request)
+        }
+
+        return plan.count
+    }
+
+    private func createNotificationRequest(
+        snapshot: NotificationOccurrenceSnapshot,
+        notificationDate: Date,
+        offsetDays: Int
+    ) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = snapshot.name
+        content.body = contentBuilder.reminderBody(
+            amount: snapshot.amount,
+            currencyCode: snapshot.currencyCode,
+            offsetDays: offsetDays
+        )
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.billReminder
+        content.userInfo = [
+            "billID": snapshot.billIDString,
+            "occurrenceTimestamp": snapshot.dueDate.timeIntervalSinceReferenceDate,
+            "offsetDays": offsetDays
+        ]
+
+        let billIDHash = NotificationIdentifier.shortHash(
+            of: snapshot.billIDString
+        )
+        let identifier = NotificationIdentifier(
+            billIDHash: billIDHash,
+            occurrenceTimestamp: Int(snapshot.dueDate.timeIntervalSinceReferenceDate),
+            offsetDays: offsetDays
+        )
+
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: notificationDate
+            ),
+            repeats: false
+        )
+
+        return UNNotificationRequest(
+            identifier: identifier.stringValue,
+            content: content,
+            trigger: trigger
+        )
+    }
+
+    // MARK: - Cancellation
+
+    private func cancelAllBillReminders() async {
+        let pending = await notificationCenter.pendingNotificationRequests()
+        let billReminderIDs = pending
+            .map(\.identifier)
+            .filter { $0.hasPrefix("billo.r.") }
+
+        if !billReminderIDs.isEmpty {
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: billReminderIDs)
+        }
+    }
+
+    func cancelReminders(for occurrenceIDs: [BillOccurrence.OccurrenceID]) async {
+        let pending = await notificationCenter.pendingNotificationRequests()
+
+        var idsToCancel: [String] = []
+
+        for pendingRequest in pending {
+            guard let parsed = NotificationIdentifier.parse(pendingRequest.identifier) else { continue }
+
+            for occurrenceID in occurrenceIDs {
+                let billIDHash = NotificationIdentifier.shortHash(
+                    of: String(describing: occurrenceID.billID)
+                )
+                let occurrenceTimestamp = Int(occurrenceID.dueTime)
+
+                if parsed.billIDHash == billIDHash &&
+                   parsed.occurrenceTimestamp == occurrenceTimestamp {
+                    idsToCancel.append(pendingRequest.identifier)
+                }
+            }
+        }
+
+        if !idsToCancel.isEmpty {
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: idsToCancel)
+        }
+    }
+
+    func cancelAllReminders(forBillID billID: String) async {
+        let hash = NotificationIdentifier.shortHash(of: billID)
+        let prefix = NotificationIdentifier.prefix(forBillIDHash: hash)
+        let pending = await notificationCenter.pendingNotificationRequests()
+        let idsToCancel = pending
+            .map(\.identifier)
+            .filter { $0.hasPrefix(prefix) }
+
+        if !idsToCancel.isEmpty {
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: idsToCancel)
+        }
+    }
+
+    func rescheduleReminders(
+        forBillID billID: String,
+        newOccurrences: [BillOccurrence]
+    ) async throws {
+        await cancelAllReminders(forBillID: billID)
+
+        guard preferences.remindersEnabled else { return }
+
+        _ = try await scheduleRemindersInternal(
+            for: newOccurrences,
+            referenceDate: currentDate()
+        )
+    }
+
+    // MARK: - Digest
+
+    func scheduleDigest(
+        billsDueCount: Int,
+        totalAmount: Decimal?,
+        currencyCode: String?
+    ) async throws {
+        await cancelDigest()
+
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Bills Summary")
+        content.body = contentBuilder.digestBody(
+            billCount: billsDueCount,
+            totalAmount: totalAmount,
+            currencyCode: currencyCode,
+            lookaheadDays: preferences.digestLookaheadDays
+        )
+        content.sound = .default
+        content.categoryIdentifier = NotificationCategory.dailyDigest
+
+        let digestTime = preferences.digestTime
+        var components = DateComponents()
+        components.hour = digestTime.hour ?? 9
+        components.minute = digestTime.minute ?? 0
+
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: components,
+            repeats: true
+        )
+
+        let request = UNNotificationRequest(
+            identifier: NotificationIdentifier.digestIdentifier,
+            content: content,
+            trigger: trigger
+        )
+
+        try await notificationCenter.add(request)
+    }
+
+    func cancelDigest() async {
+        notificationCenter.removePendingNotificationRequests(
+            withIdentifiers: [NotificationIdentifier.digestIdentifier]
+        )
+    }
+
+    // MARK: - Badge
+
+    func updateBadge(unpaidCount: Int) async {
+        guard case .never = preferences.badgeMode else {
+            try? await notificationCenter.setBadgeCount(unpaidCount)
+            return
+        }
+        // If badgeMode is .never, always clear
+        await clearBadge()
+    }
+
+    func clearBadge() async {
+        try? await notificationCenter.setBadgeCount(0)
+    }
+
+    // MARK: - Public scheduling
+
+    func scheduleReminders(for occurrences: [BillOccurrence]) async throws {
+        guard preferences.remindersEnabled else { return }
+        _ = try await scheduleRemindersInternal(for: occurrences, referenceDate: currentDate())
+    }
+}

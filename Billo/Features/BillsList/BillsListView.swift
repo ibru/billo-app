@@ -16,9 +16,12 @@ private enum BillsListAnchor: Hashable {
 struct BillsListView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(PaymentHistoryModel.self) private var paymentHistoryModel
+    @Environment(NotificationCoordinator.self) private var notificationCoordinator
+    @Environment(NotificationPreferencesStore.self) private var preferencesStore
     @Environment(\.modelContext) private var modelContext
 
     @State private var showingAddBill = false
+    @State private var showingSettings = false
     @State private var currentVisibleAnchor: BillsListAnchor = .historyToggle
     @State private var isRestoringScroll = false
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
@@ -43,6 +46,14 @@ struct BillsListView: View {
                         .environment(BillModel(bill: bill, modelContext: modelContext))
                 }
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gear")
+                        }
+                    }
+
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             showingAddBill = true
@@ -54,6 +65,18 @@ struct BillsListView: View {
                 .sheet(isPresented: $showingAddBill) {
                     BillEditView(mode: .adding)
                         .environment(billsModel)
+                }
+                .sheet(isPresented: $showingSettings) {
+                    NavigationStack {
+                        NotificationSettingsView()
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") {
+                                    showingSettings = false
+                                }
+                            }
+                        }
+                    }
                 }
                 .task {
                     do {
@@ -182,10 +205,12 @@ struct BillsListView: View {
     }
 
     private func markPaid(_ occurrence: BillOccurrence) {
-        do {
-            try billsModel.markPaid(occurrence)
-        } catch {
-            print("Failed to mark bill as paid: \(error)")
+        Task {
+            do {
+                try await billsModel.markPaid(occurrence)
+            } catch {
+                print("Failed to mark bill as paid: \(error)")
+            }
         }
     }
 }
