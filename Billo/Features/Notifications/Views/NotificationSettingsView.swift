@@ -7,10 +7,8 @@ import UIKit
 #endif
 
 struct NotificationSettingsView: View {
-    @Environment(NotificationPreferencesStore.self) private var preferencesStore
-    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
-    @Environment(NotificationCoordinator.self) private var notificationCoordinator
-    @Environment(BillsModel.self) private var billsModel
+    @Environment(NotificationSettingsModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
@@ -20,19 +18,12 @@ struct NotificationSettingsView: View {
 
             Section("Bill Reminders") {
                 Toggle("Enable Reminders", isOn: Binding(
-                    get: { preferencesStore.remindersEnabled },
-                    set: { newValue in
-                        preferencesStore.setRemindersEnabled(newValue)
-                        if newValue {
-                            Task {
-                                _ = try? await notificationCoordinator.requestAuthorization()
-                                authorizationStatus = await notificationCoordinator.currentAuthorizationStatus()
-                            }
-                        }
-                    }
+                    get: { model.effectiveReminderToggleState },
+                    set: { model.toggleReminders(to: $0) }
                 ))
+                .help("Reminders require notification permission")
 
-                if preferencesStore.remindersEnabled {
+                if model.effectiveReminderToggleState {
                     reminderScheduleSection
                     reminderTimePicker
                 }
@@ -40,15 +31,15 @@ struct NotificationSettingsView: View {
 
             Section("Daily Summary") {
                 Toggle("Daily Digest", isOn: Binding(
-                    get: { preferencesStore.digestEnabled },
-                    set: { preferencesStore.setDigestEnabled($0) }
+                    get: { model.digestEnabled },
+                    set: { model.setDigestEnabled($0) }
                 ))
                 .help("Get a daily summary of upcoming bills")
 
-                if preferencesStore.digestEnabled {
+                if model.digestEnabled {
                     Picker("Look Ahead", selection: Binding(
-                        get: { preferencesStore.digestLookaheadDays },
-                        set: { preferencesStore.setDigestLookaheadDays($0) }
+                        get: { model.digestLookaheadDays },
+                        set: { model.setDigestLookaheadDays($0) }
                     )) {
                         Text("3 days").tag(3)
                         Text("5 days").tag(5)
@@ -64,8 +55,28 @@ struct NotificationSettingsView: View {
             }
         }
         .navigationTitle("Notification Settings")
+        .alert(
+            "Notifications Disabled",
+            isPresented: Binding(
+                get: { model.showPermissionDeniedAlert },
+                set: { model.showPermissionDeniedAlert = $0 }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { }
+#if os(iOS)
+            Button("Open Settings") {
+                model.openSettings()
+            }
+#endif
+        } message: {
+            Text("Enable notifications in Settings to receive bill reminders.")
+        }
         .task {
-            authorizationStatus = await notificationCoordinator.currentAuthorizationStatus()
+            await model.loadAuthorizationStatus()
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await model.onScenePhaseChange(scenePhase)
         }
     }
 
@@ -73,7 +84,7 @@ struct NotificationSettingsView: View {
 
     @ViewBuilder
     private var permissionStatusView: some View {
-        switch authorizationStatus {
+        switch model.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             Label("Notifications Enabled", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
@@ -86,12 +97,13 @@ struct NotificationSettingsView: View {
                     .foregroundStyle(.secondary)
 #if os(iOS)
                 Button("Open Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
+                    model.openSettings()
                 }
                 .buttonStyle(.bordered)
 #endif
+                Text("Reminders stay off until permission is granted.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         case .notDetermined:
             Label("Notifications Not Yet Configured", systemImage: "bell.badge")
@@ -127,11 +139,11 @@ struct NotificationSettingsView: View {
     }
 
     private func offsetButton(_ offset: Int) -> some View {
-        let isSelected = preferencesStore.reminderOffsets.contains(offset)
+        let isSelected = model.reminderOffsets.contains(offset)
         let label = offset == 0 ? "Day of" : "\(offset) days"
 
         return Button {
-            toggleOffset(offset)
+            model.toggleReminderOffset(offset)
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -153,22 +165,6 @@ struct NotificationSettingsView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
-    private func toggleOffset(_ offset: Int) {
-        var current = preferencesStore.reminderOffsets
-
-        if current.contains(offset) {
-            // Don't allow removing the last offset
-            if current.count > 1 {
-                current.removeAll { $0 == offset }
-            }
-        } else {
-            current.append(offset)
-            current.sort()
-        }
-
-        preferencesStore.setReminderOffsets(current)
-    }
-
     // MARK: - Time Pickers
 
     private var reminderTimePicker: some View {
@@ -176,12 +172,12 @@ struct NotificationSettingsView: View {
             "Reminder Time",
             selection: Binding(
                 get: {
-                    let components = preferencesStore.reminderTime
+                    let components = model.reminderTime
                     return Calendar.current.date(from: components) ?? Date()
                 },
                 set: { newValue in
                     let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                    preferencesStore.setReminderTime(components)
+                    model.setReminderTime(components)
                 }
             ),
             displayedComponents: .hourAndMinute
@@ -193,12 +189,12 @@ struct NotificationSettingsView: View {
             "Digest Time",
             selection: Binding(
                 get: {
-                    let components = preferencesStore.digestTime
+                    let components = model.digestTime
                     return Calendar.current.date(from: components) ?? Date()
                 },
                 set: { newValue in
                     let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                    preferencesStore.setDigestTime(components)
+                    model.setDigestTime(components)
                 }
             ),
             displayedComponents: .hourAndMinute
@@ -209,8 +205,8 @@ struct NotificationSettingsView: View {
 
     private var badgeModePicker: some View {
         Picker("Badge Window", selection: Binding(
-            get: { preferencesStore.badgeMode },
-            set: { preferencesStore.setBadgeMode($0) }
+            get: { model.badgeMode },
+            set: { model.setBadgeMode($0) }
         )) {
             Text("Never").tag(BadgeMode.never)
             Text("Due / Overdue only").tag(BadgeMode.dueAndOverdue)

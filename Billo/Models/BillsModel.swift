@@ -138,3 +138,7 @@ final class BillsModel {
         )
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension BillsModel: BillsRefreshing { }

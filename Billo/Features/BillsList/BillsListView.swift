@@ -2,6 +2,9 @@
 
 import SwiftData
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 private enum BillsListAnchor: Hashable {
     case historyToggle
@@ -69,6 +72,19 @@ struct BillsListView: View {
                 .sheet(isPresented: $showingSettings) {
                     NavigationStack {
                         NotificationSettingsView()
+                        .environment(
+                            NotificationSettingsModel(
+                                preferences: preferencesStore,
+                                coordinator: notificationCoordinator,
+                                openSettingsHandler: {
+#if os(iOS)
+                                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                                        UIApplication.shared.open(url)
+                                    }
+#endif
+                                }
+                            )
+                        )
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") {

@@ -35,6 +35,7 @@ struct BilloApp: App {
     @State private var notificationCoordinator: NotificationCoordinator?
     @State private var preferencesStore: NotificationPreferencesStore?
     private let notificationDelegate = NotificationDelegate()
+    private let appNotificationRefresher = AppNotificationRefresher()
 
     init() {
         // Register notification categories
@@ -85,6 +86,11 @@ struct BilloApp: App {
                         billsModel = bills
                         notificationCoordinator = coordinator
                         preferencesStore = preferences
+
+                        await appNotificationRefresher.refreshAndReschedule(
+                            billsModel: bills,
+                            coordinator: coordinator
+                        )
                     }
             }
         }
@@ -99,10 +105,10 @@ struct BilloApp: App {
     private func handleAppBecameActive() {
         guard let billsModel, let notificationCoordinator else { return }
 
-        Task {
-            // Full refresh on every foreground
-            try? await notificationCoordinator.refreshAllNotifications(
-                for: billsModel.bills
+        Task { @MainActor in
+            await appNotificationRefresher.refreshAndReschedule(
+                billsModel: billsModel,
+                coordinator: notificationCoordinator
             )
         }
     }

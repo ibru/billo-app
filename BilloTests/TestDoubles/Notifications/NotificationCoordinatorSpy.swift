@@ -16,6 +16,8 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
     private(set) var refreshAllNotificationsCalls: [[Bill]] = []
     private(set) var scheduleDigestCalls: [(count: Int, amount: Decimal?, currency: String?)] = []
     private(set) var cancelDigestCalls: Int = 0
+    private(set) var currentStatusCallCount: Int = 0
+    private(set) var requestAuthorizationCallCount: Int = 0
 
     // MARK: - Stubbed responses
 
@@ -25,11 +27,13 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
     // MARK: - Protocol implementation
 
     func currentAuthorizationStatus() async -> UNAuthorizationStatus {
-        authorizationStatusToReturn
+        currentStatusCallCount += 1
+        return authorizationStatusToReturn
     }
 
     func requestAuthorization() async throws -> Bool {
-        requestAuthorizationResult
+        requestAuthorizationCallCount += 1
+        return requestAuthorizationResult
     }
 
     func refreshAllNotifications(for bills: [Bill]) async throws {
