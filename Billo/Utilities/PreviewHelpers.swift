@@ -7,29 +7,14 @@ import UserNotifications
 // MARK: - Preview Stubs
 
 @MainActor
-private final class PreviewNotificationCoordinator: NotificationCoordinating {
-    func currentAuthorizationStatus() async -> UNAuthorizationStatus { .notDetermined }
-    func requestAuthorization() async throws -> Bool { false }
-    func cancelReminders(for occurrenceIDs: [BillOccurrence.OccurrenceID]) async {}
-    func cancelAllReminders(forBillID billID: String) async {}
-    func scheduleReminders(for occurrences: [BillOccurrence]) async throws {}
-    func rescheduleReminders(forBillID billID: String, newOccurrences: [BillOccurrence]) async throws {}
-    func updateBadge(unpaidCount: Int) async {}
-    func clearBadge() async {}
-    func refreshAllNotifications(for bills: [Bill]) async throws {}
-    func scheduleDigest(billsDueCount: Int, totalAmount: Decimal?, currencyCode: String?) async throws {}
-    func cancelDigest() async {}
-}
-
-@MainActor
-private final class PreviewNotificationPreferences: NotificationPreferencesReading {
-    var remindersEnabled: Bool { true }
-    var reminderOffsets: [Int] { [0, 3] }
-    var reminderTime: DateComponents { DateComponents(hour: 9, minute: 0) }
-    var digestEnabled: Bool { false }
-    var digestLookaheadDays: Int { 5 }
-    var digestTime: DateComponents { DateComponents(hour: 9, minute: 0) }
-    var badgeMode: BadgeMode { .daysBefore(3) }
+private final class PreviewUNNotificationCenter: UNNotificationCenterProtocol {
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool { false }
+    func authorizationStatus() async -> UNAuthorizationStatus { .notDetermined }
+    func pendingNotificationRequests() async -> [UNNotificationRequest] { [] }
+    func add(_ request: UNNotificationRequest) async throws {}
+    func removePendingNotificationRequests(withIdentifiers: [String]) {}
+    func removeAllPendingNotificationRequests() {}
+    func setBadgeCount(_ count: Int) async throws {}
 }
 
 @MainActor
@@ -38,6 +23,8 @@ struct BilloPreviewContainer {
     let context: ModelContext
     let billsModel: BillsModel
     let paymentHistoryModel: PaymentHistoryModel
+    let notificationCoordinator: NotificationCoordinator
+    let preferencesStore: NotificationPreferencesStore
     let bills: [Bill]
 
     static func withSampleData(referenceDate: Date = Date()) -> BilloPreviewContainer {
@@ -94,14 +81,19 @@ struct BilloPreviewContainer {
 
         try? context.save()
 
+        let preferencesStore = NotificationPreferencesStore(userDefaults: UserDefaults(suiteName: "preview")!)
+        let notificationCoordinator = NotificationCoordinator(
+            notificationCenter: PreviewUNNotificationCenter(),
+            preferences: preferencesStore
+        )
         let paymentHistoryModel = PaymentHistoryModel(modelContext: context)
         let billsModel = BillsModel(
             modelContext: context,
             calendar: calendar,
             currentDate: { referenceDate },
             paymentHistoryRefresher: paymentHistoryModel,
-            notificationCoordinator: PreviewNotificationCoordinator(),
-            notificationPreferences: PreviewNotificationPreferences()
+            notificationCoordinator: notificationCoordinator,
+            notificationPreferences: preferencesStore
         )
         try? billsModel.refresh()
 
@@ -110,6 +102,8 @@ struct BilloPreviewContainer {
             context: context,
             billsModel: billsModel,
             paymentHistoryModel: paymentHistoryModel,
+            notificationCoordinator: notificationCoordinator,
+            preferencesStore: preferencesStore,
             bills: sampleBills
         )
     }
@@ -126,14 +120,19 @@ struct BilloPreviewContainer {
         let container = try! ModelContainer(for: schema, configurations: [configuration])
         let context = container.mainContext
 
+        let preferencesStore = NotificationPreferencesStore(userDefaults: UserDefaults(suiteName: "preview")!)
+        let notificationCoordinator = NotificationCoordinator(
+            notificationCenter: PreviewUNNotificationCenter(),
+            preferences: preferencesStore
+        )
         let paymentHistoryModel = PaymentHistoryModel(modelContext: context)
         let billsModel = BillsModel(
             modelContext: context,
             calendar: Calendar.current,
             currentDate: { referenceDate },
             paymentHistoryRefresher: paymentHistoryModel,
-            notificationCoordinator: PreviewNotificationCoordinator(),
-            notificationPreferences: PreviewNotificationPreferences()
+            notificationCoordinator: notificationCoordinator,
+            notificationPreferences: preferencesStore
         )
         try? billsModel.refresh()
 
@@ -142,6 +141,8 @@ struct BilloPreviewContainer {
             context: context,
             billsModel: billsModel,
             paymentHistoryModel: paymentHistoryModel,
+            notificationCoordinator: notificationCoordinator,
+            preferencesStore: preferencesStore,
             bills: []
         )
     }
@@ -156,6 +157,8 @@ extension View {
         self
             .environment(preview.billsModel)
             .environment(preview.paymentHistoryModel)
+            .environment(preview.notificationCoordinator)
+            .environment(preview.preferencesStore)
             .modelContainer(preview.container)
             .preferredColorScheme(colorScheme)
     }
