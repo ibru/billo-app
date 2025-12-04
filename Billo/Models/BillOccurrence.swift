@@ -23,6 +23,39 @@ struct BillOccurrence: Identifiable, Hashable {
     var categoryIdentifier: CategoryIdentifier? { bill.categoryIdentifier }
     var currencyCode: String { bill.currencyCode }
 
+    enum CountdownUnit: Equatable {
+        case days
+        case months
+    }
+
+    struct Countdown: Equatable {
+        let value: Double
+        let unit: CountdownUnit
+
+        func formatted(locale: Locale) -> (value: String, unit: String) {
+            let formatter = NumberFormatter()
+            formatter.locale = locale
+            formatter.numberStyle = .decimal
+
+            switch unit {
+            case .days:
+                formatter.minimumFractionDigits = 0
+                formatter.maximumFractionDigits = 0
+                return (
+                    formatter.string(from: NSNumber(value: value)) ?? "\(value)",
+                    String(localized: "days", defaultValue: "days", locale: locale)
+                )
+            case .months:
+                formatter.minimumFractionDigits = 1
+                formatter.maximumFractionDigits = 1
+                return (
+                    formatter.string(from: NSNumber(value: value)) ?? "\(value)",
+                    String(localized: "months", defaultValue: "months", locale: locale)
+                )
+            }
+        }
+    }
+
     init(bill: Bill, dueDate: Date) {
         self.bill = bill
         self.dueDate = dueDate
@@ -53,5 +86,24 @@ struct BillOccurrence: Identifiable, Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+    }
+
+    func dueCountdown(relativeTo referenceDate: Date, calendar: Calendar) -> Countdown {
+        let startOfReference = calendar.startOfDay(for: referenceDate)
+        let startOfDueDate = calendar.startOfDay(for: dueDate)
+
+        let daysUntilDue = calendar.dateComponents([.day], from: startOfReference, to: startOfDueDate).day ?? 0
+
+        if daysUntilDue < 0 {
+            return Countdown(value: Double(daysUntilDue), unit: .days)
+        }
+
+        if daysUntilDue > 60 {
+            let months = Double(daysUntilDue) / 30.0
+            let roundedMonths = (months * 10).rounded() / 10
+            return Countdown(value: roundedMonths, unit: .months)
+        }
+
+        return Countdown(value: Double(daysUntilDue), unit: .days)
     }
 }

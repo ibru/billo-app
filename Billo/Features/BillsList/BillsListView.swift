@@ -107,13 +107,6 @@ struct BillsListView: View {
 
     @ViewBuilder
     private func listContent(proxy: ScrollViewProxy) -> some View {
-        PaymentHistoryToggleRow(
-            isVisible: paymentHistoryModel.isHistoryVisible,
-            action: { toggleHistory(with: proxy) }
-        )
-        .id(BillsListAnchor.historyToggle)
-        .trackVisibleRow(id: .historyToggle)
-
         if paymentHistoryModel.isHistoryVisible {
             PaymentHistorySectionView(
                 payments: paymentHistoryModel.displayedPayments,
@@ -122,6 +115,13 @@ struct BillsListView: View {
                 hasMorePages: paymentHistoryModel.hasMorePayments
             )
         }
+
+        PaymentHistoryToggleRow(
+            isVisible: paymentHistoryModel.isHistoryVisible,
+            action: { toggleHistory(with: proxy) }
+        )
+        .id(BillsListAnchor.historyToggle)
+        .trackVisibleRow(id: .historyToggle)
 
         SummarySectionView(
             overview: billsModel.sections.weeklyOverview,
@@ -365,27 +365,48 @@ struct BillRowView: View {
     let occurrence: BillOccurrence
     let customCategories: [CustomCategory]
 
-    private var timeSpanColor: Color {
-        DesignSystem.Color.timeSpanColor(for: occurrence.dueDate, relativeTo: Date(), calendar: .current)
-    }
-
     private var categoryInfo: CategoryDisplayInfo? {
         CategoryCatalog.displayInfo(for: occurrence.categoryIdentifier, customCategories: customCategories)
     }
 
+    private var timeSpanColor: Color {
+        DesignSystem.Color.timeSpanColor(for: occurrence.dueDate, relativeTo: Date(), calendar: .current)
+    }
+
+    private var countdown: BillOccurrence.Countdown {
+        occurrence.dueCountdown(relativeTo: Date(), calendar: .current)
+    }
+
+    private var countdownText: String {
+        let parts = countdown.formatted(locale: Locale.current)
+        return "\(parts.value)\n\(parts.unit)"
+    }
+
+    private var daysUntilDue: Int {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfDueDate = calendar.startOfDay(for: occurrence.dueDate)
+
+        return calendar.dateComponents([.day], from: startOfToday, to: startOfDueDate).day ?? 0
+    }
+
+    private var isOverdue: Bool {
+        daysUntilDue < 0
+    }
+
+    private var countdownProgress: Double {
+        let remainingMagnitude = min(abs(Double(daysUntilDue)), 30)
+        return remainingMagnitude / 30
+    }
+
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
-            // Category icon
-            if let info = categoryInfo {
-                Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
-                    .foregroundStyle(DesignSystem.Color.categoryColor(for: info.colorToken))
-                    .font(.title2)
-                    .frame(width: 40)
-            } else {
-                // Placeholder for alignment when no category
-                Color.clear
-                    .frame(width: 40)
-            }
+            CountdownBadgeView(
+                text: countdownText,
+                color: timeSpanColor,
+                progress: countdownProgress,
+                isOverdue: isOverdue
+            )
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.small / 2) {
                 Text(occurrence.name)
@@ -405,9 +426,14 @@ struct BillRowView: View {
                 }
 
                 if let info = categoryInfo {
-                    Text(info.name)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        if let info = categoryInfo {
+                            Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                        }
+                        Text(info.name)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -424,6 +450,40 @@ struct BillRowView: View {
             }
         }
         .padding(.vertical, DesignSystem.Spacing.small / 2)
+    }
+}
+
+private struct CountdownBadgeView: View {
+    let text: String
+    let color: Color
+    let progress: Double
+    let isOverdue: Bool
+
+    private let lineWidth: CGFloat = 3
+
+    var body: some View {
+        let clampedProgress = max(0, min(progress, 1))
+
+        ZStack {
+            Circle()
+                .stroke(color.opacity(0.18), lineWidth: lineWidth)
+
+            Circle()
+                .trim(from: 0, to: clampedProgress)
+                .stroke(
+                    color,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(isOverdue ? 90 : -90))
+
+            Text(text)
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .foregroundStyle(color)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(width: 52, height: 52)
     }
 }
 
