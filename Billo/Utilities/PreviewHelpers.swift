@@ -54,13 +54,28 @@ struct BilloPreviewContainer {
                 name: "Mortgage",
                 amount: 5800,
                 dueDate: calendar.date(byAdding: .day, value: 10, to: now) ?? now,
-                categoryIdentifier: .predefined(.housing)
+                categoryIdentifier: .predefined(.housing),
+                recurrenceRule: .init(pattern: .monthly, frequency: 1, dayOfWeek: nil, dayOfMonth: 1, endConditionType: .never, endDate: nil)
             ),
             Bill(
                 name: "Streaming subscription",
                 amount: 350,
                 dueDate: calendar.date(byAdding: .day, value: -1, to: now) ?? now,
-                categoryIdentifier: .predefined(.subscriptions)
+                categoryIdentifier: .predefined(.subscriptions),
+                recurrenceRule: .init(pattern: .weekly, frequency: 1, dayOfWeek: .monday, dayOfMonth: nil, endConditionType: .never, endDate: nil)
+            ),
+            Bill(
+                name: "Electricity",
+                amount: 420.30,
+                dueDate: calendar.date(byAdding: .day, value: -1, to: now) ?? now,
+                categoryIdentifier: .predefined(.utilities)
+            ),
+            Bill(
+                name: "Kidds school loan repayment",
+                amount: 1359.50,
+                dueDate: calendar.date(byAdding: .day, value: 22, to: now) ?? now,
+                categoryIdentifier: .predefined(.subscriptions),
+                recurrenceRule: .init(pattern: .monthly, frequency: 1, dayOfWeek: nil, dayOfMonth: 15, endConditionType: .never, endDate: nil)
             )
         ]
 

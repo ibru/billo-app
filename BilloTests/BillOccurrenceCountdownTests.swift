@@ -78,6 +78,36 @@ struct BillOccurrenceCountdownTests {
     }
 }
 
+@Suite("Countdown Badge Configuration") @MainActor
+struct CountdownBadgeConfigurationTests {
+
+    @Test
+    func whenDueInTenDays_thenShowsBadgeWithProgressRelativeToThirtyDays() {
+        let config = makeBadgeConfiguration(daysFromToday: 10)
+
+        #expect(config.isVisible)
+        #expect(!config.isOverdue)
+        #expect(abs(config.progress - (10.0 / 30.0)) < 0.0001)
+    }
+
+    @Test
+    func whenOverdueByTenDays_thenShowsBadgeMarkedOverdue() {
+        let config = makeBadgeConfiguration(daysFromToday: -10)
+
+        #expect(config.isVisible)
+        #expect(config.isOverdue)
+        #expect(abs(config.progress - (10.0 / 30.0)) < 0.0001)
+    }
+
+    @Test
+    func whenDueByMoreThanThirtyDays_thenHidesBadge() {
+        let config = makeBadgeConfiguration(daysFromToday: 31)
+
+        #expect(!config.isVisible)
+        #expect(!config.isOverdue)
+    }
+}
+
 // MARK: - makeSUT & Factories
 
 @MainActor
@@ -88,6 +118,19 @@ private func makeOccurrence(
 ) -> BillOccurrence {
     let dueDate = calendar.date(byAdding: .day, value: offset, to: referenceDate)!
     return BillOccurrence(bill: makeBill(dueDate: dueDate), dueDate: dueDate)
+}
+
+@MainActor
+private func makeBadgeConfiguration(daysFromToday: Int) -> CountdownBadgeConfiguration {
+    let calendar = makeCalendar()
+    let referenceDate = makeDate(year: 2025, month: 12, day: 4, calendar: calendar)
+    let occurrence = makeOccurrence(dueInDays: daysFromToday, from: referenceDate, calendar: calendar)
+
+    return CountdownBadgeConfiguration.make(
+        for: occurrence,
+        today: referenceDate,
+        calendar: calendar
+    )
 }
 
 @MainActor
