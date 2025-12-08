@@ -48,7 +48,7 @@ struct BilloApp: App {
     var body: some Scene {
         WindowGroup {
             if let billsModel, let paymentHistoryModel, let notificationCoordinator, let preferencesStore {
-                BillsListView()
+                BillsHomeSwitchView()
                     .environment(billsModel)
                     .environment(paymentHistoryModel)
                     .environment(notificationCoordinator)

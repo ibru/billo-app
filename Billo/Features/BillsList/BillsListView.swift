@@ -17,6 +17,7 @@ private enum BillsListAnchor: Hashable {
 }
 
 struct BillsListView: View {
+    private let viewMode: Binding<BillsHomeViewMode>?
     @Environment(BillsModel.self) private var billsModel
     @Environment(PaymentHistoryModel.self) private var paymentHistoryModel
     @Environment(NotificationCoordinator.self) private var notificationCoordinator
@@ -30,6 +31,10 @@ struct BillsListView: View {
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
     fileprivate static let scrollSpaceName = "BillsListScrollSpace"
+
+    init(viewMode: Binding<BillsHomeViewMode>? = nil) {
+        self.viewMode = viewMode
+    }
 
     var body: some View {
         NavigationStack {
@@ -63,6 +68,15 @@ struct BillsListView: View {
                             showingAddBill = true
                         } label: {
                             Image(systemName: "plus")
+                        }
+                    }
+                }
+                .toolbarTitleMenu {
+                    if let viewMode {
+                        Picker("Default view", selection: viewMode) {
+                            ForEach(BillsHomeViewMode.allCases) { mode in
+                                Label(mode.title, systemImage: mode.iconName).tag(mode)
+                            }
                         }
                     }
                 }
@@ -440,9 +454,12 @@ struct BillRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color(.tertiaryLabel))
         }
-//        .padding(.horizontal, max(0, DesignSystem.Spacing.small - 4))
-//        .padding(.vertical, max(0, DesignSystem.Spacing.small / 2 - 4))
+        .padding(.vertical, DesignSystem.Spacing.small)
     }
 }
 
@@ -633,4 +650,3 @@ struct CompactMonthlySummary: View {
     return BillsListView()
         .billoPreviewEnvironment(preview)
 }
-

@@ -32,6 +32,39 @@ struct BillsModelTests {
     @MainActor
     @Suite("markPaid")
     struct MarkPaid {
+        @Test func when_markPaidCalled_then_occurrenceStatusUpdated() async throws {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+            let (sut, bills, _, _, _, _) = try makeSUT(
+                billCount: 1,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+
+            try await sut.markPaid(occurrence)
+
+            #expect(bills[0].status(relativeTo: referenceDate, calendar: calendar) == .paid)
+        }
+
+        @Test func when_markPaidCalled_then_paymentRecordCreated() async throws {
+            let (sut, bills, modelContext, _, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+
+            try await sut.markPaid(occurrence)
+
+            let payments = try modelContext.fetch(FetchDescriptor<Payment>())
+            #expect(payments.count == 1)
+            #expect(payments.first?.bill?.id == bills[0].id)
+            #expect(payments.first?.occurrenceDate == occurrence.dueDate)
+        }
+
         @Test func whenMarkingOccurrencePaid_thenCreatesPayment() async throws {
             let (sut, bills, _, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()

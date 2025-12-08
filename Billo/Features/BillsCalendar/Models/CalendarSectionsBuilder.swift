@@ -1,0 +1,78 @@
+//  Created by Jiri Urbasek on 12/05/25.
+
+import Foundation
+
+enum CalendarSectionsBuilder {
+    static func build(
+        occurrences: [BillOccurrence],
+        payments: [Payment],
+        from startMonth: DateComponents,
+        to endMonth: DateComponents,
+        calendar: Calendar
+    ) -> [CalendarMonthSection] {
+        guard let _ = startMonth.year, let _ = startMonth.month else { return [] }
+        guard let _ = endMonth.year, let _ = endMonth.month else { return [] }
+
+        var sections: [CalendarMonthSection] = []
+        var current = startMonth
+
+        while !isAfter(current, endMonth, calendar: calendar) {
+            guard let monthStart = calendar.date(from: current),
+                  let monthInterval = calendar.dateInterval(of: .month, for: monthStart) else {
+                break
+            }
+
+            let monthOccurrences = occurrences.filter { contains($0.dueDate, in: monthInterval) }
+            let monthPayments = payments.filter { contains($0.datePaid, in: monthInterval) }
+
+            var items: [CalendarListItem] = []
+            items.append(contentsOf: monthOccurrences.map { .occurrence($0) })
+            items.append(contentsOf: monthPayments.map { .payment($0) })
+            items.sort { lhs, rhs in
+                if lhs.date == rhs.date {
+                    return lhs.id < rhs.id
+                }
+                return lhs.date < rhs.date
+            }
+
+            let sectionId = Self.sectionId(from: current)
+            if items.isEmpty {
+                items = [.emptyMonth(sectionId: sectionId)]
+            }
+
+            sections.append(
+                CalendarMonthSection(
+                    id: sectionId,
+                    title: monthStart.formatted(.dateTime.month(.wide).year()),
+                    items: items
+                )
+            )
+
+            guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart) else { break }
+            current = calendar.dateComponents([.year, .month], from: nextMonth)
+        }
+
+        return sections
+    }
+
+    private static func isAfter(
+        _ lhs: DateComponents,
+        _ rhs: DateComponents,
+        calendar: Calendar
+    ) -> Bool {
+        guard let lhsDate = calendar.date(from: lhs), let rhsDate = calendar.date(from: rhs) else {
+            return false
+        }
+        return lhsDate > rhsDate
+    }
+
+    private static func sectionId(from components: DateComponents) -> String {
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        return String(format: "%04d-%02d", year, month)
+    }
+
+    private static func contains(_ date: Date, in interval: DateInterval) -> Bool {
+        date >= interval.start && date < interval.end
+    }
+}

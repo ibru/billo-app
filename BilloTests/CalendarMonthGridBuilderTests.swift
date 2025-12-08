@@ -1,0 +1,200 @@
+//  Created by Jiri Urbasek on 12/05/25.
+
+import Foundation
+import SwiftData
+import Testing
+@testable import Billo
+
+@MainActor
+@Suite("CalendarMonthGridBuilder")
+struct CalendarMonthGridBuilderTests {
+    @Test
+    func when_occurrenceInMonth_then_dayDataContainsOccurrence() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let month = DateComponents(year: 2025, month: 1)
+
+        let bill = makeBill(name: "Rent", dueDate: makeDate(year: 2025, month: 1, day: 5, calendar: calendar), in: context)
+        let occurrences = [BillOccurrence(bill: bill, dueDate: bill.dueDate)]
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: occurrences,
+            payments: []
+        )
+
+        let dayKey = calendar.startOfDay(for: bill.dueDate)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.occurrences.count == 1)
+        #expect(dayData.payments.isEmpty)
+    }
+
+    @Test
+    func when_paymentInMonth_then_dayDataContainsPayment() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let month = DateComponents(year: 2025, month: 2)
+
+        let bill = makeBill(name: "Loan", dueDate: makeDate(year: 2025, month: 1, day: 20, calendar: calendar), in: context)
+        let paymentDate = makeDate(year: 2025, month: 2, day: 2, calendar: calendar)
+        let payment = makePayment(amount: 100, paid: paymentDate, occurrence: bill.dueDate, bill: bill, in: context)
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: [],
+            payments: [payment]
+        )
+
+        let dayKey = calendar.startOfDay(for: paymentDate)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.payments.count == 1)
+        #expect(dayData.occurrences.isEmpty)
+    }
+
+    @Test
+    func when_occurrenceAndPaymentSameDay_then_bothAggregated() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let month = DateComponents(year: 2025, month: 3)
+
+        let dueDate = makeDate(year: 2025, month: 3, day: 10, calendar: calendar)
+        let bill = makeBill(name: "Utilities", dueDate: dueDate, in: context)
+        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
+        let payment = makePayment(amount: 60, paid: dueDate, occurrence: dueDate, bill: bill, in: context)
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: [occurrence],
+            payments: [payment]
+        )
+
+        let dayKey = calendar.startOfDay(for: dueDate)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.occurrences.count == 1)
+        #expect(dayData.payments.count == 1)
+    }
+
+    @Test
+    func when_multipleOccurrencesSameDay_then_allRetained() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let month = DateComponents(year: 2025, month: 4)
+
+        let day = makeDate(year: 2025, month: 4, day: 15, calendar: calendar)
+        let billA = makeBill(name: "A", dueDate: day, in: context)
+        let billB = makeBill(name: "B", dueDate: day, in: context)
+        let occurrences = [
+            BillOccurrence(bill: billA, dueDate: day),
+            BillOccurrence(bill: billB, dueDate: day)
+        ]
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: occurrences,
+            payments: []
+        )
+
+        let dayKey = calendar.startOfDay(for: day)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.occurrences.count == 2)
+    }
+
+    @Test
+    func when_itemsOutsideMonth_then_ignored() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let month = DateComponents(year: 2025, month: 5)
+
+        let inMonthDate = makeDate(year: 2025, month: 5, day: 1, calendar: calendar)
+        let outMonthDate = makeDate(year: 2025, month: 6, day: 1, calendar: calendar)
+
+        let billIn = makeBill(name: "In", dueDate: inMonthDate, in: context)
+        let billOut = makeBill(name: "Out", dueDate: outMonthDate, in: context)
+
+        let occurrences = [
+            BillOccurrence(bill: billIn, dueDate: inMonthDate),
+            BillOccurrence(bill: billOut, dueDate: outMonthDate)
+        ]
+
+        let payment = makePayment(amount: 10, paid: outMonthDate, occurrence: billOut.dueDate, bill: billOut, in: context)
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: occurrences,
+            payments: [payment]
+        )
+
+        #expect(grid.keys.count == 1)
+        let key = calendar.startOfDay(for: inMonthDate)
+        #expect(grid[key]?.occurrences.count == 1)
+        #expect(grid[key]?.payments.count == 0)
+    }
+
+    @Test
+    func when_invalidMonthComponents_then_returnsEmpty() {
+        let calendar = utcCalendar()
+        let grid = CalendarMonthGridBuilder.build(
+            month: DateComponents(), // missing month/year
+            calendar: calendar,
+            occurrences: [],
+            payments: []
+        )
+
+        #expect(grid.isEmpty)
+    }
+}
+
+// MARK: - Helpers
+
+private func utcCalendar() -> Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    calendar.locale = Locale(identifier: "en_US_POSIX")
+    return calendar
+}
+
+private func makeDate(year: Int, month: Int, day: Int, calendar: Calendar) -> Date {
+    calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+}
+
+private func makeContext() throws -> ModelContext {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try ModelContainer(for: Bill.self, Payment.self, configurations: config)
+    return ModelContext(container)
+}
+
+@discardableResult
+private func makeBill(name: String, dueDate: Date, in context: ModelContext) -> Bill {
+    let bill = Bill(
+        name: name,
+        amount: Decimal(100),
+        currencyCode: "USD",
+        dueDate: dueDate,
+        notes: nil,
+        accountIdentifier: nil,
+        providerURL: nil,
+        categoryIdentifier: .predefined(.utilities),
+        recurrenceRule: nil
+    )
+    context.insert(bill)
+    return bill
+}
+
+@discardableResult
+private func makePayment(amount: Decimal, paid date: Date, occurrence: Date, bill: Bill, in context: ModelContext) -> Payment {
+    let payment = Payment(
+        amount: amount,
+        datePaid: date,
+        occurrenceDate: occurrence,
+        confirmationNumber: nil,
+        notes: nil,
+        bill: bill
+    )
+    context.insert(payment)
+    return payment
+}

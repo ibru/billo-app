@@ -1,0 +1,50 @@
+//  Created by Jiri Urbasek on 12/05/25.
+
+import Foundation
+
+enum CalendarNavigationBounds {
+    static let futureMonthLimit = 36
+
+    static func earliestMonth(
+        bills: [Bill],
+        payments: [Payment],
+        calendar: Calendar,
+        currentDate: Date = Date()
+    ) -> DateComponents {
+        var earliest = calendar.startOfMonth(for: currentDate)
+
+        if let earliestBill = bills.min(by: { $0.dueDate < $1.dueDate }) {
+            let billMonth = calendar.startOfMonth(for: earliestBill.dueDate)
+            if billMonth < earliest {
+                earliest = billMonth
+            }
+        }
+
+        if let earliestPayment = payments.min(by: { $0.datePaid < $1.datePaid }) {
+            let paymentMonth = calendar.startOfMonth(for: earliestPayment.datePaid)
+            if paymentMonth < earliest {
+                earliest = paymentMonth
+            }
+        }
+
+        return calendar.dateComponents([.year, .month], from: earliest)
+    }
+
+    static func latestMonth(
+        from referenceDate: Date,
+        calendar: Calendar,
+        limit: Int = futureMonthLimit
+    ) -> DateComponents {
+        guard let futureDate = calendar.date(byAdding: .month, value: limit, to: referenceDate) else {
+            return calendar.dateComponents([.year, .month], from: calendar.startOfMonth(for: referenceDate))
+        }
+        return calendar.dateComponents([.year, .month], from: calendar.startOfMonth(for: futureDate))
+    }
+}
+
+private extension Calendar {
+    func startOfMonth(for date: Date) -> Date {
+        let components = dateComponents([.year, .month], from: date)
+        return self.date(from: components) ?? date
+    }
+}
