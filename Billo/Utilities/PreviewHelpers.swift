@@ -22,7 +22,6 @@ struct BilloPreviewContainer {
     let container: ModelContainer
     let context: ModelContext
     let billsModel: BillsModel
-    let paymentHistoryModel: PaymentHistoryModel
     let notificationCoordinator: NotificationCoordinator
     let preferencesStore: NotificationPreferencesStore
     let bills: [Bill]
@@ -101,12 +100,10 @@ struct BilloPreviewContainer {
             notificationCenter: PreviewUNNotificationCenter(),
             preferences: preferencesStore
         )
-        let paymentHistoryModel = PaymentHistoryModel(modelContext: context)
         let billsModel = BillsModel(
             modelContext: context,
             calendar: calendar,
             currentDate: { referenceDate },
-            paymentHistoryRefresher: paymentHistoryModel,
             notificationCoordinator: notificationCoordinator,
             notificationPreferences: preferencesStore
         )
@@ -116,7 +113,6 @@ struct BilloPreviewContainer {
             container: container,
             context: context,
             billsModel: billsModel,
-            paymentHistoryModel: paymentHistoryModel,
             notificationCoordinator: notificationCoordinator,
             preferencesStore: preferencesStore,
             bills: sampleBills
@@ -140,12 +136,10 @@ struct BilloPreviewContainer {
             notificationCenter: PreviewUNNotificationCenter(),
             preferences: preferencesStore
         )
-        let paymentHistoryModel = PaymentHistoryModel(modelContext: context)
         let billsModel = BillsModel(
             modelContext: context,
             calendar: Calendar.current,
             currentDate: { referenceDate },
-            paymentHistoryRefresher: paymentHistoryModel,
             notificationCoordinator: notificationCoordinator,
             notificationPreferences: preferencesStore
         )
@@ -155,7 +149,6 @@ struct BilloPreviewContainer {
             container: container,
             context: context,
             billsModel: billsModel,
-            paymentHistoryModel: paymentHistoryModel,
             notificationCoordinator: notificationCoordinator,
             preferencesStore: preferencesStore,
             bills: []
@@ -171,7 +164,6 @@ extension View {
     func billoPreviewEnvironment(_ preview: BilloPreviewContainer, colorScheme: ColorScheme? = nil) -> some View {
         self
             .environment(preview.billsModel)
-            .environment(preview.paymentHistoryModel)
             .environment(preview.notificationCoordinator)
             .environment(preview.preferencesStore)
             .modelContainer(preview.container)

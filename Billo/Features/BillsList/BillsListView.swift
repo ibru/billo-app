@@ -3,77 +3,33 @@
 import SwiftData
 import SwiftUI
 
-private enum BillsListAnchor: Hashable {
-    case historyToggle
-    case paymentHistorySection
-    case paymentHistoryLoadTrigger
-    case paymentRow(PersistentIdentifier)
-    case summarySection
-    case billSection(BillSection)
-    case billOccurrence(BillOccurrence.OccurrenceID)
-}
-
 struct BillsListView: View {
     @Environment(BillsModel.self) private var billsModel
-    @Environment(PaymentHistoryModel.self) private var paymentHistoryModel
     @Environment(\.modelContext) private var modelContext
 
-    @State private var currentVisibleAnchor: BillsListAnchor = .historyToggle
-    @State private var isRestoringScroll = false
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
-
-    fileprivate static let scrollSpaceName = "BillsListScrollSpace"
 
     init() { }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            List {
-                listContent(proxy: proxy)
-            }
-            .listSectionSpacing(0)
-            .coordinateSpace(name: BillsListView.scrollSpaceName)
-            .onPreferenceChange(VisibleRowPreferenceKey.self, perform: updateVisibleAnchor)
-            .onChange(of: currentVisibleAnchor, initial: false) { _, newAnchor in
-                handleAnchorChange(newAnchor)
-            }
-            .task {
-                do {
-                    try billsModel.refresh()
-                } catch {
-                    print("Failed to refresh bills: \(error)")
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func listContent(proxy: ScrollViewProxy) -> some View {
-        if paymentHistoryModel.isHistoryVisible {
-            PaymentHistorySectionView(
-                payments: paymentHistoryModel.displayedPayments,
-                customCategories: customCategories,
-                isLoading: paymentHistoryModel.isLoading,
-                hasMorePages: paymentHistoryModel.hasMorePayments
+        List {
+            SummarySectionView(
+                overview: billsModel.sections.weeklyOverview,
+                totals: billsModel.sections.monthlyTotals
             )
+            PaymentHistoryNavigationRow()
+                .listRowBackground(Color.clear)
+
+            billSections()
         }
-
-        PaymentHistoryToggleRow(
-            isVisible: paymentHistoryModel.isHistoryVisible,
-            action: { toggleHistory(with: proxy) }
-        )
-        .listRowBackground(Color.clear)
-        .id(BillsListAnchor.historyToggle)
-        .trackVisibleRow(id: .historyToggle)
-
-        SummarySectionView(
-            overview: billsModel.sections.weeklyOverview,
-            totals: billsModel.sections.monthlyTotals
-        )
-        .id(BillsListAnchor.summarySection)
-        .trackVisibleRow(id: .summarySection)
-
-        billSections()
+        .listSectionSpacing(0)
+        .task {
+            do {
+                try billsModel.refresh()
+            } catch {
+                print("Failed to refresh bills: \(error)")
+            }
+        }
     }
 
     @ViewBuilder
@@ -85,82 +41,17 @@ struct BillsListView: View {
                         NavigationLink(value: occurrence.bill) {
                             BillRowView(occurrence: occurrence, customCategories: customCategories)
                         }
-                        .id(BillsListAnchor.billOccurrence(occurrence.id))
-                        .trackVisibleRow(id: .billOccurrence(occurrence.id))
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button {
                                 markPaid(occurrence)
                             } label: {
-                                Label("Mark Paid", systemImage: "checkmark.circle")
+                                Label("Paid Today", systemImage: "checkmark.circle")
                             }
                             .tint(.green)
                         }
                     }
-                }
-                header: {
+                } header: {
                     BillSectionHeader(section: section)
-                }
-                .id(BillsListAnchor.billSection(section))
-                .trackVisibleRow(id: .billSection(section))
-            }
-        }
-    }
-
-    private func toggleHistory(with proxy: ScrollViewProxy) {
-        let anchorToRestore = currentVisibleAnchor
-
-        Task { @MainActor in
-            isRestoringScroll = true
-            do {
-                try await paymentHistoryModel.toggleHistory()
-            } catch {
-                print("Failed to toggle payment history: \(error)")
-            }
-
-            try? await Task.sleep(for: .milliseconds(50))
-            let target = adjustedAnchorForRestoration(anchorToRestore)
-
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-
-            withTransaction(transaction) {
-                proxy.scrollTo(target, anchor: .top)
-            }
-
-            try? await Task.sleep(for: .milliseconds(80))
-            isRestoringScroll = false
-        }
-    }
-
-    private func adjustedAnchorForRestoration(_ anchor: BillsListAnchor) -> BillsListAnchor {
-        switch anchor {
-        case .paymentHistorySection, .paymentHistoryLoadTrigger, .paymentRow(_):
-            return paymentHistoryModel.isHistoryVisible ? anchor : .historyToggle
-        default:
-            return anchor
-        }
-    }
-
-    private func updateVisibleAnchor(_ measurements: [VisibleRowMeasurement]) {
-        guard !isRestoringScroll else { return }
-        guard let candidate = measurements.min(by: { $0.scrollScore < $1.scrollScore }) else { return }
-
-        if candidate.id != currentVisibleAnchor {
-            currentVisibleAnchor = candidate.id
-        }
-    }
-
-    private func handleAnchorChange(_ anchor: BillsListAnchor) {
-        guard paymentHistoryModel.isHistoryVisible else { return }
-        guard !isRestoringScroll else { return }
-
-        if anchor == .paymentHistoryLoadTrigger {
-            Task { @MainActor in
-                guard paymentHistoryModel.hasMorePayments, !paymentHistoryModel.isLoading else { return }
-                do {
-                    try await paymentHistoryModel.loadNextBatch()
-                } catch {
-                    print("Failed to load older payments: \(error)")
                 }
             }
         }
@@ -177,67 +68,18 @@ struct BillsListView: View {
     }
 }
 
-private struct PaymentHistoryToggleRow: View {
-    let isVisible: Bool
-    let action: () -> Void
-
+private struct PaymentHistoryNavigationRow: View {
     var body: some View {
         Section {
-            Button(action: action) {
+            NavigationLink(value: AppDestination.paymentHistory) {
                 HStack(spacing: DesignSystem.Spacing.small) {
-                    Image(systemName: isVisible ? "chevron.up" : "chevron.down")
-                    Text(isVisible ? "Hide Payment History" : "Show Payment History")
+                    Image(systemName: "clock.arrow.circlepath")
+                    Text(String(localized: "Payment History"))
                     Spacer()
                 }
                 .font(.caption)
             }
-            .buttonStyle(.borderless)
         }
-    }
-}
-
-private struct PaymentHistorySectionView: View {
-    let payments: [Payment]
-    let customCategories: [CustomCategory]
-    let isLoading: Bool
-    let hasMorePages: Bool
-
-    var body: some View {
-        Section("Payment History") {
-            if hasMorePages {
-                Color.clear
-                    .frame(height: 0.1)
-                    .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .accessibilityHidden(true)
-                    .id(BillsListAnchor.paymentHistoryLoadTrigger)
-                    .trackVisibleRow(id: .paymentHistoryLoadTrigger)
-            }
-
-            if payments.isEmpty {
-                Text("No payments yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, DesignSystem.Spacing.small)
-            } else {
-                ForEach(payments, id: \.persistentModelID) { payment in
-                    PaymentRowView(payment: payment, customCategories: customCategories)
-                        .id(BillsListAnchor.paymentRow(payment.persistentModelID))
-                        .trackVisibleRow(id: .paymentRow(payment.persistentModelID))
-                }
-            }
-
-            if isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .padding(.vertical, DesignSystem.Spacing.small)
-            }
-        }
-        .id(BillsListAnchor.paymentHistorySection)
-        .trackVisibleRow(id: .paymentHistorySection)
     }
 }
 
@@ -269,41 +111,6 @@ private struct SummarySectionView: View {
             )
         )
         .listRowBackground(Color.clear)
-    }
-}
-
-private struct VisibleRowMeasurement: Equatable {
-    let id: BillsListAnchor
-    let minY: CGFloat
-
-    var scrollScore: CGFloat {
-        minY >= 0 ? minY : abs(minY) + 10_000
-    }
-}
-
-private struct VisibleRowPreferenceKey: PreferenceKey {
-    static var defaultValue: [VisibleRowMeasurement] = []
-
-    static func reduce(value: inout [VisibleRowMeasurement], nextValue: () -> [VisibleRowMeasurement]) {
-        value.append(contentsOf: nextValue())
-    }
-}
-
-private extension View {
-    func trackVisibleRow(id: BillsListAnchor) -> some View {
-        background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: VisibleRowPreferenceKey.self,
-                    value: [
-                        VisibleRowMeasurement(
-                            id: id,
-                            minY: proxy.frame(in: .named(BillsListView.scrollSpaceName)).minY
-                        )
-                    ]
-                )
-            }
-        )
     }
 }
 
@@ -447,8 +254,6 @@ private struct CountdownBadgeView: View {
 
             VStack(spacing: -2) {
                 Text(numberText)
-//                    .font(.title3)
-//                    .fontWeight(.light)
                 Text(unitText)
                     .font(.caption2)
                     .fontWeight(.light)

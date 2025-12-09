@@ -1,9 +1,15 @@
 //  Created by Jiri Urbasek on 12/05/25.
 
+import SwiftData
 import SwiftUI
 
 struct PaymentDetailView: View {
-    let payment: Payment
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    @Bindable var payment: Payment
+
+    @State private var showDeleteConfirmation = false
 
     private var currencyCode: String {
         payment.bill?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
@@ -49,8 +55,32 @@ struct PaymentDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            Section {
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Label("Delete Payment", systemImage: "trash")
+                }
+            }
         }
         .navigationTitle("Payment")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "Delete Payment",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                deletePayment()
+            }
+        } message: {
+            Text("Are you sure you want to delete this payment? This action cannot be undone.")
+        }
+    }
+
+    private func deletePayment() {
+        modelContext.delete(payment)
+        dismiss()
     }
 }

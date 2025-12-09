@@ -10,7 +10,6 @@ final class BillsModel {
     @ObservationIgnored private let modelContext: ModelContext
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let currentDate: () -> Date
-    @ObservationIgnored private let paymentHistoryRefresher: PaymentHistoryRefreshing
     @ObservationIgnored private let notificationCoordinator: NotificationCoordinating
     @ObservationIgnored private let notificationPreferences: NotificationPreferencesReading
     @ObservationIgnored private let badgeCalculator: BadgeCalculator
@@ -22,14 +21,12 @@ final class BillsModel {
         modelContext: ModelContext,
         calendar: Calendar = .current,
         currentDate: @escaping () -> Date = { Date() },
-        paymentHistoryRefresher: PaymentHistoryRefreshing,
         notificationCoordinator: NotificationCoordinating,
         notificationPreferences: NotificationPreferencesReading
     ) {
         self.modelContext = modelContext
         self.calendar = calendar
         self.currentDate = currentDate
-        self.paymentHistoryRefresher = paymentHistoryRefresher
         self.notificationCoordinator = notificationCoordinator
         self.notificationPreferences = notificationPreferences
         self.badgeCalculator = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
@@ -71,7 +68,6 @@ final class BillsModel {
         )
 
         try refresh()
-        try await paymentHistoryRefresher.refresh()
     }
 
     func markUnpaid(_ occurrence: BillOccurrence) async throws {
@@ -91,7 +87,6 @@ final class BillsModel {
         await notificationCoordinator.updateBadge(unpaidCount: unpaidCount)
 
         try refresh()
-        try await paymentHistoryRefresher.reloadVisibleWindow()
     }
 
     func deleteBill(_ bill: Bill) async throws {

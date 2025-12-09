@@ -31,7 +31,6 @@ struct BilloApp: App {
     }()
 
     @State private var billsModel: BillsModel?
-    @State private var paymentHistoryModel: PaymentHistoryModel?
     @State private var notificationCoordinator: NotificationCoordinator?
     @State private var preferencesStore: NotificationPreferencesStore?
     private let notificationDelegate = NotificationDelegate()
@@ -47,10 +46,9 @@ struct BilloApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let billsModel, let paymentHistoryModel, let notificationCoordinator, let preferencesStore {
+            if let billsModel, let notificationCoordinator, let preferencesStore {
                 BillsHomeSwitchView()
                     .environment(billsModel)
-                    .environment(paymentHistoryModel)
                     .environment(notificationCoordinator)
                     .environment(preferencesStore)
             } else {
@@ -74,15 +72,12 @@ struct BilloApp: App {
                         notificationDelegate.notificationCoordinator = coordinator
                         notificationDelegate.notificationPreferences = preferences
 
-                        let historyModel = PaymentHistoryModel(modelContext: context)
                         let bills = BillsModel(
                             modelContext: context,
-                            paymentHistoryRefresher: historyModel,
                             notificationCoordinator: coordinator,
                             notificationPreferences: preferences
                         )
 
-                        paymentHistoryModel = historyModel
                         billsModel = bills
                         notificationCoordinator = coordinator
                         preferencesStore = preferences

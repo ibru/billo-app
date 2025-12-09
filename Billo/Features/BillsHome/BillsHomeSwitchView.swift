@@ -2,6 +2,10 @@
 
 import SwiftUI
 
+enum AppDestination: Hashable {
+    case paymentHistory
+}
+
 struct BillsHomeSwitchView: View {
     @AppStorage("billsDefaultView") private var viewModeRawValue: String = BillsHomeViewMode.list.rawValue
 
@@ -36,6 +40,15 @@ struct BillsHomeSwitchView: View {
             .navigationDestination(for: Bill.self) { bill in
                 BillDetailView(bill: bill)
                     .environment(BillModel(bill: bill, modelContext: modelContext))
+            }
+            .navigationDestination(for: Payment.self) { payment in
+                PaymentDetailView(payment: payment)
+            }
+            .navigationDestination(for: AppDestination.self) { destination in
+                switch destination {
+                case .paymentHistory:
+                    PaymentHistoryView()
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
