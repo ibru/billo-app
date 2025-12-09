@@ -7,32 +7,6 @@ import Foundation
 @Suite("RecurrenceRule")
 struct RecurrenceRuleTests {
 
-    @Suite("generateOccurrences - Daily")
-    struct DailyRecurrence {
-        @Test func whenDaily_thenGeneratesOccurrencesEveryDay() {
-            let (sut, startDate, endDate, calendar) = makeSUT(pattern: .daily, frequency: 1)
-
-            let occurrences = sut.generateOccurrences(from: startDate, until: endDate, calendar: calendar)
-
-            #expect(occurrences.count == 15)
-            #expect(occurrences[0] == makeDate(day: 1))
-            #expect(occurrences[1] == makeDate(day: 2))
-            #expect(occurrences[14] == makeDate(day: 15))
-        }
-
-        @Test func whenDailyWithFrequencyTwo_thenGeneratesOccurrencesEveryTwoDays() {
-            let (sut, startDate, endDate, calendar) = makeSUT(pattern: .daily, frequency: 2)
-
-            let occurrences = sut.generateOccurrences(from: startDate, until: endDate, calendar: calendar)
-
-            #expect(occurrences.count == 8)
-            #expect(occurrences[0] == makeDate(day: 1))
-            #expect(occurrences[1] == makeDate(day: 3))
-            #expect(occurrences[2] == makeDate(day: 5))
-            #expect(occurrences[7] == makeDate(day: 15))
-        }
-    }
-
     @Suite("generateOccurrences - Weekly")
     struct WeeklyRecurrence {
         @Test func whenWeekly_thenGeneratesOccurrencesEveryWeek() {
@@ -119,10 +93,10 @@ struct RecurrenceRuleTests {
     struct EndConditions {
         @Test func whenEndDateBeforeMaxDate_thenStopsAtEndDate() {
             let startDate = makeDate(year: 2025, month: 1, day: 1)
-            let endDate = makeDate(year: 2025, month: 1, day: 5)
-            let maxDate = makeDate(year: 2025, month: 1, day: 30)
+            let endDate = makeDate(year: 2025, month: 1, day: 22)
+            let maxDate = makeDate(year: 2025, month: 3, day: 30)
             let sut = RecurrenceRule(
-                pattern: .daily,
+                pattern: .weekly,
                 frequency: 1,
                 endConditionType: .endDate,
                 endDate: endDate
@@ -130,18 +104,20 @@ struct RecurrenceRuleTests {
 
             let occurrences = sut.generateOccurrences(from: startDate, until: maxDate, calendar: .current)
 
-            #expect(occurrences.count == 5)
+            // Jan 1, 8, 15, 22 = 4 weekly occurrences
+            #expect(occurrences.count == 4)
             #expect(occurrences.last == endDate)
         }
 
         @Test func whenNeverEnds_thenStopsAtMaxDate() {
             let startDate = makeDate(year: 2025, month: 1, day: 1)
-            let maxDate = makeDate(year: 2025, month: 1, day: 5)
-            let sut = RecurrenceRule(pattern: .daily, frequency: 1, endConditionType: .never)
+            let maxDate = makeDate(year: 2025, month: 1, day: 22)
+            let sut = RecurrenceRule(pattern: .weekly, frequency: 1, endConditionType: .never)
 
             let occurrences = sut.generateOccurrences(from: startDate, until: maxDate, calendar: .current)
 
-            #expect(occurrences.count == 5)
+            // Jan 1, 8, 15, 22 = 4 weekly occurrences
+            #expect(occurrences.count == 4)
             #expect(occurrences.last == maxDate)
         }
     }

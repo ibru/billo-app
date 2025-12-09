@@ -271,10 +271,6 @@ extension Bill {
         }
 
         switch rule.pattern {
-        case .daily:
-            // Daily: 12 months back = ~365 occurrences (handles year overdue)
-            // 6 months ahead = ~180 occurrences (early payment flexibility)
-            return (lookback: 12, lookahead: 6)
         case .weekly:
             // Weekly: 18 months back = ~78 occurrences (1.5 year overdue)
             // 24 months ahead = ~104 occurrences (2 year advance payment)

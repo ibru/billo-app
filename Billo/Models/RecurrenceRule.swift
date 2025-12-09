@@ -66,9 +66,6 @@ extension RecurrenceRule {
 
     private func calculateNextOccurrence(after date: Date, calendar: Calendar) -> Date? {
         switch pattern {
-        case .daily:
-            return calendar.date(byAdding: .day, value: frequency, to: date)
-
         case .weekly:
             return calendar.date(byAdding: .weekOfYear, value: frequency, to: date)
 
@@ -98,7 +95,6 @@ extension RecurrenceRule {
 // MARK: - Supporting Types
 
 enum RepeatIntervalType: String, Codable, CaseIterable {
-    case daily
     case weekly
     case monthly
     case yearly

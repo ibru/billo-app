@@ -229,7 +229,7 @@ struct BillEditView: View {
             draftDayOfWeek = Weekday.fromCalendarWeekday(weekday) ?? .monday
         case .monthly:
             draftDayOfMonth = calendar.component(.day, from: dueDate)
-        case .daily, .yearly:
+        case .yearly:
             break
         }
     }

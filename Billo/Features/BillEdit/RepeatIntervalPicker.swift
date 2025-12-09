@@ -12,7 +12,6 @@ struct RepeatIntervalPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Picker("Repeat Type", selection: $selectedIntervalType) {
-                Text("Daily").tag(RepeatIntervalType.daily)
                 Text("Weekly").tag(RepeatIntervalType.weekly)
                 Text("Monthly").tag(RepeatIntervalType.monthly)
                 Text("Yearly").tag(RepeatIntervalType.yearly)
@@ -26,9 +25,6 @@ struct RepeatIntervalPicker: View {
     @ViewBuilder
     private var configurationView: some View {
         switch selectedIntervalType {
-        case .daily:
-            EmptyView()
-
         case .weekly:
             HStack {
                 Text("Every")

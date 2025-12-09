@@ -155,33 +155,40 @@ struct BillOccurrenceProviderTests {
     }
 
     @Test
-    func WHEN_dailyBillNotDueToday_THEN_noFakeTodayOccurrence() async throws {
-        // Given: Daily bill starting on the 1st, today is the 3rd
+    func WHEN_weeklyBillNotDueToday_THEN_noFakeTodayOccurrence() async throws {
+        // Given: Weekly bill starting on Dec 1 (Monday), today is Dec 3 (Wednesday)
         let bill = try makeBill(
-            dueDate: makeDate(year: 2025, month: 12, day: 1),
-            recurrence: .daily
+            dueDate: makeDate(year: 2025, month: 12, day: 1),  // Monday
+            recurrence: .weekly
         )
-        let referenceDate = makeDate(year: 2025, month: 12, day: 3)
+        let referenceDate = makeDate(year: 2025, month: 12, day: 3)  // Wednesday
 
         // When: Generate unpaid occurrences
         let sut = BillOccurrenceProvider()
         let occurrences = await sut.unpaidOccurrences(
             from: [bill],
             referenceDate: referenceDate,
-            horizonDays: 7,  // Just check next week
+            horizonDays: 30,  // Check next month
             calendar: calendar
         )
 
-        // Then: Should include occurrences on 1st, 2nd, 3rd, 4th, 5th, 6th, 7th, 8th, 9th, 10th
-        // But the key test: each date should be exactly once (no duplicates of "today")
+        // Then: Each date should be exactly once (no duplicates)
         let uniqueDates = Set(occurrences.map { calendar.startOfDay(for: $0.dueDate) })
         #expect(uniqueDates.count == occurrences.count, "Should not have duplicate occurrences for the same day")
 
-        // And: Should include the 3rd (today) as one of the occurrences
+        // And: Should NOT include the 3rd (Wednesday) since bill is due on Mondays
         let hasToday = occurrences.contains { occ in
             calendar.isDate(occ.dueDate, inSameDayAs: referenceDate)
         }
-        #expect(hasToday, "Daily bill should include today's occurrence")
+        #expect(!hasToday, "Weekly bill should not include today if not due today")
+
+        // And: Should include the 1st (first Monday occurrence)
+        let hasFirstDue = occurrences.contains { occ in
+            let day = calendar.component(.day, from: occ.dueDate)
+            let month = calendar.component(.month, from: occ.dueDate)
+            return day == 1 && month == 12
+        }
+        #expect(hasFirstDue, "Weekly bill should include first due date occurrence")
     }
 
     @Test

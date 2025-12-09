@@ -94,8 +94,6 @@ final class BillModel {
         let frequencyPrefix = rule.frequency == 1 ? "" : "Every \(rule.frequency) "
 
         switch rule.pattern {
-        case .daily:
-            return "\(frequencyPrefix)day(s)"
         case .weekly:
             if let day = rule.dayOfWeek {
                 return "\(frequencyPrefix)week(s) on \(day.displayName)"

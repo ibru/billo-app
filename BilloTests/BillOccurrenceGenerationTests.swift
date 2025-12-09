@@ -27,10 +27,10 @@ struct BillOccurrenceGenerationTests {
         }
     }
 
-    @Test func whenDailyBillOverdueOneYear_thenIncludesAllInWindow() throws {
+    @Test func whenWeeklyBillOverdueOneYear_thenIncludesAllInWindow() throws {
         let (bill, _) = try makeSUT(
             dueDate: makeDate(year: 2024, month: 9, day: 1),
-            pattern: .daily
+            pattern: .weekly
         )
 
         let unpaid = bill.unpaidOccurrences(
@@ -38,8 +38,8 @@ struct BillOccurrenceGenerationTests {
             calendar: .current
         )
 
-        // 12 month lookback = ~365 occurrences
-        #expect(unpaid.count >= 365, "Expected at least 365 daily occurrences (12mo window)")
+        // 18 month lookback = ~52 weekly occurrences per year
+        #expect(unpaid.count >= 52, "Expected at least 52 weekly occurrences (18mo window)")
     }
 
     @Test func whenWeeklyBillOverdue18Months_thenIncludesAllInWindow() throws {
