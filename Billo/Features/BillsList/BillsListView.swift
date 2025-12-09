@@ -2,9 +2,6 @@
 
 import SwiftData
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 private enum BillsListAnchor: Hashable {
     case historyToggle
@@ -17,104 +14,34 @@ private enum BillsListAnchor: Hashable {
 }
 
 struct BillsListView: View {
-    private let viewMode: Binding<BillsHomeViewMode>?
     @Environment(BillsModel.self) private var billsModel
     @Environment(PaymentHistoryModel.self) private var paymentHistoryModel
-    @Environment(NotificationCoordinator.self) private var notificationCoordinator
-    @Environment(NotificationPreferencesStore.self) private var preferencesStore
     @Environment(\.modelContext) private var modelContext
 
-    @State private var showingAddBill = false
-    @State private var showingSettings = false
     @State private var currentVisibleAnchor: BillsListAnchor = .historyToggle
     @State private var isRestoringScroll = false
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
     fileprivate static let scrollSpaceName = "BillsListScrollSpace"
 
-    init(viewMode: Binding<BillsHomeViewMode>? = nil) {
-        self.viewMode = viewMode
-    }
+    init() { }
 
     var body: some View {
-        NavigationStack {
-            ScrollViewReader { proxy in
-                List {
-                    listContent(proxy: proxy)
-                }
-                .listSectionSpacing(0)
-                .coordinateSpace(name: BillsListView.scrollSpaceName)
-                .onPreferenceChange(VisibleRowPreferenceKey.self, perform: updateVisibleAnchor)
-                .onChange(of: currentVisibleAnchor, initial: false) { _, newAnchor in
-                    handleAnchorChange(newAnchor)
-                }
-                .navigationTitle("Bills")
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationDestination(for: Bill.self) { bill in
-                    BillDetailView(bill: bill)
-                        .environment(BillModel(bill: bill, modelContext: modelContext))
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Image(systemName: "gear")
-                        }
-                    }
-
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showingAddBill = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
-                }
-                .toolbarTitleMenu {
-                    if let viewMode {
-                        Picker("Default view", selection: viewMode) {
-                            ForEach(BillsHomeViewMode.allCases) { mode in
-                                Label(mode.title, systemImage: mode.iconName).tag(mode)
-                            }
-                        }
-                    }
-                }
-                .sheet(isPresented: $showingAddBill) {
-                    BillEditView(mode: .adding)
-                        .environment(billsModel)
-                }
-                .sheet(isPresented: $showingSettings) {
-                    NavigationStack {
-                        NotificationSettingsView()
-                        .environment(
-                            NotificationSettingsModel(
-                                preferences: preferencesStore,
-                                coordinator: notificationCoordinator,
-                                openSettingsHandler: {
-#if os(iOS)
-                                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                                        UIApplication.shared.open(url)
-                                    }
-#endif
-                                }
-                            )
-                        )
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") {
-                                    showingSettings = false
-                                }
-                            }
-                        }
-                    }
-                }
-                .task {
-                    do {
-                        try billsModel.refresh()
-                    } catch {
-                        print("Failed to refresh bills: \(error)")
-                    }
+        ScrollViewReader { proxy in
+            List {
+                listContent(proxy: proxy)
+            }
+            .listSectionSpacing(0)
+            .coordinateSpace(name: BillsListView.scrollSpaceName)
+            .onPreferenceChange(VisibleRowPreferenceKey.self, perform: updateVisibleAnchor)
+            .onChange(of: currentVisibleAnchor, initial: false) { _, newAnchor in
+                handleAnchorChange(newAnchor)
+            }
+            .task {
+                do {
+                    try billsModel.refresh()
+                } catch {
+                    print("Failed to refresh bills: \(error)")
                 }
             }
         }

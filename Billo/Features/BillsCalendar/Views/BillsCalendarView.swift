@@ -2,18 +2,12 @@
 
 import SwiftData
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 struct BillsCalendarView: View {
-    private let viewMode: Binding<BillsHomeViewMode>?
     private let calendar: Calendar
+    private let onAddBill: () -> Void
 
     @Environment(BillsModel.self) private var billsModel
-    @Environment(NotificationCoordinator.self) private var notificationCoordinator
-    @Environment(NotificationPreferencesStore.self) private var preferencesStore
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
     @State private var displayedMonth: DateComponents
@@ -26,107 +20,42 @@ struct BillsCalendarView: View {
     @State private var hasInitialScroll = false
     @State private var allOccurrences: [BillOccurrence] = []
     @State private var allPayments: [Payment] = []
-    @State private var showingAddBill = false
-    @State private var showingSettings = false
 
     init(
-        viewMode: Binding<BillsHomeViewMode>? = nil,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        onAddBill: @escaping () -> Void = {}
     ) {
-        self.viewMode = viewMode
         self.calendar = calendar
+        self.onAddBill = onAddBill
         _displayedMonth = State(initialValue: calendar.dateComponents([.year, .month], from: Date()))
     }
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Bills")
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationDestination(for: Bill.self) { bill in
-                    BillDetailView(bill: bill)
-                        .environment(BillModel(bill: bill, modelContext: modelContext))
+        content
+            .dayDetailPresentation(
+                dayData: $selectedDayData,
+                calendar: calendar,
+                onMarkPaid: { occurrence in
+                    await markPaid(occurrence)
                 }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Image(systemName: "gear")
-                        }
-                    }
-
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showingAddBill = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
-                }
-                .toolbarTitleMenu {
-                    if let viewMode {
-                        Picker("Default view", selection: viewMode) {
-                            ForEach(BillsHomeViewMode.allCases) { mode in
-                                Label(mode.title, systemImage: mode.iconName).tag(mode)
-                            }
-                        }
-                    }
-                }
-                .sheet(isPresented: $showingAddBill) {
-                    BillEditView(mode: .adding)
-                        .environment(billsModel)
-                }
-                .sheet(isPresented: $showingSettings) {
-                    NavigationStack {
-                        NotificationSettingsView()
-                            .environment(
-                                NotificationSettingsModel(
-                                    preferences: preferencesStore,
-                                    coordinator: notificationCoordinator,
-                                    openSettingsHandler: {
-#if os(iOS)
-                                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                                            UIApplication.shared.open(url)
-                                        }
-#endif
-                                    }
-                                )
-                            )
-                            .toolbar {
-                                ToolbarItem(placement: .confirmationAction) {
-                                    Button("Done") {
-                                        showingSettings = false
-                                    }
-                                }
-                            }
-                    }
-                }
-                .dayDetailPresentation(
-                    dayData: $selectedDayData,
-                    calendar: calendar,
-                    onMarkPaid: { occurrence in
-                        await markPaid(occurrence)
-                    }
-                )
-                .task {
-                    await refreshData()
-                }
-                .onChange(of: billsModel.bills) { _, _ in
-                    Task { await refreshData() }
-                }
-                .onChange(of: displayedMonth) { _, _ in
-                    updateGridData()
-                    scrollTarget = sectionId(for: displayedMonth)
-                }
-        }
+            )
+            .task {
+                await refreshData()
+            }
+            .onChange(of: billsModel.bills) { _, _ in
+                Task { await refreshData() }
+            }
+            .onChange(of: displayedMonth) { _, _ in
+                updateGridData()
+                scrollTarget = sectionId(for: displayedMonth)
+            }
     }
 
     @ViewBuilder
     private var content: some View {
         if billsModel.bills.isEmpty {
             CalendarEmptyStateView {
-                showingAddBill = true
+                onAddBill()
             }
         } else {
             VStack(spacing: 0) {

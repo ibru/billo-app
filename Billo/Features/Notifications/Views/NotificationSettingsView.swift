@@ -218,3 +218,53 @@ struct NotificationSettingsView: View {
         .help("Badge counts unpaid occurrences within selected window")
     }
 }
+
+#Preview {
+    let preferences = PreviewNotificationPreferencesStore()
+    let coordinator = PreviewNotificationCoordinator()
+
+    return NavigationStack {
+        NotificationSettingsView()
+            .environment(
+                NotificationSettingsModel(
+                    preferences: preferences,
+                    coordinator: coordinator,
+                    openSettingsHandler: { }
+                )
+            )
+    }
+}
+
+// MARK: - Preview Helpers
+
+private final class PreviewNotificationPreferencesStore: NotificationPreferencesProviding, @unchecked Sendable {
+    var remindersEnabled: Bool = true
+    var reminderOffsets: [Int] = NotificationPreferencesStore.defaultReminderOffsets
+    var reminderTime: DateComponents = NotificationPreferencesStore.defaultReminderTime
+    var digestEnabled: Bool = true
+    var digestLookaheadDays: Int = NotificationPreferencesStore.defaultDigestLookaheadDays
+    var digestTime: DateComponents = NotificationPreferencesStore.defaultDigestTime
+    var badgeMode: BadgeMode = .dueAndOverdue
+
+    func setRemindersEnabled(_ enabled: Bool) { remindersEnabled = enabled }
+    func setReminderOffsets(_ offsets: [Int]) { reminderOffsets = offsets }
+    func setReminderTime(_ time: DateComponents) { reminderTime = time }
+    func setDigestEnabled(_ enabled: Bool) { digestEnabled = enabled }
+    func setDigestLookaheadDays(_ days: Int) { digestLookaheadDays = days }
+    func setDigestTime(_ time: DateComponents) { digestTime = time }
+    func setBadgeMode(_ mode: BadgeMode) { badgeMode = mode }
+}
+
+private final class PreviewNotificationCoordinator: NotificationCoordinating, @unchecked Sendable {
+    func currentAuthorizationStatus() async -> UNAuthorizationStatus { .authorized }
+    func requestAuthorization() async throws -> Bool { true }
+    func refreshAllNotifications(for bills: [Bill]) async throws { }
+    func scheduleReminders(for occurrences: [BillOccurrence]) async throws { }
+    func cancelReminders(for occurrenceIDs: [BillOccurrence.OccurrenceID]) async { }
+    func cancelAllReminders(forBillID billID: String) async { }
+    func rescheduleReminders(forBillID billID: String, newOccurrences: [BillOccurrence]) async throws { }
+    func scheduleDigest(billsDueCount: Int, totalAmount: Decimal?, currencyCode: String?) async throws { }
+    func cancelDigest() async { }
+    func updateBadge(unpaidCount: Int) async { }
+    func clearBadge() async { }
+}
