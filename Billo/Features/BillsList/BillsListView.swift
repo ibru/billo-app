@@ -5,6 +5,7 @@ import SwiftUI
 
 struct BillsListView: View {
     @Environment(BillsModel.self) private var billsModel
+    @Environment(AppSettingsModel.self) private var appSettingsModel
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
@@ -15,7 +16,8 @@ struct BillsListView: View {
         List {
             SummarySectionView(
                 overview: billsModel.sections.weeklyOverview,
-                totals: billsModel.sections.monthlyTotals
+                totals: billsModel.sections.monthlyTotals,
+                currencyCode: appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
             )
             PaymentHistoryNavigationRow()
                 .listRowBackground(Color.clear)
@@ -86,12 +88,13 @@ private struct PaymentHistoryNavigationRow: View {
 private struct SummarySectionView: View {
     let overview: WeeklyOverview
     let totals: MonthlyTotals
+    let currencyCode: String
 
     var body: some View {
         Section {
             HStack(spacing: DesignSystem.Spacing.small) {
-                CompactWeeklySummary(overview: overview)
-                CompactMonthlySummary(totals: totals)
+                CompactWeeklySummary(overview: overview, currencyCode: currencyCode)
+                CompactMonthlySummary(totals: totals, currencyCode: currencyCode)
             }
             .background(
                 RoundedRectangle(cornerRadius: 8)
@@ -293,6 +296,7 @@ private struct BillSectionHeader: View {
 
 struct CompactWeeklySummary: View {
     let overview: WeeklyOverview
+    let currencyCode: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.small / 2) {
@@ -324,14 +328,11 @@ struct CompactWeeklySummary: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DesignSystem.Spacing.small)
     }
-
-    private var currencyCode: String {
-        Locale.current.currency?.identifier ?? "USD"
-    }
 }
 
 struct CompactMonthlySummary: View {
     let totals: MonthlyTotals
+    let currencyCode: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.small / 2) {
@@ -362,10 +363,6 @@ struct CompactMonthlySummary: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DesignSystem.Spacing.small)
-    }
-
-    private var currencyCode: String {
-        Locale.current.currency?.identifier ?? "USD"
     }
 }
 

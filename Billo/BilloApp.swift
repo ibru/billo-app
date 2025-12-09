@@ -19,7 +19,8 @@ struct BilloApp: App {
             Payment.self,
             RecurrenceRule.self,
             Income.self,
-            CustomCategory.self
+            CustomCategory.self,
+            AppSettings.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -33,6 +34,7 @@ struct BilloApp: App {
     @State private var billsModel: BillsModel?
     @State private var notificationCoordinator: NotificationCoordinator?
     @State private var preferencesStore: NotificationPreferencesStore?
+    @State private var appSettingsModel: AppSettingsModel?
     private let notificationDelegate = NotificationDelegate()
     private let appNotificationRefresher = AppNotificationRefresher()
 
@@ -46,11 +48,17 @@ struct BilloApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let billsModel, let notificationCoordinator, let preferencesStore {
-                BillsHomeSwitchView()
-                    .environment(billsModel)
-                    .environment(notificationCoordinator)
-                    .environment(preferencesStore)
+            if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel {
+                if appSettingsModel.currencyCode == nil {
+                    CurrencyOnboardingView()
+                        .environment(appSettingsModel)
+                } else {
+                    BillsHomeSwitchView()
+                        .environment(billsModel)
+                        .environment(notificationCoordinator)
+                        .environment(preferencesStore)
+                        .environment(appSettingsModel)
+                }
             } else {
                 ProgressView()
                     .task {
@@ -78,9 +86,18 @@ struct BilloApp: App {
                             notificationPreferences: preferences
                         )
 
+                        // Set up app settings
+                        let settings = AppSettingsModel(
+                            modelContext: context,
+                            billsModel: bills,
+                            notificationCoordinator: coordinator
+                        )
+                        settings.load()
+
                         billsModel = bills
                         notificationCoordinator = coordinator
                         preferencesStore = preferences
+                        appSettingsModel = settings
 
                         await appNotificationRefresher.refreshAndReschedule(
                             billsModel: bills,

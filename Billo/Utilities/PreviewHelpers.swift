@@ -24,6 +24,7 @@ struct BilloPreviewContainer {
     let billsModel: BillsModel
     let notificationCoordinator: NotificationCoordinator
     let preferencesStore: NotificationPreferencesStore
+    let appSettingsModel: AppSettingsModel
     let bills: [Bill]
 
     static func withSampleData(referenceDate: Date = Date()) -> BilloPreviewContainer {
@@ -32,7 +33,8 @@ struct BilloPreviewContainer {
             Payment.self,
             RecurrenceRule.self,
             Income.self,
-            CustomCategory.self
+            CustomCategory.self,
+            AppSettings.self
         ])
 
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -109,12 +111,26 @@ struct BilloPreviewContainer {
         )
         try? billsModel.refresh()
 
+        // Set up app settings with default currency
+        let defaultCurrency = AppSettingsModel.defaultCurrency ?? "USD"
+        let previewSettings = AppSettings(currencyCode: defaultCurrency)
+        context.insert(previewSettings)
+        try? context.save()
+
+        let appSettingsModel = AppSettingsModel(
+            modelContext: context,
+            billsModel: billsModel,
+            notificationCoordinator: notificationCoordinator
+        )
+        appSettingsModel.load()
+
         return BilloPreviewContainer(
             container: container,
             context: context,
             billsModel: billsModel,
             notificationCoordinator: notificationCoordinator,
             preferencesStore: preferencesStore,
+            appSettingsModel: appSettingsModel,
             bills: sampleBills
         )
     }
@@ -125,7 +141,8 @@ struct BilloPreviewContainer {
             Payment.self,
             RecurrenceRule.self,
             Income.self,
-            CustomCategory.self
+            CustomCategory.self,
+            AppSettings.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [configuration])
@@ -145,12 +162,26 @@ struct BilloPreviewContainer {
         )
         try? billsModel.refresh()
 
+        // Set up app settings with default currency
+        let defaultCurrency = AppSettingsModel.defaultCurrency ?? "USD"
+        let previewSettings = AppSettings(currencyCode: defaultCurrency)
+        context.insert(previewSettings)
+        try? context.save()
+
+        let appSettingsModel = AppSettingsModel(
+            modelContext: context,
+            billsModel: billsModel,
+            notificationCoordinator: notificationCoordinator
+        )
+        appSettingsModel.load()
+
         return BilloPreviewContainer(
             container: container,
             context: context,
             billsModel: billsModel,
             notificationCoordinator: notificationCoordinator,
             preferencesStore: preferencesStore,
+            appSettingsModel: appSettingsModel,
             bills: []
         )
     }
@@ -166,6 +197,7 @@ extension View {
             .environment(preview.billsModel)
             .environment(preview.notificationCoordinator)
             .environment(preview.preferencesStore)
+            .environment(preview.appSettingsModel)
             .modelContainer(preview.container)
             .preferredColorScheme(colorScheme)
     }

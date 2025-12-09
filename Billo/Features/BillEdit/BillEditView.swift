@@ -5,6 +5,7 @@ import SwiftData
 
 struct BillEditView: View {
     @Environment(BillsModel.self) private var billsModel
+    @Environment(AppSettingsModel.self) private var appSettingsModel
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -24,7 +25,6 @@ struct BillEditView: View {
     @State private var notes: String = ""
     @State private var accountIdentifier: String = ""
     @State private var providerURL: String = ""
-    @State private var currencyCode: String = Locale.current.currency?.identifier ?? "USD"
 
     @State private var isRepeating: Bool = false
     @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
@@ -45,7 +45,6 @@ struct BillEditView: View {
             _notes = State(initialValue: bill.notes ?? "")
             _accountIdentifier = State(initialValue: bill.accountIdentifier ?? "")
             _providerURL = State(initialValue: bill.providerURL ?? "")
-            _currencyCode = State(initialValue: bill.currencyCode)
             _isRepeating = State(initialValue: bill.recurrenceRule != nil)
 
             if let rule = bill.recurrenceRule {
@@ -59,6 +58,10 @@ struct BillEditView: View {
         }
     }
 
+    private var globalCurrencyCode: String {
+        appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -69,12 +72,6 @@ struct BillEditView: View {
                         TextField("Amount", value: $amount, format: .number)
                             .multilineTextAlignment(.trailing)
                             .keyboardType(.decimalPad)
-                    }
-
-                    Picker("Currency", selection: $currencyCode) {
-                        ForEach(commonCurrencies, id: \.self) { code in
-                            Text(code).tag(code)
-                        }
                     }
 
                     DatePicker("Due Date", selection: $dueDate, displayedComponents: .date)
@@ -164,7 +161,7 @@ struct BillEditView: View {
             let bill = Bill(
                 name: name,
                 amount: amount,
-                currencyCode: currencyCode,
+                currencyCode: globalCurrencyCode,
                 dueDate: dueDate,
                 notes: notes.isEmpty ? nil : notes,
                 accountIdentifier: accountIdentifier.isEmpty ? nil : accountIdentifier,
@@ -181,7 +178,6 @@ struct BillEditView: View {
         case .editing(let bill):
             bill.name = name
             bill.amount = amount
-            bill.currencyCode = currencyCode
             bill.dueDate = dueDate
             bill.notes = notes.isEmpty ? nil : notes
             bill.accountIdentifier = accountIdentifier.isEmpty ? nil : accountIdentifier
@@ -247,13 +243,6 @@ extension BillEditView.Mode {
         }
     }
 }
-
-private let commonCurrencies = [
-    "USD", "EUR", "GBP", "JPY", "CNY", "CHF", "AUD", "CAD", "NZD", "SEK",
-    "NOK", "DKK", "PLN", "CZK", "HUF", "RON", "BGN", "HRK", "RUB", "TRY",
-    "BRL", "MXN", "ARS", "CLP", "COP", "PEN", "ZAR", "INR", "KRW", "SGD",
-    "HKD", "TWD", "THB", "MYR", "PHP", "IDR", "VND", "ILS", "SAR", "AED"
-]
 
 #Preview("Add Bill") {
     let preview = BilloPreviewContainer.withSampleData()
