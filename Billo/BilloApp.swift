@@ -103,6 +103,7 @@ struct BilloApp: App {
     }
 
     private func handleAppBecameActive() {
+        Logger.log("App became active, refreshing notifications", level: .debug)
         guard let billsModel, let notificationCoordinator else { return }
 
         Task { @MainActor in

@@ -68,10 +68,12 @@ final class NotificationCoordinator: NotificationCoordinating {
     // MARK: - Refresh All
 
     func refreshAllNotifications(for bills: [Bill]) async throws {
+        Logger.log("Refreshing all notifications", level: .debug)
         let referenceDate = currentDate()
 
         // 1. Check permission first - if not authorized, clear everything and return
         let status = await currentAuthorizationStatus()
+        Logger.log("Notification permission: \(status.rawValue)", level: .debug)
         guard status == .authorized else {
             await clearBadge()
             await cancelDigest()
@@ -96,6 +98,7 @@ final class NotificationCoordinator: NotificationCoordinating {
                 bills: bills,
                 referenceDate: referenceDate
             )
+            Logger.log("Effective horizon: \(effectiveHorizon) days", level: .debug)
 
             // Get occurrences within effective horizon for scheduling
             let schedulingOccurrences = await occurrenceProvider.unpaidOccurrences(
@@ -267,6 +270,9 @@ final class NotificationCoordinator: NotificationCoordinating {
 
             return scheduled
         }.value
+
+        // Log notification schedule
+        logNotificationSchedule(plan: plan, availableSlots: availableSlots)
 
         for (snapshot, offset, notificationDate) in plan {
             let request = createNotificationRequest(
@@ -455,5 +461,33 @@ final class NotificationCoordinator: NotificationCoordinating {
     func scheduleReminders(for occurrences: [BillOccurrence]) async throws {
         guard preferences.remindersEnabled else { return }
         _ = try await scheduleRemindersInternal(for: occurrences, referenceDate: currentDate())
+    }
+
+    // MARK: - Logging
+
+    private func logNotificationSchedule(
+        plan: [(NotificationOccurrenceSnapshot, Int, Date)],
+        availableSlots: Int
+    ) {
+        Logger.log("=== NOTIFICATION SCHEDULE ===", level: .info)
+        Logger.log("Total scheduled: \(plan.count), Remaining capacity: \(availableSlots - plan.count)", level: .info)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+
+        for (index, (snapshot, offset, notificationDate)) in plan.prefix(5).enumerated() {
+            let dateStr = formatter.string(from: notificationDate)
+            let body = contentBuilder.reminderBody(
+                amount: snapshot.amount,
+                currencyCode: snapshot.currencyCode,
+                offsetDays: offset
+            )
+            Logger.log("[\(index + 1)] \(dateStr) - \(snapshot.name): \(body)", level: .info)
+        }
+
+        if plan.count > 5 {
+            Logger.log("... and \(plan.count - 5) more notifications", level: .info)
+        }
+        Logger.log("=============================", level: .info)
     }
 }

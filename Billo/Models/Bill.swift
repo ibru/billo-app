@@ -26,12 +26,18 @@ struct OccurrenceDetector {
         for paymentDate: Date,
         from unpaidOccurrences: [Date]
     ) -> DetectionResult {
-        guard !unpaidOccurrences.isEmpty else { return .noneUnpaid }
+        Logger.log("Detecting occurrence for payment on \(paymentDate), candidates: \(unpaidOccurrences.count)", level: .debug)
+
+        guard !unpaidOccurrences.isEmpty else {
+            Logger.log("No unpaid occurrences found", level: .warning)
+            return .noneUnpaid
+        }
 
         let paymentDay = calendar.startOfDay(for: paymentDate)
 
         // Rule A: Single Candidate
         if unpaidOccurrences.count == 1 {
+            Logger.log("Matched rule A (single candidate): \(unpaidOccurrences[0])", level: .debug)
             return .certain(unpaidOccurrences[0])
         }
 
@@ -40,6 +46,7 @@ struct OccurrenceDetector {
 
         // Rule B: Single Future Occurrence (no distance limit)
         if overdue.isEmpty && future.count == 1 {
+            Logger.log("Matched rule B (single future): \(future[0])", level: .debug)
             return .certain(future[0])
         }
 
@@ -47,6 +54,7 @@ struct OccurrenceDetector {
         if overdue.isEmpty, let nearest = future.first {
             let daysUntil = calendar.dateComponents([.day], from: paymentDay, to: nearest).day ?? 999
             if daysUntil <= 14 && future.count > 1 {
+                Logger.log("Matched rule C (next occurrence within 14 days): \(nearest)", level: .debug)
                 return .certain(nearest)
             }
         }
@@ -55,6 +63,7 @@ struct OccurrenceDetector {
         if let mostRecent = overdue.last {
             let daysSince = calendar.dateComponents([.day], from: mostRecent, to: paymentDay).day ?? 999
             if daysSince <= 7 && overdue.count == 1 {
+                Logger.log("Matched rule D (recent overdue within 7 days): \(mostRecent)", level: .debug)
                 return .certain(mostRecent)
             }
         }
@@ -65,9 +74,11 @@ struct OccurrenceDetector {
             return days <= 7
         }
         if nearby.count == 1 {
+            Logger.log("Matched rule E (close proximity ±7 days): \(nearby[0])", level: .debug)
             return .certain(nearby[0])
         }
 
+        Logger.log("No rule matched, ambiguous with \(unpaidOccurrences.count) candidates", level: .warning)
         return .ambiguous(candidates: unpaidOccurrences)
     }
 }
@@ -245,10 +256,13 @@ extension Bill {
         )
 
         // Filter to window and NOT fully paid (allows partial payments to continue)
-        return allOccurrences
+        let result = allOccurrences
             .filter { $0 >= windowStart && $0 <= windowEnd }
             .filter { !isFullyPaid(for: $0, calendar: calendar) }
             .sorted()
+
+        Logger.log("Unpaid occurrences for \(name): \(result.count)", level: .debug)
+        return result
     }
 
     private func windowForFrequency() -> (lookback: Int, lookahead: Int) {

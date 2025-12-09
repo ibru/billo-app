@@ -60,11 +60,18 @@ struct BillsListSections {
             calendar: calendar
         )
 
-        return BillsListSections(
+        let result = BillsListSections(
             occurrencesBySection: sections,
             monthlyTotals: monthlyTotals,
             weeklyOverview: weeklyOverview
         )
+
+        Logger.log(
+            "Built sections - overdue: \(sections[.overdue]?.count ?? 0), today: \(sections[.today]?.count ?? 0), next7: \(sections[.next7Days]?.count ?? 0), next30: \(sections[.next30Days]?.count ?? 0), later: \(sections[.later]?.count ?? 0)",
+            level: .debug
+        )
+
+        return result
     }
 
     @MainActor

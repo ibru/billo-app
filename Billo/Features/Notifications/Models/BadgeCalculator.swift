@@ -59,7 +59,9 @@ struct BadgeCalculator: Sendable, BadgeCalculating {
         }
 
         // Filter by badge window
-        return allOccurrences.filter { isIncludedInBadge($0, mode: badgeMode, referenceDate: referenceDate) }.count
+        let count = allOccurrences.filter { isIncludedInBadge($0, mode: badgeMode, referenceDate: referenceDate) }.count
+        Logger.log("Badge count: \(count), mode: \(badgeMode)", level: .debug)
+        return count
     }
 
     /// Determines if an occurrence should be included in the badge count

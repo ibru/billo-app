@@ -19,6 +19,7 @@ struct PaymentRecorder: Sendable {
         allBills: [Bill],
         currentDate: () -> Date
     ) async throws -> Payment {
+        Logger.log("Recording payment: \(amount) for \(bill.name)", level: .debug)
         // 1. Create and persist payment
         let payment = Payment(
             amount: amount,
@@ -29,6 +30,7 @@ struct PaymentRecorder: Sendable {
         )
         context.insert(payment)
         try context.save()
+        Logger.log("Payment saved successfully", level: .info)
 
         // 2. Cancel reminders for this occurrence
         let occurrenceID = BillOccurrence.OccurrenceID(

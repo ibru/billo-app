@@ -43,6 +43,7 @@ final class BillsModel {
             referenceDate: currentDate(),
             calendar: calendar
         )
+        Logger.log("Refreshed bills, count: \(bills.count)", level: .debug)
     }
 
     func markPaid(
@@ -51,6 +52,8 @@ final class BillsModel {
         date: Date? = nil,
         confirmationNumber: String? = nil
     ) async throws {
+        let paidAmount = amount ?? occurrence.amount
+        Logger.log("Marking paid: \(occurrence.name), occurrence: \(occurrence.dueDate), amount: \(paidAmount)", level: .info)
         let recorder = PaymentRecorder()
 
         _ = try await recorder.recordPayment(
@@ -72,6 +75,7 @@ final class BillsModel {
     }
 
     func markUnpaid(_ occurrence: BillOccurrence) async throws {
+        Logger.log("Marking unpaid: \(occurrence.name), occurrence: \(occurrence.dueDate)", level: .info)
         let payments = occurrence.bill.payments.filter { payment in
             calendar.isDate(payment.occurrenceDate, inSameDayAs: occurrence.dueDate)
         }
@@ -91,6 +95,7 @@ final class BillsModel {
     }
 
     func deleteBill(_ bill: Bill) async throws {
+        Logger.log("Deleting bill: \(bill.name)", level: .info)
         // Cancel notifications BEFORE deleting
         let billID = String(describing: bill.persistentModelID)
         await notificationCoordinator.cancelAllReminders(forBillID: billID)
