@@ -12,12 +12,16 @@ struct BillsListView: View {
 
     init() { }
 
+    private var currencyCode: String {
+        appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+    }
+
     var body: some View {
         List {
             SummarySectionView(
                 overview: billsModel.sections.weeklyOverview,
                 totals: billsModel.sections.monthlyTotals,
-                currencyCode: appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+                currencyCode: currencyCode
             )
             PaymentHistoryNavigationRow()
                 .listRowBackground(Color.clear)
@@ -53,7 +57,11 @@ struct BillsListView: View {
                         }
                     }
                 } header: {
-                    BillSectionHeader(section: section)
+                    BillSectionHeader(
+                        section: section,
+                        occurrences: occurrences,
+                        currencyCode: currencyCode
+                    )
                 }
             }
         }
@@ -193,19 +201,14 @@ struct BillRowView: View {
 
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
                 Text(occurrence.amount, format: .currency(code: occurrence.currencyCode))
-                    .font(.headline)
+                    .font(.subheadline)
                     .foregroundStyle(.primary)
 
                 Text(occurrence.dueDate, style: .date)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color(.tertiaryLabel))
         }
-        .padding(.vertical, DesignSystem.Spacing.small)
     }
 }
 
@@ -280,13 +283,28 @@ private struct CountdownBadgeView: View {
 
 private struct BillSectionHeader: View {
     let section: BillSection
+    let occurrences: [BillOccurrence]
+    let currencyCode: String
 
     var body: some View {
-        Text(section.rawValue.uppercased())
-            .font(.caption2)
-            .fontWeight(.semibold)
-            .foregroundStyle(color(for: section))
-            .textCase(nil)
+        let sectionColor = color(for: section)
+        let totalAmount = occurrences.reduce(Decimal.zero) { partialResult, occurrence in
+            partialResult + occurrence.amount
+        }
+
+        return HStack(spacing: DesignSystem.Spacing.small) {
+            Text(section.rawValue.uppercased())
+            Spacer()
+            if section != .later {
+                Text(totalAmount, format: .currency(code: currencyCode))
+                    .monospacedDigit()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .font(.caption2)
+        .fontWeight(.semibold)
+        .foregroundStyle(sectionColor)
+        .textCase(nil)
     }
 
     private func color(for section: BillSection) -> Color {
