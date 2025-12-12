@@ -3,10 +3,10 @@
 import Foundation
 
 enum LogLevel: String {
-    case debug = "DEBUG"
-    case info = "INFO"
-    case warning = "WARNING"
-    case error = "ERROR"
+    case debug = "D"
+    case info = "I"
+    case warning = "W"
+    case error = "E"
 }
 
 enum Logger {
@@ -15,6 +15,6 @@ enum Logger {
         level: LogLevel,
         function: String = #function
     ) {
-        print("[\(level.rawValue)] [\(function)] \(message)")
+        print("\(Date.now.ISO8601Format(.iso8601(timeZone: .autoupdatingCurrent, includingFractionalSeconds: true, dateSeparator: .dash, dateTimeSeparator: .space, timeSeparator: .colon))) [\(level.rawValue)] [\(function)] \(message)")
     }
 }
