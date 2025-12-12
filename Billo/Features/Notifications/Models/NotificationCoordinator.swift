@@ -225,6 +225,7 @@ final class NotificationCoordinator: NotificationCoordinating {
         let offsets = preferences.reminderOffsets
         let reminderTime = preferences.reminderTime
         let calendar = calendar
+        let dateCalculator = dateCalculator
 
         let snapshots: [NotificationOccurrenceSnapshot] = occurrences.map {
             NotificationOccurrenceSnapshot(
@@ -244,25 +245,13 @@ final class NotificationCoordinator: NotificationCoordinating {
 
                 for offset in offsets {
                     guard scheduled.count < availableSlots else { break }
-
-                    guard let targetDay = calendar.date(byAdding: .day, value: -offset, to: snapshot.dueDate) else {
-                        continue
-                    }
-
-                    var components = calendar.dateComponents([.year, .month, .day], from: targetDay)
-                    components.hour = reminderTime.hour ?? 9
-                    components.minute = reminderTime.minute ?? 0
-
-                    guard var notificationDate = calendar.date(from: components) else { continue }
-
-                    if notificationDate <= referenceDate {
-                        let sameDay = calendar.isDate(targetDay, inSameDayAs: referenceDate)
-                        if sameDay {
-                            notificationDate = calendar.date(byAdding: .minute, value: 1, to: referenceDate) ?? referenceDate
-                        } else {
-                            continue
-                        }
-                    }
+                    guard let notificationDate = dateCalculator.notificationDate(
+                        for: snapshot.dueDate,
+                        offsetDays: offset,
+                        time: reminderTime,
+                        referenceDate: referenceDate,
+                        calendar: calendar
+                    ) else { continue }
 
                     scheduled.append((snapshot, offset, notificationDate))
                 }

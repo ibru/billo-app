@@ -9,18 +9,18 @@ struct NotificationDateCalculator: Sendable {
     ///
     /// **Past-Time Handling Rules:**
     /// 1. Target day has passed entirely → `nil` (skip, too late)
-    /// 2. Target day is today but time passed → `now + 1 min` (still useful today)
+    /// 2. Target day is today but time passed → `nil` (skip, too late)
     /// 3. Target day is in future → scheduled time (normal case)
     ///
     /// **Example (offset=3, bill due Dec 10, reminder time 9 AM):**
     /// - App opens Dec 5 at 8 AM → schedules Dec 7 at 9 AM ✓
     /// - App opens Dec 7 at 8 AM → schedules Dec 7 at 9 AM ✓
-    /// - App opens Dec 7 at 4 PM → schedules Dec 7 at 4:01 PM ✓ (same day, time passed)
+    /// - App opens Dec 7 at 4 PM → `nil` (same day, time passed)
     /// - App opens Dec 8 at 8 AM → `nil` (target day Dec 7 has passed)
     ///
     /// **Rationale:**
-    /// If user opens app on the target day (even after configured time), they still benefit
-    /// from the reminder. Only skip if the entire target day has passed.
+    /// Avoids delivering reminders opportunistically when the user opens the app
+    /// after the configured reminder time.
     ///
     /// - Parameters:
     ///   - dueDate: The bill's due date
@@ -29,7 +29,7 @@ struct NotificationDateCalculator: Sendable {
     ///   - referenceDate: Current date/time for comparison
     ///   - calendar: Calendar for date calculations
     /// - Returns: Notification fire date, or `nil` if this reminder should be skipped
-    func notificationDate(
+    nonisolated func notificationDate(
         for dueDate: Date,
         offsetDays: Int,
         time: DateComponents,
@@ -50,23 +50,14 @@ struct NotificationDateCalculator: Sendable {
             return nil
         }
 
-        // Handle past-time edge cases
-        if notificationDate <= referenceDate {
-            let sameDay = calendar.isDate(targetDay, inSameDayAs: referenceDate)
-            if sameDay {
-                // Same day but time has passed: schedule for now + 1 minute
-                // User still benefits from reminder today (regardless of offset)
-                return calendar.date(byAdding: .minute, value: 1, to: referenceDate)
-            }
-            // Target day has passed entirely: skip
-            return nil
-        }
+        // If configured time already passed, skip (avoid "catch-up" notifications on app open).
+        if notificationDate <= referenceDate { return nil }
 
         return notificationDate
     }
 
     /// Filters occurrences to those within the lookahead window for digest
-    func occurrencesWithinLookahead(
+    nonisolated func occurrencesWithinLookahead(
         _ occurrences: [BillOccurrence],
         lookaheadDays: Int,
         referenceDate: Date,
@@ -80,7 +71,7 @@ struct NotificationDateCalculator: Sendable {
 
     /// Determines how many notifications can be scheduled given the cap
     /// Returns schedulable occurrences (with offsets) and count of skipped notifications
-    func schedulingPlan(
+    nonisolated func schedulingPlan(
         occurrences: [BillOccurrence],
         offsets: [Int],
         maxSlots: Int

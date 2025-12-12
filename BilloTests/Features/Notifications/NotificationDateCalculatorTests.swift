@@ -73,7 +73,7 @@ struct NotificationDateCalculatorTests {
         }
 
         @Test
-        func whenDayOfAndTimeHasPassed_thenReturnsNowPlus1Minute() {
+        func whenDayOfAndTimeHasPassed_thenReturnsNil() {
             // Given: Bill due Dec 1, reminder time 9:00 AM, offset 0 (day-of)
             // Reference date: Dec 1 at 10:30 AM (after 9 AM)
             let dueDate = makeDate(2025, 12, 1, hour: 0, minute: 0)
@@ -89,13 +89,12 @@ struct NotificationDateCalculatorTests {
                 calendar: calendar
             )
 
-            // Then: Should schedule for now + 1 minute (still useful today)
-            let expected = makeDate(2025, 12, 1, hour: 10, minute: 31)
-            #expect(result == expected)
+            // Then: Should return nil (too late to notify)
+            #expect(result == nil)
         }
 
         @Test
-        func whenOffset3DaysAndSameDayButTimeHasPassed_thenReturnsNowPlus1Minute() {
+        func whenOffset3DaysAndSameDayButTimeHasPassed_thenReturnsNil() {
             // Given: Bill due Dec 10, reminder time 9:00 AM, offset 3 days
             // Reference date: Dec 7 at 4:00 PM (target day, but time has passed)
             let dueDate = makeDate(2025, 12, 10, hour: 0, minute: 0)
@@ -111,9 +110,8 @@ struct NotificationDateCalculatorTests {
                 calendar: calendar
             )
 
-            // Then: Should schedule for now + 1 minute (user still benefits)
-            let expected = makeDate(2025, 12, 7, hour: 16, minute: 1)
-            #expect(result == expected)
+            // Then: Should return nil (too late to notify)
+            #expect(result == nil)
         }
 
         @Test
