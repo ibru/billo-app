@@ -281,6 +281,87 @@ struct BillsListSectionsTests {
             #expect(sections.monthlyTotals.remaining == 600)
         }
 
+        @Test func whenIncomeInCurrentMonth_thenIncomeTotalCalculated() throws {
+            let (bills, referenceDate, calendar) = try makeBills(
+                dueDays: [0, 5],
+                amounts: [100, 200]
+            )
+            let incomes = try makeIncomes(
+                startDays: [0, 10],
+                amounts: [2000, 1500],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            let sections = BillsListSections.build(
+                from: bills,
+                incomes: incomes,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.monthlyTotals.incomeTotal == 3500)
+            #expect(sections.monthlyTotals.netAmount == 3200) // 3500 - 300
+        }
+
+        @Test func whenNoIncomesProvided_thenIncomeTotalsAreZero() throws {
+            let (bills, referenceDate, calendar) = try makeBills(
+                dueDays: [0, 5],
+                amounts: [100, 200]
+            )
+
+            let sections = BillsListSections.build(from: bills, referenceDate: referenceDate, calendar: calendar)
+
+            #expect(sections.monthlyTotals.incomeTotal == 0)
+            #expect(sections.monthlyTotals.netAmount == -300) // 0 - 300
+        }
+
+        @Test func whenNetAmountPositive_thenShowsSurplus() throws {
+            let (bills, referenceDate, calendar) = try makeBills(
+                dueDays: [0],
+                amounts: [500]
+            )
+            let incomes = try makeIncomes(
+                startDays: [0],
+                amounts: [2000],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            let sections = BillsListSections.build(
+                from: bills,
+                incomes: incomes,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.monthlyTotals.netAmount == 1500)
+            #expect(sections.monthlyTotals.netAmount > 0)
+        }
+
+        @Test func whenNetAmountNegative_thenShowsDeficit() throws {
+            let (bills, referenceDate, calendar) = try makeBills(
+                dueDays: [0],
+                amounts: [3000]
+            )
+            let incomes = try makeIncomes(
+                startDays: [0],
+                amounts: [2000],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            let sections = BillsListSections.build(
+                from: bills,
+                incomes: incomes,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.monthlyTotals.netAmount == -1000)
+            #expect(sections.monthlyTotals.netAmount < 0)
+        }
+
         @Test func whenUpcomingBillsFallOutsideCalendarMonth_thenMonthlyTotalsRemainZero() throws {
             let (bills, referenceDate, calendar) = try makeBills(
                 dueDays: [10],
@@ -310,6 +391,136 @@ struct BillsListSectionsTests {
             #expect(next7DaysOccurrences[0].name == "Bill 2")
             #expect(next7DaysOccurrences[1].name == "Bill 3")
             #expect(next7DaysOccurrences[2].name == "Bill 1")
+        }
+    }
+
+    @MainActor
+    @Suite("build - Weekly Income")
+    struct WeeklyIncome {
+        @Test func whenIncomeInCurrentWeek_thenIncomeTotalIncluded() throws {
+            let calendar = Calendar.current
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15) // Wednesday
+            guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
+                Issue.record("Failed to get week interval")
+                return
+            }
+
+            let bill = Bill(name: "Bill 1", amount: 500, dueDate: referenceDate)
+            let income = Income(
+                name: "Salary",
+                amount: 2000,
+                startDate: weekInterval.start.addingTimeInterval(86400) // Next day in week
+            )
+
+            let sections = BillsListSections.build(
+                from: [bill],
+                incomes: [income],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.weeklyOverview.incomeTotal == 2000)
+            #expect(sections.weeklyOverview.netAmount == 1500) // 2000 - 500
+        }
+
+        @Test func whenNoIncomeInCurrentWeek_thenIncomeTotalIsZero() throws {
+            let calendar = Calendar.current
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+            let incomeDate = makeDate(year: 2025, month: 2, day: 1) // Different week
+
+            let bill = Bill(name: "Bill 1", amount: 500, dueDate: referenceDate)
+            let income = Income(name: "Salary", amount: 2000, startDate: incomeDate)
+
+            let sections = BillsListSections.build(
+                from: [bill],
+                incomes: [income],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.weeklyOverview.incomeTotal == 0)
+            #expect(sections.weeklyOverview.netAmount == -500)
+        }
+
+        @Test func whenMultipleIncomesInWeek_thenSumsAll() throws {
+            let calendar = Calendar.current
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+            guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
+                Issue.record("Failed to get week interval")
+                return
+            }
+
+            let bill = Bill(name: "Bill 1", amount: 100, dueDate: referenceDate)
+            let income1 = Income(name: "Salary", amount: 2000, startDate: weekInterval.start)
+            let income2 = Income(name: "Freelance", amount: 500, startDate: referenceDate)
+
+            let sections = BillsListSections.build(
+                from: [bill],
+                incomes: [income1, income2],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.weeklyOverview.incomeTotal == 2500)
+        }
+
+        @Test func whenWeeklyNetAmountPositive_thenShowsSurplus() throws {
+            let calendar = Calendar.current
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+
+            let bill = Bill(name: "Bill 1", amount: 200, dueDate: referenceDate)
+            let income = Income(name: "Salary", amount: 3000, startDate: referenceDate)
+
+            let sections = BillsListSections.build(
+                from: [bill],
+                incomes: [income],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.weeklyOverview.netAmount == 2800)
+            #expect(sections.weeklyOverview.netAmount > 0)
+        }
+
+        @Test func whenWeeklyNetAmountNegative_thenShowsDeficit() throws {
+            let calendar = Calendar.current
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+
+            let bill = Bill(name: "Bill 1", amount: 5000, dueDate: referenceDate)
+            let income = Income(name: "Salary", amount: 3000, startDate: referenceDate)
+
+            let sections = BillsListSections.build(
+                from: [bill],
+                incomes: [income],
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(sections.weeklyOverview.netAmount == -2000)
+            #expect(sections.weeklyOverview.netAmount < 0)
+        }
+    }
+
+    @MainActor
+    @Suite("build - Backward Compatibility")
+    struct BackwardCompatibility {
+        @Test func whenNoIncomesProvided_thenExistingBehaviorUnchanged() throws {
+            let (bills, referenceDate, calendar) = try makeBills(
+                dueDays: [0, 5, 15],
+                amounts: [100, 200, 300]
+            )
+
+            let sections = BillsListSections.build(from: bills, referenceDate: referenceDate, calendar: calendar)
+
+            // Existing behavior preserved
+            #expect(sections.monthlyTotals.totalDue == 600)
+            #expect(sections.monthlyTotals.totalPaid == 0)
+            #expect(sections.monthlyTotals.remaining == 600)
+
+            // Income fields are zero
+            #expect(sections.monthlyTotals.incomeTotal == 0)
+            #expect(sections.monthlyTotals.netAmount == -600)
+            #expect(sections.weeklyOverview.incomeTotal == 0)
         }
     }
 }
@@ -406,4 +617,21 @@ private func makeDate(year: Int = 2025, month: Int = 1, day: Int) -> Date {
     components.month = month
     components.day = day
     return calendar.date(from: components)!
+}
+
+private func makeIncomes(
+    startDays: [Int],
+    amounts: [Decimal],
+    referenceDate: Date,
+    calendar: Calendar
+) throws -> [Income] {
+    startDays.enumerated().map { index, dayOffset in
+        let startDate = calendar.date(byAdding: .day, value: dayOffset, to: referenceDate)!
+        let amount = amounts[index]
+        return Income(
+            name: "Income \(index + 1)",
+            amount: amount,
+            startDate: startDate
+        )
+    }
 }

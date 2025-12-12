@@ -8,6 +8,7 @@ enum CalendarNavigationBounds {
     static func earliestMonth(
         bills: [Bill],
         payments: [Payment],
+        incomes: [Income] = [],
         calendar: Calendar,
         currentDate: Date = Date()
     ) -> DateComponents {
@@ -24,6 +25,13 @@ enum CalendarNavigationBounds {
             let paymentMonth = calendar.startOfMonth(for: earliestPayment.datePaid)
             if paymentMonth < earliest {
                 earliest = paymentMonth
+            }
+        }
+
+        if let earliestIncome = incomes.min(by: { $0.startDate < $1.startDate }) {
+            let incomeMonth = calendar.startOfMonth(for: earliestIncome.startDate)
+            if incomeMonth < earliest {
+                earliest = incomeMonth
             }
         }
 

@@ -9,6 +9,7 @@ enum DotColor: Equatable {
     case yellow
     case gray
     case green
+    case income  // New case for income
 }
 
 struct DotIndicator: Identifiable, Equatable {
@@ -25,6 +26,28 @@ enum DotIndicatorGenerator {
     ) -> [DotIndicator] {
         var dots: [DotIndicator] = []
 
+        // Order: Income → Payments → Bills
+        // Income first (money coming in)
+        for incomeOccurrence in dayData.incomeOccurrences {
+            dots.append(
+                DotIndicator(
+                    id: "inc-\(incomeOccurrence.id.incomeID)-\(incomeOccurrence.id.dateTime)",
+                    color: .income
+                )
+            )
+        }
+
+        // Payments second (bills already paid)
+        for payment in dayData.payments {
+            dots.append(
+                DotIndicator(
+                    id: "pay-\(payment.persistentModelID)",
+                    color: .green
+                )
+            )
+        }
+
+        // Bill occurrences last (unpaid bills)
         for occurrence in dayData.occurrences where occurrence.status(relativeTo: today, calendar: calendar) != .paid {
             let color = urgencyColor(
                 for: occurrence.dueDate,
@@ -36,15 +59,6 @@ enum DotIndicatorGenerator {
                 DotIndicator(
                     id: "occ-\(occurrence.id.billID)-\(occurrence.id.dueTime)",
                     color: color
-                )
-            )
-        }
-
-        for payment in dayData.payments {
-            dots.append(
-                DotIndicator(
-                    id: "pay-\(payment.persistentModelID)",
-                    color: .green
                 )
             )
         }

@@ -1,0 +1,193 @@
+//  Created by Jiri Urbasek on 12/10/25.
+
+import SwiftUI
+import SwiftData
+
+struct IncomeEditView: View {
+    @Environment(BillsModel.self) private var billsModel
+    @Environment(AppSettingsModel.self) private var appSettingsModel
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    enum Mode {
+        case adding
+        case editing(Income)
+    }
+
+    let mode: Mode
+
+    @State private var name: String = ""
+    @State private var amount: Decimal = 0
+    @State private var startDate: Date = Date()
+    @State private var hasEndDate: Bool = false
+    @State private var endDate: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+
+    @State private var isRepeating: Bool = true
+    @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
+    @State private var draftFrequency: Int = 1
+    @State private var draftDayOfWeek: Weekday = .monday
+    @State private var draftDayOfMonth: Int = 1
+
+    init(mode: Mode) {
+        self.mode = mode
+
+        if case .editing(let income) = mode {
+            _name = State(initialValue: income.name)
+            _amount = State(initialValue: income.amount)
+            _startDate = State(initialValue: income.startDate)
+            _hasEndDate = State(initialValue: income.endDate != nil)
+            _endDate = State(initialValue: income.endDate ?? Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date())
+            _isRepeating = State(initialValue: income.recurrenceRule != nil)
+
+            if let rule = income.recurrenceRule {
+                _draftSelectedIntervalType = State(initialValue: rule.pattern)
+                _draftFrequency = State(initialValue: rule.frequency)
+                _draftDayOfWeek = State(initialValue: rule.dayOfWeek ?? .monday)
+                _draftDayOfMonth = State(initialValue: rule.dayOfMonth ?? 1)
+            }
+        }
+    }
+
+    private var globalCurrencyCode: String {
+        appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(String(localized: "Basic Information")) {
+                    TextField(String(localized: "Name"), text: $name)
+
+                    LabeledContent(String(localized: "Amount")) {
+                        TextField(String(localized: "Amount"), value: $amount, format: .number)
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.decimalPad)
+                    }
+
+                    DatePicker(String(localized: "Start Date"), selection: $startDate, displayedComponents: .date)
+                }
+
+                Section(String(localized: "Recurrence")) {
+                    Toggle(String(localized: "Repeat"), isOn: $isRepeating)
+                        .onChange(of: isRepeating) { _, newValue in
+                            if newValue {
+                                anchorRepeatFieldsToStartDate()
+                            }
+                        }
+
+                    if isRepeating {
+                        RepeatIntervalPicker(
+                            selectedIntervalType: $draftSelectedIntervalType,
+                            frequency: $draftFrequency,
+                            dayOfWeek: $draftDayOfWeek,
+                            dayOfMonth: $draftDayOfMonth,
+                            dueDate: startDate
+                        )
+                    }
+                }
+
+                Section(String(localized: "End Date")) {
+                    Toggle(String(localized: "Has End Date"), isOn: $hasEndDate)
+
+                    if hasEndDate {
+                        DatePicker(String(localized: "End Date"), selection: $endDate, in: startDate..., displayedComponents: .date)
+                    }
+                }
+            }
+            .navigationTitle(mode.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "Cancel")) {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "Save")) {
+                        save()
+                    }
+                    .disabled(name.isEmpty || amount <= 0)
+                }
+            }
+            .onChange(of: startDate) { _, _ in
+                if isRepeating {
+                    anchorRepeatFieldsToStartDate()
+                }
+            }
+            .onChange(of: draftSelectedIntervalType) { _, _ in
+                anchorRepeatFieldsToStartDate()
+            }
+        }
+    }
+
+    private func save() {
+        let recurrenceRule: RecurrenceRule? = isRepeating ? buildRecurrenceRule() : nil
+        let effectiveEndDate: Date? = hasEndDate ? endDate : nil
+
+        switch mode {
+        case .adding:
+            do {
+                let income = try Income.create(
+                    name: name,
+                    amount: amount,
+                    currencyCode: globalCurrencyCode,
+                    startDate: startDate,
+                    endDate: effectiveEndDate,
+                    recurrenceRule: recurrenceRule
+                )
+
+                modelContext.insert(income)
+                try modelContext.save()
+                try billsModel.refresh()
+                dismiss()
+            } catch {
+                print("Failed to save income: \(error)")
+            }
+
+        case .editing(let income):
+            income.name = name.trimmingCharacters(in: .whitespaces)
+            income.amount = amount
+            income.startDate = startDate
+            income.endDate = effectiveEndDate
+            income.recurrenceRule = recurrenceRule
+            income.lastUpdatedDate = Date()
+
+            Task {
+                try? await billsModel.updateIncome(income)
+                dismiss()
+            }
+        }
+    }
+
+    private func buildRecurrenceRule() -> RecurrenceRule {
+        RecurrenceRule(
+            pattern: draftSelectedIntervalType,
+            frequency: draftFrequency,
+            dayOfWeek: draftSelectedIntervalType == .weekly ? draftDayOfWeek : nil,
+            dayOfMonth: draftSelectedIntervalType == .monthly ? draftDayOfMonth : nil
+        )
+    }
+
+    private func anchorRepeatFieldsToStartDate() {
+        let calendar = Calendar.current
+        switch draftSelectedIntervalType {
+        case .weekly:
+            let weekday = calendar.component(.weekday, from: startDate)
+            draftDayOfWeek = Weekday.fromCalendarWeekday(weekday) ?? .monday
+        case .monthly:
+            draftDayOfMonth = calendar.component(.day, from: startDate)
+        case .yearly:
+            break
+        }
+    }
+}
+
+extension IncomeEditView.Mode {
+    var title: String {
+        switch self {
+        case .adding: return String(localized: "Add Income")
+        case .editing: return String(localized: "Edit Income")
+        }
+    }
+}

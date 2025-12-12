@@ -19,19 +19,41 @@ struct BillsListSections {
 
     static let empty = BillsListSections(
         occurrencesBySection: [:],
-        monthlyTotals: MonthlyTotals(totalDue: 0, totalPaid: 0, remaining: 0, periodLabel: ""),
+        monthlyTotals: MonthlyTotals(
+            totalDue: 0,
+            totalPaid: 0,
+            remaining: 0,
+            periodLabel: "",
+            incomeTotal: 0,
+            netAmount: 0
+        ),
         weeklyOverview: .empty
     )
 
     @MainActor
     static func build(
         from bills: [Bill],
+        incomes: [Income] = [],
         referenceDate: Date,
         calendar: Calendar
     ) -> BillsListSections {
         let threeMonthsLater = calendar.date(byAdding: .month, value: 3, to: referenceDate) ?? referenceDate
 
         let allOccurrences = makeOccurrences(from: bills, until: threeMonthsLater, calendar: calendar)
+
+        // Start income generation from the earlier of current week or month start
+        // to ensure weekly and monthly overviews include all relevant income
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start ?? referenceDate
+        let monthStart = calendar.dateInterval(of: .month, for: referenceDate)?.start ?? referenceDate
+        let incomeRangeStart = min(weekStart, monthStart)
+
+        // Generate income occurrences ONCE for entire window
+        let allIncomeOccurrences = IncomeOccurrence.generateOccurrences(
+            from: incomes,
+            rangeStart: incomeRangeStart,
+            rangeEnd: threeMonthsLater,
+            calendar: calendar
+        )
 
         let unpaidOccurrences = allOccurrences.filter { occurrence in
             occurrence.status(relativeTo: referenceDate, calendar: calendar) != .paid
@@ -50,12 +72,14 @@ struct BillsListSections {
 
         let monthlyTotals = calculateMonthlyTotals(
             bills: bills,
+            incomeOccurrences: allIncomeOccurrences,
             referenceDate: referenceDate,
             calendar: calendar
         )
 
         let weeklyOverview = WeeklyOverview.build(
             from: allOccurrences,
+            incomeOccurrences: allIncomeOccurrences,
             referenceDate: referenceDate,
             calendar: calendar
         )
@@ -136,11 +160,19 @@ struct BillsListSections {
     @MainActor
     private static func calculateMonthlyTotals(
         bills: [Bill],
+        incomeOccurrences: [IncomeOccurrence],
         referenceDate: Date,
         calendar: Calendar
     ) -> MonthlyTotals {
         guard let monthInterval = calendar.dateInterval(of: .month, for: referenceDate) else {
-            return MonthlyTotals(totalDue: 0, totalPaid: 0, remaining: 0, periodLabel: "")
+            return MonthlyTotals(
+                totalDue: 0,
+                totalPaid: 0,
+                remaining: 0,
+                periodLabel: "",
+                incomeTotal: 0,
+                netAmount: 0
+            )
         }
 
         let monthStart = monthInterval.start
@@ -176,6 +208,12 @@ struct BillsListSections {
 
         let remaining = max(0, totalDue - totalPaid)
 
+        // Calculate income total for the month
+        let monthIncomes = incomeOccurrences.filter { occurrence in
+            occurrence.date >= monthStart && occurrence.date < monthEnd
+        }
+        let incomeTotal = monthIncomes.reduce(Decimal.zero) { $0 + $1.amount }
+
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "MMMM yyyy"
         let periodLabel = dateFormatter.string(from: referenceDate)
@@ -184,7 +222,9 @@ struct BillsListSections {
             totalDue: totalDue,
             totalPaid: totalPaid,
             remaining: remaining,
-            periodLabel: periodLabel
+            periodLabel: periodLabel,
+            incomeTotal: incomeTotal,
+            netAmount: incomeTotal - totalDue
         )
     }
 }
@@ -194,6 +234,8 @@ struct MonthlyTotals {
     let totalPaid: Decimal
     let remaining: Decimal
     let periodLabel: String
+    let incomeTotal: Decimal
+    let netAmount: Decimal  // incomeTotal - totalDue (surplus/deficit)
 }
 
 struct WeeklyOverview {
@@ -202,18 +244,23 @@ struct WeeklyOverview {
     let dueAmount: Decimal
     let paidAmount: Decimal
     let remainingAmount: Decimal
+    let incomeTotal: Decimal
+    let netAmount: Decimal  // incomeTotal - dueAmount (surplus/deficit)
 
     static let empty = WeeklyOverview(
         weekInterval: DateInterval(start: Date(), end: Date()),
         dueCount: 0,
         dueAmount: 0,
         paidAmount: 0,
-        remainingAmount: 0
+        remainingAmount: 0,
+        incomeTotal: 0,
+        netAmount: 0
     )
 
     @MainActor
     static func build(
         from occurrences: [BillOccurrence],
+        incomeOccurrences: [IncomeOccurrence] = [],
         referenceDate: Date,
         calendar: Calendar
     ) -> WeeklyOverview {
@@ -240,12 +287,20 @@ struct WeeklyOverview {
 
         let remainingAmount = max(0, dueAmount - paidAmount)
 
+        // Calculate income total for the week
+        let weekIncomes = incomeOccurrences.filter { occurrence in
+            occurrence.date >= weekStart && occurrence.date < weekEnd
+        }
+        let incomeTotal = weekIncomes.reduce(Decimal.zero) { $0 + $1.amount }
+
         return WeeklyOverview(
             weekInterval: weekInterval,
             dueCount: dueCount,
             dueAmount: dueAmount,
             paidAmount: paidAmount,
-            remainingAmount: remainingAmount
+            remainingAmount: remainingAmount,
+            incomeTotal: incomeTotal,
+            netAmount: incomeTotal - dueAmount
         )
     }
 }

@@ -8,18 +8,23 @@ struct BillsCalendarView: View {
     private let onAddBill: () -> Void
 
     @Environment(BillsModel.self) private var billsModel
+    @Environment(AppSettingsModel.self) private var appSettings
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
+
+    private var currencyCode: String {
+        appSettings.currencyCode ?? AppSettingsModel.defaultCurrency ?? "USD"
+    }
 
     @State private var displayedMonth: DateComponents
     @State private var selectedDayData: CalendarDayData?
     @State private var scrollTarget: String?
     @State private var sections: [CalendarMonthSection] = []
-    @State private var monthGridData: CalendarMonthGridData = [:]
     @State private var months: [DateComponents] = []
     @State private var pageIndex: Int = 0
     @State private var hasInitialScroll = false
     @State private var allOccurrences: [BillOccurrence] = []
     @State private var allPayments: [Payment] = []
+    @State private var allIncomeOccurrences: [IncomeOccurrence] = []
 
     init(
         calendar: Calendar = .current,
@@ -45,15 +50,17 @@ struct BillsCalendarView: View {
             .onChange(of: billsModel.bills) { _, _ in
                 Task { await refreshData() }
             }
+            .onChange(of: billsModel.incomes) { _, _ in
+                Task { await refreshData() }
+            }
             .onChange(of: displayedMonth) { _, _ in
-                updateGridData()
                 scrollTarget = sectionId(for: displayedMonth)
             }
     }
 
     @ViewBuilder
     private var content: some View {
-        if billsModel.bills.isEmpty {
+        if billsModel.bills.isEmpty && billsModel.incomes.isEmpty {
             CalendarEmptyStateView {
                 onAddBill()
             }
@@ -81,7 +88,6 @@ struct BillsCalendarView: View {
                     },
                     onMonthChange: { newMonth in
                         displayedMonth = newMonth
-                        updateGridData()
                         scrollTarget = sectionId(for: newMonth)
                     }
                 )
@@ -100,12 +106,10 @@ struct BillsCalendarView: View {
                                         .scrollTargetLayout()
                                     }
                                 } header: {
-                                    Text(section.title)
-                                        .font(.headline)
-                                        .padding(.horizontal, DesignSystem.Spacing.medium)
-                                        .padding(.vertical, DesignSystem.Spacing.small)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color(.systemGroupedBackground))
+                                    MonthSectionHeader(
+                                        section: section,
+                                        currencyCode: currencyCode
+                                    )
                                 }
                                 .id(section.id)
                                 .scrollTargetLayout()
@@ -141,7 +145,6 @@ struct BillsCalendarView: View {
         guard months.indices.contains(target) else { return }
         pageIndex = target
         displayedMonth = months[target]
-        updateGridData()
         scrollTarget = sectionId(for: displayedMonth)
     }
 
@@ -157,6 +160,7 @@ struct BillsCalendarView: View {
         let earliest = CalendarNavigationBounds.earliestMonth(
             bills: billsModel.bills,
             payments: payments,
+            incomes: billsModel.incomes,
             calendar: calendar,
             currentDate: Date()
         )
@@ -174,26 +178,29 @@ struct BillsCalendarView: View {
             to: latest
         )
 
+        let incomeOccurrences = buildIncomeOccurrences(
+            incomes: billsModel.incomes,
+            from: earliest,
+            to: latest
+        )
+
         allOccurrences = occurrences
         allPayments = payments
+        allIncomeOccurrences = incomeOccurrences
 
         sections = CalendarSectionsBuilder.build(
             occurrences: occurrences,
             payments: payments,
+            incomeOccurrences: incomeOccurrences,
             from: earliest,
             to: latest,
             calendar: calendar
         )
 
-        updateGridData()
         if !hasInitialScroll {
             scrollTarget = sectionId(for: displayedMonth)
             hasInitialScroll = true
         }
-    }
-
-    private func updateGridData() {
-        monthGridData = gridData(for: displayedMonth)
     }
 
     private func buildOccurrences(
@@ -222,6 +229,26 @@ struct BillsCalendarView: View {
         }
 
         return occurrences.sorted { $0.dueDate < $1.dueDate }
+    }
+
+    private func buildIncomeOccurrences(
+        incomes: [Income],
+        from start: DateComponents,
+        to end: DateComponents
+    ) -> [IncomeOccurrence] {
+        guard let startDate = calendar.date(from: start),
+              let endMonthStart = calendar.date(from: end),
+              let endMonthInterval = calendar.dateInterval(of: .month, for: endMonthStart) else {
+            return []
+        }
+
+        let endDate = endMonthInterval.end.addingTimeInterval(-1)
+        return IncomeOccurrence.generateOccurrences(
+            from: incomes,
+            rangeStart: startDate,
+            rangeEnd: endDate,
+            calendar: calendar
+        ).sorted { $0.date < $1.date }
     }
 
     private func monthTitle(for components: DateComponents) -> String {
@@ -292,15 +319,22 @@ struct BillsCalendarView: View {
 
             func appendOccurrence(_ occurrence: BillOccurrence) {
                 let key = calendar.startOfDay(for: occurrence.dueDate)
-                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [])
-                day = CalendarDayData(date: key, occurrences: day.occurrences + [occurrence], payments: day.payments)
+                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
+                day = CalendarDayData(date: key, occurrences: day.occurrences + [occurrence], payments: day.payments, incomeOccurrences: day.incomeOccurrences)
                 data[key] = day
             }
 
             func appendPayment(_ payment: Payment) {
                 let key = calendar.startOfDay(for: payment.datePaid)
-                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [])
-                day = CalendarDayData(date: key, occurrences: day.occurrences, payments: day.payments + [payment])
+                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
+                day = CalendarDayData(date: key, occurrences: day.occurrences, payments: day.payments + [payment], incomeOccurrences: day.incomeOccurrences)
+                data[key] = day
+            }
+
+            func appendIncome(_ incomeOccurrence: IncomeOccurrence) {
+                let key = calendar.startOfDay(for: incomeOccurrence.date)
+                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
+                day = CalendarDayData(date: key, occurrences: day.occurrences, payments: day.payments, incomeOccurrences: day.incomeOccurrences + [incomeOccurrence])
                 data[key] = day
             }
 
@@ -310,6 +344,8 @@ struct BillsCalendarView: View {
                     appendOccurrence(occurrence)
                 case .payment(let payment):
                     appendPayment(payment)
+                case .income(let incomeOccurrence):
+                    appendIncome(incomeOccurrence)
                 case .emptyMonth:
                     break
                 }
@@ -321,8 +357,84 @@ struct BillsCalendarView: View {
             month: month,
             calendar: calendar,
             occurrences: allOccurrences,
-            payments: allPayments
+            payments: allPayments,
+            incomeOccurrences: allIncomeOccurrences
         )
+    }
+}
+
+// MARK: - Month Section Header
+
+/// Displays the month title with income/bills breakdown on the right side
+/// Format: "Dec 2024  <----->  +$4,200 / -$2,800 | Remaining: $1,400"
+private struct MonthSectionHeader: View {
+    let section: CalendarMonthSection
+    let currencyCode: String
+
+    private var remainingColor: Color {
+        section.netRemaining >= 0 ? DesignSystem.Color.income : .red
+    }
+
+    private var showBreakdown: Bool {
+        section.totalIncome > 0 || section.totalBillsDue > 0
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(section.title)
+                    .font(.headline)
+
+                Spacer()
+
+                if showBreakdown {
+                    breakdownView
+                }
+            }
+
+            if showBreakdown {
+                remainingView
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.vertical, DesignSystem.Spacing.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemGroupedBackground))
+    }
+
+    @ViewBuilder
+    private var breakdownView: some View {
+        HStack(spacing: 4) {
+            // Income: +$amount in green
+            HStack(spacing: 0) {
+                Text("+")
+                Text(section.totalIncome, format: .currency(code: currencyCode))
+            }
+            .foregroundStyle(DesignSystem.Color.income)
+
+            Text("/")
+                .foregroundStyle(.secondary)
+
+            // Bills: -$amount in red
+            HStack(spacing: 0) {
+                Text("-")
+                Text(section.totalBillsDue, format: .currency(code: currencyCode))
+            }
+            .foregroundStyle(.red)
+        }
+        .font(.caption)
+    }
+
+    @ViewBuilder
+    private var remainingView: some View {
+        HStack(spacing: 0) {
+            Spacer()
+            Text("Remaining: ")
+                .foregroundStyle(.secondary)
+            Text(section.netRemaining, format: .currency(code: currencyCode))
+                .foregroundStyle(remainingColor)
+        }
+        .font(.caption)
     }
 }
 

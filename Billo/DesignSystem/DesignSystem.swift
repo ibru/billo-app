@@ -30,6 +30,9 @@ enum DesignSystem {
         static let categoryLoans = SwiftUI.Color.red
         static let categoryOther = SwiftUI.Color.gray
 
+        // Income color for calendar dots and UI elements (cyan to distinguish from green payment dots)
+        static let income = SwiftUI.Color.cyan
+
         static func statusColor(for status: BillStatus) -> SwiftUI.Color {
             switch status {
             case .overdue: return overdueStatus

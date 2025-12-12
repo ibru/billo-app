@@ -3,13 +3,36 @@
 import SwiftData
 import Foundation
 
+// MARK: - Validation Error
+
+enum IncomeValidationError: Error, LocalizedError, Equatable {
+    case emptyName
+    case nonPositiveAmount
+    case endDateBeforeStartDate
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyName:
+            return String(localized: "Income name cannot be empty")
+        case .nonPositiveAmount:
+            return String(localized: "Income amount must be greater than zero")
+        case .endDateBeforeStartDate:
+            return String(localized: "End date must be on or after start date")
+        }
+    }
+}
+
+// MARK: - Income Model
+
 @Model
 final class Income {
     var name: String
     var amount: Decimal
     var currencyCode: String
-    var frequency: RepeatIntervalType
-    var nextDate: Date
+    var startDate: Date
+    var endDate: Date?
+    @Relationship(deleteRule: .cascade)
+    var recurrenceRule: RecurrenceRule?
     var createdDate: Date
     var lastUpdatedDate: Date
 
@@ -17,15 +40,91 @@ final class Income {
         name: String,
         amount: Decimal,
         currencyCode: String = Locale.current.currency?.identifier ?? "USD",
-        frequency: RepeatIntervalType,
-        nextDate: Date
+        startDate: Date,
+        endDate: Date? = nil,
+        recurrenceRule: RecurrenceRule? = nil
     ) {
         self.name = name
         self.amount = amount
         self.currencyCode = currencyCode
-        self.frequency = frequency
-        self.nextDate = nextDate
+        self.startDate = startDate
+        self.endDate = endDate
+        self.recurrenceRule = recurrenceRule
         self.createdDate = Date()
         self.lastUpdatedDate = Date()
+    }
+}
+
+// MARK: - Validated Factory
+
+extension Income {
+    /// Creates a validated Income. Throws IncomeValidationError if validation fails.
+    /// Use this instead of direct init to ensure data integrity.
+    /// Currency code should come from AppSettingsModel.currencyCode
+    static func create(
+        name: String,
+        amount: Decimal,
+        currencyCode: String,
+        startDate: Date,
+        endDate: Date? = nil,
+        recurrenceRule: RecurrenceRule? = nil
+    ) throws -> Income {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
+        guard !trimmedName.isEmpty else {
+            throw IncomeValidationError.emptyName
+        }
+        guard amount > 0 else {
+            throw IncomeValidationError.nonPositiveAmount
+        }
+        if let endDate, endDate < startDate {
+            throw IncomeValidationError.endDateBeforeStartDate
+        }
+
+        return Income(
+            name: trimmedName,
+            amount: amount,
+            currencyCode: currencyCode,
+            startDate: startDate,
+            endDate: endDate,
+            recurrenceRule: recurrenceRule
+        )
+    }
+}
+
+// MARK: - Occurrence Generation
+
+extension Income {
+    /// Generate income dates within a range, delegating to RecurrenceRule.
+    /// CRITICAL: Always generates from startDate (anchor) then filters to window.
+    /// This matches Bill.generateOccurrences behavior and prevents schedule drift.
+    func generateOccurrences(
+        from rangeStart: Date,
+        until rangeEnd: Date,
+        calendar: Calendar
+    ) -> [Date] {
+        // Determine effective end date (respect endDate if set)
+        let effectiveEnd = endDate.map { min($0, rangeEnd) } ?? rangeEnd
+
+        // Don't generate if income has ended before range starts
+        if let end = endDate, end < rangeStart {
+            return []
+        }
+
+        guard let rule = recurrenceRule else {
+            // One-time income: return startDate if within range
+            return (startDate >= rangeStart && startDate <= effectiveEnd) ? [startDate] : []
+        }
+
+        // IMPORTANT: Generate from startDate (anchor), then filter to window.
+        // This preserves correct weekly/monthly alignment (e.g., salary on the 1st stays on the 1st).
+        let allOccurrences = rule.generateOccurrences(
+            from: startDate,
+            until: effectiveEnd,
+            calendar: calendar
+        )
+
+        // Filter to requested window
+        return allOccurrences.filter { $0 >= rangeStart }
     }
 }

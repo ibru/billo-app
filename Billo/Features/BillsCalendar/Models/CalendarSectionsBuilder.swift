@@ -6,6 +6,7 @@ enum CalendarSectionsBuilder {
     static func build(
         occurrences: [BillOccurrence],
         payments: [Payment],
+        incomeOccurrences: [IncomeOccurrence] = [],
         from startMonth: DateComponents,
         to endMonth: DateComponents,
         calendar: Calendar
@@ -24,15 +25,22 @@ enum CalendarSectionsBuilder {
 
             let monthOccurrences = occurrences.filter { contains($0.dueDate, in: monthInterval) }
             let monthPayments = payments.filter { contains($0.datePaid, in: monthInterval) }
+            let monthIncomes = incomeOccurrences.filter { contains($0.date, in: monthInterval) }
 
             var items: [CalendarListItem] = []
+            items.append(contentsOf: monthIncomes.map { .income($0) })
             items.append(contentsOf: monthOccurrences.map { .occurrence($0) })
             items.append(contentsOf: monthPayments.map { .payment($0) })
+
+            // Sort by date first, then by type (income → payment → occurrence), then by id for stability
             items.sort { lhs, rhs in
-                if lhs.date == rhs.date {
-                    return lhs.id < rhs.id
+                if lhs.date != rhs.date {
+                    return lhs.date < rhs.date
                 }
-                return lhs.date < rhs.date
+                if lhs.typeSortOrder != rhs.typeSortOrder {
+                    return lhs.typeSortOrder < rhs.typeSortOrder
+                }
+                return lhs.id < rhs.id
             }
 
             let sectionId = Self.sectionId(from: current)
@@ -40,11 +48,17 @@ enum CalendarSectionsBuilder {
                 items = [.emptyMonth(sectionId: sectionId)]
             }
 
+            // Calculate totals for the month
+            let totalIncome = monthIncomes.reduce(Decimal.zero) { $0 + $1.amount }
+            let totalBillsDue = monthOccurrences.reduce(Decimal.zero) { $0 + $1.amount }
+
             sections.append(
                 CalendarMonthSection(
                     id: sectionId,
                     title: monthStart.formatted(.dateTime.month(.wide).year()),
-                    items: items
+                    items: items,
+                    totalIncome: totalIncome,
+                    totalBillsDue: totalBillsDue
                 )
             )
 

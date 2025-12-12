@@ -31,6 +31,14 @@ struct CalendarItemRow: View {
             }
             .buttonStyle(.plain)
             .tint(.primary)
+        case .income(let incomeOccurrence):
+            NavigationLink(value: incomeOccurrence.income) {
+                CalendarIncomeRow(incomeOccurrence: incomeOccurrence)
+                    .calendarCardStyle()
+                    .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+            .tint(.primary)
         case .emptyMonth:
             Text(String(localized: "No events this month"))
                 .font(.subheadline)
@@ -38,6 +46,41 @@ struct CalendarItemRow: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, DesignSystem.Spacing.medium)
         }
+    }
+}
+
+private struct CalendarIncomeRow: View {
+    let incomeOccurrence: IncomeOccurrence
+
+    private var formattedAmount: String {
+        incomeOccurrence.amount.formatted(.currency(code: incomeOccurrence.currencyCode))
+    }
+
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.small) {
+            Image(systemName: "banknote")
+                .foregroundStyle(DesignSystem.Color.income)
+                .font(.title2)
+                .frame(width: 40, alignment: .center)
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
+                Text(incomeOccurrence.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(incomeOccurrence.date, style: .date)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text(incomeOccurrence.amount, format: .currency(code: incomeOccurrence.currencyCode))
+                .font(.headline)
+                .foregroundStyle(DesignSystem.Color.income)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Income: \(incomeOccurrence.name), \(formattedAmount)")
     }
 }
 

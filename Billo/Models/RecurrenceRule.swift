@@ -98,6 +98,14 @@ enum RepeatIntervalType: String, Codable, CaseIterable {
     case weekly
     case monthly
     case yearly
+
+    var displayName: String {
+        switch self {
+        case .weekly: return String(localized: "Weekly")
+        case .monthly: return String(localized: "Monthly")
+        case .yearly: return String(localized: "Yearly")
+        }
+    }
 }
 
 enum Weekday: Int, Codable, CaseIterable {

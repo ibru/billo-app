@@ -19,6 +19,14 @@ struct DayDetailSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                if !dayData.incomeOccurrences.isEmpty {
+                    Section(String(localized: "Income")) {
+                        ForEach(dayData.incomeOccurrences, id: \.id) { incomeOccurrence in
+                            IncomeOccurrenceRow(incomeOccurrence: incomeOccurrence)
+                        }
+                    }
+                }
+
                 if !unpaidOccurrences.isEmpty {
                     Section(String(localized: "Due")) {
                         ForEach(unpaidOccurrences) { occurrence in
@@ -59,6 +67,35 @@ struct DayDetailSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+    }
+}
+
+private struct IncomeOccurrenceRow: View {
+    let incomeOccurrence: IncomeOccurrence
+
+    private var formattedAmount: String {
+        incomeOccurrence.amount.formatted(.currency(code: incomeOccurrence.currencyCode))
+    }
+
+    var body: some View {
+        HStack {
+            Image(systemName: "banknote")
+                .foregroundStyle(DesignSystem.Color.income)
+                .font(.title2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(incomeOccurrence.name)
+                    .font(.headline)
+                Text(incomeOccurrence.amount, format: .currency(code: incomeOccurrence.currencyCode))
+                    .font(.subheadline)
+                    .foregroundStyle(DesignSystem.Color.income)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, DesignSystem.Spacing.small)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Income: \(incomeOccurrence.name), \(formattedAmount)")
     }
 }
 

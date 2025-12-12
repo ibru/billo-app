@@ -68,7 +68,7 @@ private struct CalendarGridView: View {
                     if let date = entries[index] {
                         CalendarDayCell(
                             date: date,
-                            dayData: monthData[calendar.startOfDay(for: date)] ?? CalendarDayData(date: date, occurrences: [], payments: []),
+                            dayData: monthData[calendar.startOfDay(for: date)] ?? CalendarDayData(date: date, occurrences: [], payments: [], incomeOccurrences: []),
                             calendar: calendar,
                             today: today,
                             isToday: calendar.isDate(date, inSameDayAs: today),
@@ -206,6 +206,7 @@ private struct CalendarDayCell: View {
         case .yellow: return .yellow
         case .gray: return .gray
         case .green: return .green
+        case .income: return DesignSystem.Color.income
         }
     }
 
@@ -213,12 +214,16 @@ private struct CalendarDayCell: View {
         let dayString = date.formatted(.dateTime.month(.abbreviated).day())
         let occurrenceCount = dayData.occurrences.count
         let paymentCount = dayData.payments.count
+        let incomeCount = dayData.incomeOccurrences.count
 
         var components: [String] = [dayString]
         if isToday { components.append("today") }
         if isSelected { components.append("selected") }
 
         if dayData.hasItems {
+            if incomeCount > 0 {
+                components.append("\(incomeCount) income\(incomeCount == 1 ? "" : "s")")
+            }
             components.append("\(occurrenceCount) bill\(occurrenceCount == 1 ? "" : "s")")
             components.append("\(paymentCount) payment\(paymentCount == 1 ? "" : "s")")
         } else {

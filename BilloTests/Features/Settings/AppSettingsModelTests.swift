@@ -280,15 +280,15 @@ private final class TestContext {
         name: String = UUID().uuidString,
         amount: Decimal = Decimal(Int.random(in: 100...5000)),
         currencyCode: String = "USD",
-        frequency: RepeatIntervalType = .monthly,
-        nextDate: Date = Date()
+        startDate: Date = Date(),
+        recurrenceRule: RecurrenceRule? = RecurrenceRule(pattern: .monthly, frequency: 1)
     ) -> Income {
         let income = Income(
             name: name,
             amount: amount,
             currencyCode: currencyCode,
-            frequency: frequency,
-            nextDate: nextDate
+            startDate: startDate,
+            recurrenceRule: recurrenceRule
         )
         modelContext.insert(income)
         try? modelContext.save()

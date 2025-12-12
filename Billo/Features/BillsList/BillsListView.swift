@@ -81,6 +81,15 @@ private struct PaymentHistoryNavigationRow: View {
                 }
                 .font(.caption)
             }
+            NavigationLink(value: AppDestination.incomeList) {
+                HStack(spacing: DesignSystem.Spacing.small) {
+                    Image(systemName: "banknote")
+                        .foregroundStyle(DesignSystem.Color.income)
+                    Text(String(localized: "Income"))
+                    Spacer()
+                }
+                .font(.caption)
+            }
         }
     }
 }
@@ -305,23 +314,35 @@ struct CompactWeeklySummary: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
+                if overview.incomeTotal > 0 {
+                    HStack {
+                        Text("Income:")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(overview.incomeTotal, format: .currency(code: currencyCode).precision(.fractionLength(0)))
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundStyle(DesignSystem.Color.income)
+                    }
+                }
+
                 HStack {
-                    Text("Due:")
+                    Text("Bills:")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text("\(overview.dueCount)")
+                    Text(overview.dueAmount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
                         .font(.subheadline)
                         .bold()
                 }
 
                 HStack {
-                    Text("Remaining:")
+                    Text("Net:")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text(overview.remainingAmount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
+                    Text(overview.netAmount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
                         .font(.subheadline)
                         .bold()
-                        .foregroundStyle(overview.remainingAmount > 0 ? .orange : .green)
+                        .foregroundStyle(overview.netAmount >= 0 ? DesignSystem.Color.income : .red)
                 }
             }
         }
@@ -341,8 +362,20 @@ struct CompactMonthlySummary: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
+                if totals.incomeTotal > 0 {
+                    HStack {
+                        Text("Income:")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(totals.incomeTotal, format: .currency(code: currencyCode).precision(.fractionLength(0)))
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundStyle(DesignSystem.Color.income)
+                    }
+                }
+
                 HStack {
-                    Text("Due:")
+                    Text("Bills:")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text(totals.totalDue, format: .currency(code: currencyCode).precision(.fractionLength(0)))
@@ -351,13 +384,13 @@ struct CompactMonthlySummary: View {
                 }
 
                 HStack {
-                    Text("Remaining:")
+                    Text("Net:")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text(totals.remaining, format: .currency(code: currencyCode).precision(.fractionLength(0)))
+                    Text(totals.netAmount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
                         .font(.subheadline)
                         .bold()
-                        .foregroundStyle(totals.remaining > 0 ? .red : .green)
+                        .foregroundStyle(totals.netAmount >= 0 ? DesignSystem.Color.income : .red)
                 }
             }
         }

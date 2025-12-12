@@ -152,13 +152,189 @@ struct CalendarSectionsBuilderTests {
         let ids = sections.flatMap { section in section.items.map(\.id) }
         #expect(Set(ids).count == ids.count)
     }
+
+    // MARK: - Sorting Order Tests
+
+    @Test
+    func when_incomePaymentAndOccurrenceOnSameDay_then_sortsIncomeFirstThenPaymentThenOccurrence() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let sameDay = makeDate(year: 2025, month: 3, day: 15, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 3)
+        let end = DateComponents(year: 2025, month: 3)
+
+        let bill = makeBill(name: "Rent", amount: 1000, dueDate: sameDay, in: context)
+        let occurrence = BillOccurrence(bill: bill, dueDate: sameDay)
+        let payment = makePayment(
+            amount: 500,
+            paid: sameDay,
+            occurrence: sameDay,
+            bill: bill,
+            in: context
+        )
+        let income = makeIncome(name: "Salary", amount: 3000, startDate: sameDay, in: context)
+        let incomeOccurrence = IncomeOccurrence(from: income, on: sameDay)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [occurrence],
+            payments: [payment],
+            incomeOccurrences: [incomeOccurrence],
+            from: start,
+            to: end,
+            calendar: calendar
+        )
+
+        let march = try #require(sections.first { $0.id == "2025-03" })
+        #expect(march.items.count == 3)
+
+        // Verify order: income → payment → occurrence
+        guard case .income = march.items[0] else {
+            Issue.record("Expected first item to be income")
+            return
+        }
+        guard case .payment = march.items[1] else {
+            Issue.record("Expected second item to be payment")
+            return
+        }
+        guard case .occurrence = march.items[2] else {
+            Issue.record("Expected third item to be occurrence")
+            return
+        }
+    }
+
+    @Test
+    func when_multipleIncomesOnSameDay_then_sortsAllIncomesBeforeOtherTypes() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let sameDay = makeDate(year: 2025, month: 6, day: 1, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 6)
+        let end = DateComponents(year: 2025, month: 6)
+
+        let bill = makeBill(name: "Utility", amount: 100, dueDate: sameDay, in: context)
+        let occurrence = BillOccurrence(bill: bill, dueDate: sameDay)
+
+        let income1 = makeIncome(name: "Salary", amount: 2000, startDate: sameDay, in: context)
+        let income2 = makeIncome(name: "Bonus", amount: 500, startDate: sameDay, in: context)
+        let incomeOccurrence1 = IncomeOccurrence(from: income1, on: sameDay)
+        let incomeOccurrence2 = IncomeOccurrence(from: income2, on: sameDay)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [occurrence],
+            payments: [],
+            incomeOccurrences: [incomeOccurrence1, incomeOccurrence2],
+            from: start,
+            to: end,
+            calendar: calendar
+        )
+
+        let june = try #require(sections.first { $0.id == "2025-06" })
+        #expect(june.items.count == 3)
+
+        // Both incomes should come before the occurrence
+        guard case .income = june.items[0] else {
+            Issue.record("Expected first item to be income")
+            return
+        }
+        guard case .income = june.items[1] else {
+            Issue.record("Expected second item to be income")
+            return
+        }
+        guard case .occurrence = june.items[2] else {
+            Issue.record("Expected third item to be occurrence")
+            return
+        }
+    }
+
+    // MARK: - Monthly Totals Tests
+
+    @Test
+    func when_buildingWithIncomeAndBills_then_calculatesTotalsCorrectly() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let start = DateComponents(year: 2025, month: 5)
+        let end = DateComponents(year: 2025, month: 5)
+
+        let bill1 = makeBill(name: "Rent", amount: 1500, dueDate: makeDate(year: 2025, month: 5, day: 1, calendar: calendar), in: context)
+        let bill2 = makeBill(name: "Utility", amount: 100, dueDate: makeDate(year: 2025, month: 5, day: 15, calendar: calendar), in: context)
+
+        let income = makeIncome(name: "Salary", amount: 4000, startDate: makeDate(year: 2025, month: 5, day: 1, calendar: calendar), in: context)
+
+        let occurrences = [
+            BillOccurrence(bill: bill1, dueDate: bill1.dueDate),
+            BillOccurrence(bill: bill2, dueDate: bill2.dueDate)
+        ]
+        let incomeOccurrence = IncomeOccurrence(from: income, on: income.startDate)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: occurrences,
+            payments: [],
+            incomeOccurrences: [incomeOccurrence],
+            from: start,
+            to: end,
+            calendar: calendar
+        )
+
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(may.totalIncome == 4000)
+        #expect(may.totalBillsDue == 1600)
+        #expect(may.netRemaining == 2400)
+    }
+
+    @Test
+    func when_buildingWithNoBillsOrIncome_then_totalsAreZero() {
+        let calendar = utcCalendar()
+        let start = DateComponents(year: 2025, month: 7)
+        let end = DateComponents(year: 2025, month: 7)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [],
+            payments: [],
+            incomeOccurrences: [],
+            from: start,
+            to: end,
+            calendar: calendar
+        )
+
+        let july = sections.first { $0.id == "2025-07" }
+        #expect(july?.totalIncome == 0)
+        #expect(july?.totalBillsDue == 0)
+        #expect(july?.netRemaining == 0)
+    }
+
+    @Test
+    func when_billsExceedIncome_then_netRemainingIsNegative() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let start = DateComponents(year: 2025, month: 8)
+        let end = DateComponents(year: 2025, month: 8)
+
+        let bill = makeBill(name: "BigBill", amount: 5000, dueDate: makeDate(year: 2025, month: 8, day: 15, calendar: calendar), in: context)
+        let income = makeIncome(name: "SmallIncome", amount: 2000, startDate: makeDate(year: 2025, month: 8, day: 1, calendar: calendar), in: context)
+
+        let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
+        let incomeOccurrence = IncomeOccurrence(from: income, on: income.startDate)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [occurrence],
+            payments: [],
+            incomeOccurrences: [incomeOccurrence],
+            from: start,
+            to: end,
+            calendar: calendar
+        )
+
+        let august = try #require(sections.first { $0.id == "2025-08" })
+        #expect(august.totalIncome == 2000)
+        #expect(august.totalBillsDue == 5000)
+        #expect(august.netRemaining == -3000)
+    }
 }
 
 // MARK: - Helpers
 
 @MainActor
 private func makeContext() throws -> ModelContext {
-    let schema = Schema([Bill.self, Payment.self])
+    let schema = Schema([Bill.self, Payment.self, Income.self, RecurrenceRule.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     return ModelContext(container)
@@ -170,6 +346,32 @@ private func makeBill(name: String, dueDate: Date, in context: ModelContext) -> 
     let bill = Bill(name: name, amount: 50, dueDate: dueDate)
     context.insert(bill)
     return bill
+}
+
+@MainActor
+@discardableResult
+private func makeBill(name: String, amount: Decimal, dueDate: Date, in context: ModelContext) -> Bill {
+    let bill = Bill(name: name, amount: amount, dueDate: dueDate)
+    context.insert(bill)
+    return bill
+}
+
+@MainActor
+@discardableResult
+private func makeIncome(
+    name: String,
+    amount: Decimal,
+    startDate: Date,
+    in context: ModelContext
+) -> Income {
+    let income = Income(
+        name: name,
+        amount: amount,
+        currencyCode: "USD",
+        startDate: startDate
+    )
+    context.insert(income)
+    return income
 }
 
 @MainActor

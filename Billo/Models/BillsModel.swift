@@ -15,6 +15,7 @@ final class BillsModel {
     @ObservationIgnored private let badgeCalculator: BadgeCalculator
 
     private(set) var bills: [Bill] = []
+    private(set) var incomes: [Income] = []
     private(set) var sections: BillsListSections = .empty
 
     init(
@@ -33,14 +34,20 @@ final class BillsModel {
     }
 
     func refresh() throws {
-        let descriptor = FetchDescriptor<Bill>(sortBy: [SortDescriptor(\.dueDate)])
-        bills = try modelContext.fetch(descriptor)
+        // Fetch both bills and incomes from same context for data consistency
+        let billDescriptor = FetchDescriptor<Bill>(sortBy: [SortDescriptor(\.dueDate)])
+        bills = try modelContext.fetch(billDescriptor)
+
+        let incomeDescriptor = FetchDescriptor<Income>(sortBy: [SortDescriptor(\.startDate)])
+        incomes = try modelContext.fetch(incomeDescriptor)
+
         sections = BillsListSections.build(
             from: bills,
+            incomes: incomes,
             referenceDate: currentDate(),
             calendar: calendar
         )
-        Logger.log("Refreshed bills, count: \(bills.count)", level: .debug)
+        Logger.log("Refreshed bills: \(bills.count), incomes: \(incomes.count)", level: .debug)
     }
 
     func markPaid(
@@ -127,6 +134,28 @@ final class BillsModel {
             forBillID: billID,
             newOccurrences: newOccurrences
         )
+    }
+
+    // MARK: - Income Management
+
+    func addIncome(_ income: Income) async throws {
+        Logger.log("Adding income: \(income.name), amount: \(income.amount)", level: .info)
+        modelContext.insert(income)
+        try modelContext.save()
+        try refresh()
+    }
+
+    func deleteIncome(_ income: Income) async throws {
+        Logger.log("Deleting income: \(income.name)", level: .info)
+        modelContext.delete(income)
+        try modelContext.save()
+        try refresh()
+    }
+
+    func updateIncome(_ income: Income) async throws {
+        income.lastUpdatedDate = currentDate()
+        try modelContext.save()
+        try refresh()
     }
 
     private func calculateUnpaidCount() -> Int {

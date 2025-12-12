@@ -4,6 +4,7 @@ import SwiftUI
 
 enum AppDestination: Hashable {
     case paymentHistory
+    case incomeList
 }
 
 struct BillsHomeSwitchView: View {
@@ -48,7 +49,12 @@ struct BillsHomeSwitchView: View {
                 switch destination {
                 case .paymentHistory:
                     PaymentHistoryView()
+                case .incomeList:
+                    IncomeListView()
                 }
+            }
+            .navigationDestination(for: Income.self) { income in
+                IncomeDetailView(income: income)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

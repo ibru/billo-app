@@ -8,7 +8,8 @@ enum CalendarMonthGridBuilder {
         month components: DateComponents,
         calendar: Calendar,
         occurrences: [BillOccurrence],
-        payments: [Payment]
+        payments: [Payment],
+        incomeOccurrences: [IncomeOccurrence] = []
     ) -> CalendarMonthGridData {
         guard let monthStart = calendar.date(from: components),
               let interval = calendar.dateInterval(of: .month, for: monthStart) else {
@@ -17,24 +18,41 @@ enum CalendarMonthGridBuilder {
 
         var result: CalendarMonthGridData = [:]
 
-        for occurrence in occurrences where contains(occurrence.dueDate, in: interval) {
-            let key = calendar.startOfDay(for: occurrence.dueDate)
-            var dayData = result[key] ?? CalendarDayData(date: key, occurrences: [], payments: [])
+        // Add income occurrences
+        for incomeOccurrence in incomeOccurrences where contains(incomeOccurrence.date, in: interval) {
+            let key = calendar.startOfDay(for: incomeOccurrence.date)
+            var dayData = result[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
             dayData = CalendarDayData(
                 date: key,
-                occurrences: dayData.occurrences + [occurrence],
-                payments: dayData.payments
+                occurrences: dayData.occurrences,
+                payments: dayData.payments,
+                incomeOccurrences: dayData.incomeOccurrences + [incomeOccurrence]
             )
             result[key] = dayData
         }
 
+        // Add bill occurrences
+        for occurrence in occurrences where contains(occurrence.dueDate, in: interval) {
+            let key = calendar.startOfDay(for: occurrence.dueDate)
+            var dayData = result[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
+            dayData = CalendarDayData(
+                date: key,
+                occurrences: dayData.occurrences + [occurrence],
+                payments: dayData.payments,
+                incomeOccurrences: dayData.incomeOccurrences
+            )
+            result[key] = dayData
+        }
+
+        // Add payments
         for payment in payments where contains(payment.datePaid, in: interval) {
             let key = calendar.startOfDay(for: payment.datePaid)
-            var dayData = result[key] ?? CalendarDayData(date: key, occurrences: [], payments: [])
+            var dayData = result[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
             dayData = CalendarDayData(
                 date: key,
                 occurrences: dayData.occurrences,
-                payments: dayData.payments + [payment]
+                payments: dayData.payments + [payment],
+                incomeOccurrences: dayData.incomeOccurrences
             )
             result[key] = dayData
         }
