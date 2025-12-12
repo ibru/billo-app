@@ -249,35 +249,41 @@ private struct CountdownBadgeView: View {
     let progress: Double
     let isOverdue: Bool
 
-    private let lineWidth: CGFloat = 1.5
+    @ScaledMetric(relativeTo: .caption) private var lineWidth: CGFloat = 1.5
+    @ScaledMetric(relativeTo: .caption) private var padding: CGFloat = 8
+    @ScaledMetric(relativeTo: .caption2) private var unitFontSize: CGFloat = 9
 
     var body: some View {
         let clampedProgress = max(0, min(progress, 1))
 
-        ZStack {
-            Circle()
-                .stroke(color.opacity(0.18), lineWidth: lineWidth)
-
-            Circle()
-                .trim(from: 0, to: clampedProgress)
-                .stroke(
-                    color,
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .scaleEffect(x: isOverdue ? -1 : 1, y: 1, anchor: .center)
-
-            VStack(spacing: -2) {
-                Text(numberText)
-                Text(unitText)
-                    .font(.caption2)
-                    .fontWeight(.light)
-            }
-            .foregroundStyle(color)
-            .multilineTextAlignment(.center)
-            .minimumScaleFactor(0.7)
+        VStack(spacing: -2) {
+            Text(numberText)
+                .font(.footnote)
+            Text(unitText)
+                .font(.system(size: unitFontSize))
+                .fontWeight(.light)
         }
-        .frame(width: 46, height: 46)
+        .foregroundStyle(color)
+        .multilineTextAlignment(.center)
+        .padding(padding)
+        .background {
+            ZStack {
+                Circle()
+                    .stroke(color.opacity(0.30), lineWidth: lineWidth)
+
+                Circle()
+                    .trim(from: 0, to: clampedProgress)
+                    .stroke(
+                        color,
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .scaleEffect(x: isOverdue ? -1 : 1, y: 1, anchor: .center)
+            }
+        }
+        .fixedSize()
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityLabel("\(numberText) \(unitText)")
     }
 }
 
