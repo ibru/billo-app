@@ -70,64 +70,121 @@ struct NotificationContentBuilderTests {
         }
     }
 
+    @Suite("digestTitle")
+    @MainActor
+    struct DigestTitle {
+
+        @Test
+        func whenOneBill_thenUsesSingularForm() {
+            #expect(makeSUT().digestTitle(
+                billCount: 1,
+                lookaheadDays: 3
+            ) == "1 bill due in next 3 days")
+        }
+
+        @Test
+        func whenLookaheadIsOneDay_thenUsesSingularDay() {
+            #expect(makeSUT().digestTitle(
+                billCount: 2,
+                lookaheadDays: 1
+            ) == "2 bills due in next 1 day")
+        }
+
+        @Test
+        func whenMultipleBills_thenUsesPluralForm() {
+            #expect(makeSUT().digestTitle(
+                billCount: 5,
+                lookaheadDays: 7
+            ) == "5 bills due in next 7 days")
+        }
+
+        // MARK: - Helpers
+
+        private func makeSUT(
+            locale: Locale = Locale(identifier: "en_US"),
+            timeZone: TimeZone = TimeZone(identifier: "UTC")!
+        ) -> NotificationContentBuilder {
+            NotificationContentBuilder(locale: locale, timeZone: timeZone)
+        }
+    }
+
     @Suite("digestBody")
     @MainActor
     struct DigestBody {
 
         @Test
-        func whenSingleCurrencyProvided_thenIncludesTotalAmount() {
-            #expect(makeSUT().digestBody(
-                billCount: 3,
-                totalAmount: 450.99,
-                currencyCode: "USD",
-                lookaheadDays: 5
-            ) == "3 bills ($450.99) due in next 5 days")
+        func whenItemsAreEmpty_thenReturnsEmptyString() {
+            #expect(makeSUT().digestBody(items: []) == "")
         }
 
         @Test
-        func whenMixedCurrencies_thenShowsCountOnly() {
-            #expect(makeSUT().digestBody(
-                billCount: 5,
-                totalAmount: nil,
-                currencyCode: nil,
-                lookaheadDays: 7
-            ) == "5 bills due in next 7 days")
+        func whenItemsProvided_thenListsNameAmountAndDueDate() {
+            let rent = makeItem(name: "Rent", amount: 10, currencyCode: "USD", dueDate: makeDate(2025, 12, 2))
+            let gym = makeItem(name: "Gym", amount: 20, currencyCode: "EUR", dueDate: makeDate(2025, 12, 3))
+
+            #expect(makeSUT().digestBody(items: [rent, gym]) == """
+            Rent — $10.00 — Dec 2
+            Gym — €20.00 — Dec 3
+            """)
         }
 
         @Test
-        func whenOneBill_thenUseSingularForm() {
-            #expect(makeSUT().digestBody(
-                billCount: 1,
-                totalAmount: 50.0,
-                currencyCode: "USD",
-                lookaheadDays: 3
-            ) == "1 bill ($50.00) due in next 3 days")
-        }
+        func whenMoreThanFiveItems_thenListsFirstFiveAndTruncates() {
+            let items = (1...7).map { idx in
+                makeItem(
+                    name: "Bill \(idx)",
+                    amount: Decimal(idx),
+                    currencyCode: "USD",
+                    dueDate: makeDate(2025, 12, idx)
+                )
+            }
 
-        @Test
-        func whenThreeDayLookahead_thenIncludesCorrectWindow() {
-            #expect(makeSUT().digestBody(
-                billCount: 2,
-                totalAmount: 200,
-                currencyCode: "EUR",
-                lookaheadDays: 3
-            ) == "2 bills (€200.00) due in next 3 days")
-        }
-
-        @Test
-        func whenSevenDayLookahead_thenIncludesCorrectWindow() {
-            #expect(makeSUT().digestBody(
-                billCount: 4,
-                totalAmount: nil,
-                currencyCode: nil,
-                lookaheadDays: 7
-            ) == "4 bills due in next 7 days")
+            #expect(makeSUT().digestBody(items: items, maxLines: 5) == """
+            Bill 1 — $1.00 — Dec 1
+            Bill 2 — $2.00 — Dec 2
+            Bill 3 — $3.00 — Dec 3
+            Bill 4 — $4.00 — Dec 4
+            Bill 5 — $5.00 — Dec 5
+            …and 2 more
+            """)
         }
 
         // MARK: - Helpers
 
-        private func makeSUT(locale: Locale = Locale(identifier: "en_US")) -> NotificationContentBuilder {
-            NotificationContentBuilder(locale: locale)
+        private func makeSUT(
+            locale: Locale = Locale(identifier: "en_US"),
+            timeZone: TimeZone = TimeZone(identifier: "UTC")!
+        ) -> NotificationContentBuilder {
+            NotificationContentBuilder(locale: locale, timeZone: timeZone)
+        }
+
+        private func makeItem(
+            name: String,
+            amount: Decimal,
+            currencyCode: String,
+            dueDate: Date
+        ) -> NotificationContentBuilder.NotificationDigestItem {
+            NotificationContentBuilder.NotificationDigestItem(
+                name: name,
+                amount: amount,
+                currencyCode: currencyCode,
+                dueDate: dueDate
+            )
+        }
+
+        private func makeDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
+            var components = DateComponents()
+            components.year = year
+            components.month = month
+            components.day = day
+            components.hour = 0
+            components.minute = 0
+
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+
+            return calendar.date(from: components)!
         }
     }
 }

@@ -191,28 +191,15 @@ final class NotificationCoordinator: NotificationCoordinating {
             referenceDate: referenceDate,
             calendar: calendar
         )
+        .sorted { $0.dueDate < $1.dueDate }
 
         guard !dueWithinLookahead.isEmpty else { return }
 
-        // Check if all occurrences share the same currency
-        let currencies = Set(dueWithinLookahead.map(\.currencyCode))
-
-        if currencies.count == 1, let currency = currencies.first {
-            // Single currency: show total amount
-            let total = dueWithinLookahead.reduce(Decimal.zero) { $0 + $1.amount }
-            try await scheduleDigest(
-                billsDueCount: dueWithinLookahead.count,
-                totalAmount: total,
-                currencyCode: currency
-            )
-        } else {
-            // Mixed currencies: count-only (no misleading total)
-            try await scheduleDigest(
-                billsDueCount: dueWithinLookahead.count,
-                totalAmount: nil,
-                currencyCode: nil
-            )
-        }
+        let items = dueWithinLookahead.map { NotificationContentBuilder.NotificationDigestItem($0) }
+        try await scheduleDigest(
+            items: items,
+            lookaheadDays: preferences.digestLookaheadDays
+        )
     }
 
     // MARK: - Internal Scheduling
@@ -388,20 +375,17 @@ final class NotificationCoordinator: NotificationCoordinating {
     // MARK: - Digest
 
     func scheduleDigest(
-        billsDueCount: Int,
-        totalAmount: Decimal?,
-        currencyCode: String?
+        items: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int
     ) async throws {
         await cancelDigest()
 
         let content = UNMutableNotificationContent()
-        content.title = String(localized: "Bills Summary")
-        content.body = contentBuilder.digestBody(
-            billCount: billsDueCount,
-            totalAmount: totalAmount,
-            currencyCode: currencyCode,
-            lookaheadDays: preferences.digestLookaheadDays
+        content.title = contentBuilder.digestTitle(
+            billCount: items.count,
+            lookaheadDays: lookaheadDays
         )
+        content.body = contentBuilder.digestBody(items: items, maxLines: 5)
         content.sound = .default
         content.categoryIdentifier = NotificationCategory.dailyDigest
 

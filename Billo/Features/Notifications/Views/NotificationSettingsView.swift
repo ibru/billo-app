@@ -263,7 +263,10 @@ private final class PreviewNotificationCoordinator: NotificationCoordinating, @u
     func cancelReminders(for occurrenceIDs: [BillOccurrence.OccurrenceID]) async { }
     func cancelAllReminders(forBillID billID: String) async { }
     func rescheduleReminders(forBillID billID: String, newOccurrences: [BillOccurrence]) async throws { }
-    func scheduleDigest(billsDueCount: Int, totalAmount: Decimal?, currencyCode: String?) async throws { }
+    func scheduleDigest(
+        items: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int
+    ) async throws { }
     func cancelDigest() async { }
     func updateBadge(unpaidCount: Int) async { }
     func clearBadge() async { }

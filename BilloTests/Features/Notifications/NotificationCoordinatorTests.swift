@@ -32,6 +32,56 @@ struct NotificationCoordinatorTests {
         }
 
         @Test
+        func whenDigestEnabledButNoBillsDueWithinLookahead_thenDoesNotScheduleDigest() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let outsideWindow = makeOccurrence(dueDate: makeDate(2025, 12, 20))
+            let (sut, center) = makeSUT(
+                remindersEnabled: false,
+                digestEnabled: true,
+                occurrences: [outsideWindow],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [outsideWindow.bill])
+
+            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digestScheduled == false)
+        }
+
+        @Test
+        func whenMoreThanFiveBillsDueWithinLookahead_thenDigestListsFirstFiveAndTruncates() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrences = (1...7).map { idx in
+                makeOccurrence(
+                    dueDate: makeDate(2025, 12, 1 + idx),
+                    name: "Bill \(idx)",
+                    currency: "USD",
+                    amount: Decimal(idx)
+                )
+            }
+            let (sut, center) = makeSUT(
+                remindersEnabled: false,
+                digestEnabled: true,
+                digestLookaheadDays: 7,
+                occurrences: occurrences,
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: occurrences.map(\.bill))
+
+            let digest = center.addedRequests.first { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digest?.content.title == "7 bills due in next 7 days")
+            #expect(digest?.content.body == """
+            Bill 1 — $1.00 — Dec 2
+            Bill 2 — $2.00 — Dec 3
+            Bill 3 — $3.00 — Dec 4
+            Bill 4 — $4.00 — Dec 5
+            Bill 5 — $5.00 — Dec 6
+            …and 2 more
+            """)
+        }
+
+        @Test
         func whenBadgeModeIsOneDay_thenBadgeCountsOnlyDueSoonOrOverdue() async throws {
             let referenceDate = makeDate(2025, 12, 10)
             let overdueBill = makeOccurrence(dueDate: makeDate(2025, 12, 9))
@@ -81,10 +131,10 @@ struct NotificationCoordinatorTests {
         }
 
         @Test
-        func whenBillsHaveMixedCurrencies_thenDigestShowsCountOnly() async throws {
+        func whenBillsHaveMixedCurrencies_thenDigestListsFirstBillsWithIndividualAmounts() async throws {
             let referenceDate = makeDate(2025, 12, 1)
-            let usdBill = makeOccurrence(dueDate: makeDate(2025, 12, 2), currency: "USD", amount: 10)
-            let eurBill = makeOccurrence(dueDate: makeDate(2025, 12, 3), currency: "EUR", amount: 20)
+            let usdBill = makeOccurrence(dueDate: makeDate(2025, 12, 2), name: "Rent", currency: "USD", amount: 10)
+            let eurBill = makeOccurrence(dueDate: makeDate(2025, 12, 3), name: "Gym", currency: "EUR", amount: 20)
             let (sut, center) = makeSUT(
                 remindersEnabled: false,
                 digestEnabled: true,
@@ -96,7 +146,11 @@ struct NotificationCoordinatorTests {
 
             let digest = center.addedRequests.first { $0.identifier == NotificationIdentifier.digestIdentifier }
             #expect(digest != nil)
-            #expect(digest?.content.body.contains("2") == true)
+            #expect(digest?.content.title == "2 bills due in next 5 days")
+            #expect(digest?.content.body == """
+            Rent — $10.00 — Dec 2
+            Gym — €20.00 — Dec 3
+            """)
             #expect(digest?.content.body.contains("USD") == false)
         }
 
@@ -242,6 +296,7 @@ private func makeSUT(
     remindersEnabled: Bool = true,
     reminderOffsets: [Int] = [0, 3],
     digestEnabled: Bool = false,
+    digestLookaheadDays: Int = 5,
     badgeMode: BadgeMode = .daysBefore(3),
     occurrences: [BillOccurrence] = [],
     referenceDate: Date = Date()
@@ -253,14 +308,20 @@ private func makeSUT(
     prefs.remindersEnabled = remindersEnabled
     prefs.reminderOffsets = reminderOffsets
     prefs.digestEnabled = digestEnabled
+    prefs.digestLookaheadDays = digestLookaheadDays
     prefs.badgeMode = badgeMode
 
     let provider = BillOccurrenceProviderStub.returning(occurrences)
+    let contentBuilder = NotificationContentBuilder(
+        locale: Locale(identifier: "en_US"),
+        timeZone: TimeZone(identifier: "UTC")!
+    )
 
     let sut = NotificationCoordinator(
         notificationCenter: center,
         preferences: prefs,
         occurrenceProvider: provider,
+        contentBuilder: contentBuilder,
         calendar: testCalendar,
         currentDate: { referenceDate }
     )
@@ -283,11 +344,12 @@ private func makeDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
 @MainActor
 private func makeOccurrence(
     dueDate: Date,
+    name: String = "Test Bill",
     currency: String = "USD",
     amount: Decimal = 100
 ) -> BillOccurrence {
     let bill = Bill(
-        name: "Test Bill",
+        name: name,
         amount: amount,
         currencyCode: currency,
         dueDate: dueDate

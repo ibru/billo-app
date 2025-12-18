@@ -14,7 +14,7 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
     private(set) var updateBadgeCalls: [Int] = []
     private(set) var clearBadgeCalls: Int = 0
     private(set) var refreshAllNotificationsCalls: [[Bill]] = []
-    private(set) var scheduleDigestCalls: [(count: Int, amount: Decimal?, currency: String?)] = []
+    private(set) var scheduleDigestCalls: [(items: [NotificationContentBuilder.NotificationDigestItem], lookaheadDays: Int)] = []
     private(set) var cancelDigestCalls: Int = 0
     private(set) var currentStatusCallCount: Int = 0
     private(set) var requestAuthorizationCallCount: Int = 0
@@ -56,8 +56,11 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
         rescheduleRemindersCalls.append((billID, newOccurrences))
     }
 
-    func scheduleDigest(billsDueCount: Int, totalAmount: Decimal?, currencyCode: String?) async throws {
-        scheduleDigestCalls.append((billsDueCount, totalAmount, currencyCode))
+    func scheduleDigest(
+        items: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int
+    ) async throws {
+        scheduleDigestCalls.append((items: items, lookaheadDays: lookaheadDays))
     }
 
     func cancelDigest() async {

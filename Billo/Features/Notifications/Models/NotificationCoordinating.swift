@@ -37,9 +37,8 @@ protocol NotificationCoordinating: Sendable {
 
     /// Schedules daily digest notification
     func scheduleDigest(
-        billsDueCount: Int,
-        totalAmount: Decimal?,
-        currencyCode: String?
+        items: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int
     ) async throws
 
     func cancelDigest() async

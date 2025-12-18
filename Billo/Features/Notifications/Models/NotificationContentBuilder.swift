@@ -6,9 +6,11 @@ import Foundation
 /// Note: Requires @MainActor because String(localized:) requires main actor access
 struct NotificationContentBuilder: Sendable {
     let locale: Locale
+    let timeZone: TimeZone
 
-    init(locale: Locale = .current) {
+    init(locale: Locale = .current, timeZone: TimeZone = .current) {
         self.locale = locale
+        self.timeZone = timeZone
     }
 
     /// Builds reminder body text based on amount and offset
@@ -34,32 +36,80 @@ struct NotificationContentBuilder: Sendable {
         }
     }
 
-    /// Builds digest body, handling mixed currencies gracefully
-    /// - Parameters:
-    ///   - billCount: Number of bills due
-    ///   - totalAmount: Total amount (nil if mixed currencies)
-    ///   - currencyCode: Currency code (nil if mixed currencies)
-    ///   - lookaheadDays: Lookahead window in days
+    struct NotificationDigestItem: Equatable, Sendable {
+        let name: String
+        let amount: Decimal
+        let currencyCode: String
+        let dueDate: Date
+
+        init(name: String, amount: Decimal, currencyCode: String, dueDate: Date) {
+            self.name = name
+            self.amount = amount
+            self.currencyCode = currencyCode
+            self.dueDate = dueDate
+        }
+
+        init(_ occurrence: BillOccurrence) {
+            self.init(
+                name: occurrence.name,
+                amount: occurrence.amount,
+                currencyCode: occurrence.currencyCode,
+                dueDate: occurrence.dueDate
+            )
+        }
+    }
+
+    /// Builds digest title showing how many bills are due in the configured window.
     @MainActor
-    func digestBody(
+    func digestTitle(
         billCount: Int,
-        totalAmount: Decimal?,
-        currencyCode: String?,
         lookaheadDays: Int
     ) -> String {
         let billsText = billCount == 1 ? "bill" : "bills"
+        let daysText = lookaheadDays == 1 ? "day" : "days"
+        return String(localized: "\(billCount) \(billsText) due in next \(lookaheadDays) \(daysText)")
+    }
 
-        if let totalAmount, let currencyCode {
-            // Single currency: show count and total
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .currency
-            formatter.currencyCode = currencyCode
-            formatter.locale = locale
-            let amountString = formatter.string(from: totalAmount as NSDecimalNumber) ?? "\(totalAmount)"
-            return String(localized: "\(billCount) \(billsText) (\(amountString)) due in next \(lookaheadDays) days")
-        } else {
-            // Mixed currencies: count only
-            return String(localized: "\(billCount) \(billsText) due in next \(lookaheadDays) days")
+    /// Builds digest body listing first N bills (name, amount, due date), then truncates.
+    @MainActor
+    func digestBody(
+        items: [NotificationDigestItem],
+        maxLines: Int = 5
+    ) -> String {
+        guard !items.isEmpty else { return "" }
+
+        let shownItems = Array(items.prefix(maxLines))
+        let lines = shownItems.map { item in
+            let amountString = formatAmount(amount: item.amount, currencyCode: item.currencyCode)
+            let dueDateString = formatDueDate(item.dueDate)
+            return "\(item.name) — \(amountString) — \(dueDateString)"
         }
+
+        let remainingCount = items.count - shownItems.count
+        if remainingCount > 0 {
+            return (lines + [String(localized: "…and \(remainingCount) more")]).joined(separator: "\n")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    // MARK: - Formatting
+
+    @MainActor
+    private func formatAmount(amount: Decimal, currencyCode: String) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currencyCode
+        formatter.locale = locale
+        return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
+    }
+
+    @MainActor
+    private func formatDueDate(_ dueDate: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter.string(from: dueDate)
     }
 }
