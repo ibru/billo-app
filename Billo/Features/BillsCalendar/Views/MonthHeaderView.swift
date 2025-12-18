@@ -20,7 +20,7 @@ struct MonthHeaderView: View {
             Spacer()
 
             Text(title)
-                .font(.title3.weight(.semibold))
+                .font(.headline)
                 .accessibilityAddTraits(.isHeader)
 
             Spacer()
@@ -32,6 +32,6 @@ struct MonthHeaderView: View {
             .accessibilityLabel("Next month")
         }
         .padding(.horizontal, DesignSystem.Spacing.medium)
-        .padding(.vertical, DesignSystem.Spacing.small)
+        .padding(.vertical, DesignSystem.Spacing.extraSmall)
     }
 }

@@ -12,13 +12,32 @@ struct CalendarPagedGridView: View {
     let onSelectDay: (CalendarDayData) -> Void
     let onMonthChange: (DateComponents) -> Void
 
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Base row height scales with Dynamic Type (relative to callout font)
+    @ScaledMetric(relativeTo: .callout) private var rowHeight: CGFloat = 36
+    /// Header height scales with Dynamic Type (relative to caption2 font used in weekday header)
+    @ScaledMetric(relativeTo: .caption2) private var headerHeight: CGFloat = 14
 
-    private var rowHeight: CGFloat { 52 }
     private var rowSpacing: CGFloat { DesignSystem.Spacing.small }
-    private var headerHeight: CGFloat { 20 }
-    private var gridHeight: CGFloat {
-        (rowHeight * 6) + (rowSpacing * 5) + headerHeight + DesignSystem.Spacing.small
+
+    private func gridHeight(for month: DateComponents) -> CGFloat {
+        let rowCount = CGFloat(numberOfRows(for: month))
+        return (rowHeight * rowCount) + (rowSpacing * (rowCount - 1)) + headerHeight + DesignSystem.Spacing.extraSmall
+    }
+
+    private func numberOfRows(for month: DateComponents) -> Int {
+        guard let monthStart = calendar.date(from: month),
+              let dayRange = calendar.range(of: .day, in: .month, for: monthStart) else {
+            return 6
+        }
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let offset = (firstWeekday - calendar.firstWeekday + 7) % 7
+        let totalCells = offset + dayRange.count
+        return (totalCells + 6) / 7 // Ceiling division
+    }
+
+    private var currentMonth: DateComponents? {
+        guard months.indices.contains(pageIndex) else { return nil }
+        return months[pageIndex]
     }
 
     var body: some View {
@@ -33,11 +52,12 @@ struct CalendarPagedGridView: View {
                     onSelectDay: onSelectDay
                 )
                 .tag(index)
-                .padding(.top, DesignSystem.Spacing.small)
-                .frame(minHeight: gridHeight)
+                .padding(.top, DesignSystem.Spacing.extraSmall)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: currentMonth.map { gridHeight(for: $0) } ?? gridHeight(for: months.first ?? DateComponents()))
+        .animation(.easeInOut(duration: 0.2), value: pageIndex)
         .onChange(of: pageIndex) { _, newIndex in
             guard months.indices.contains(newIndex) else { return }
             onMonthChange(months[newIndex])
@@ -53,6 +73,9 @@ private struct CalendarGridView: View {
     let monthData: CalendarMonthGridData
     let onSelectDay: (CalendarDayData) -> Void
 
+    /// Empty cell placeholder height scales with Dynamic Type
+    @ScaledMetric(relativeTo: .callout) private var emptyCellHeight: CGFloat = 32
+
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible()), count: 7)
     }
@@ -60,7 +83,7 @@ private struct CalendarGridView: View {
     var body: some View {
         let entries = dayEntries()
 
-        VStack(spacing: DesignSystem.Spacing.small) {
+        VStack(spacing: DesignSystem.Spacing.extraSmall) {
             weekdayHeader
 
             LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.small) {
@@ -79,13 +102,12 @@ private struct CalendarGridView: View {
                         )
                     } else {
                         Color.clear
-                            .frame(height: 44)
+                            .frame(height: emptyCellHeight)
                     }
                 }
             }
             .padding(.horizontal, DesignSystem.Spacing.medium)
         }
-        .padding(.bottom, DesignSystem.Spacing.small)
     }
 
     private var weekdayHeader: some View {
@@ -137,6 +159,15 @@ private struct CalendarDayCell: View {
     let isSelected: Bool
     let onTap: (CalendarDayData) -> Void
 
+    /// Dot indicator size scales with Dynamic Type
+    @ScaledMetric(relativeTo: .caption2) private var dotSize: CGFloat = 5
+    /// Spacing between dots scales with Dynamic Type
+    @ScaledMetric(relativeTo: .caption2) private var dotSpacing: CGFloat = 2
+    /// Highlight padding around content
+    @ScaledMetric(relativeTo: .callout) private var highlightPadding: CGFloat = 4
+    /// Highlight corner radius
+    @ScaledMetric(relativeTo: .callout) private var highlightCornerRadius: CGFloat = 6
+
     private var dots: [DotIndicator] {
         DotIndicatorGenerator.dots(
             for: dayData,
@@ -151,32 +182,39 @@ private struct CalendarDayCell: View {
                 onTap(dayData)
             }
         } label: {
-            ZStack {
-                highlight
+            VStack(spacing: dotSpacing) {
+                Text("\(calendar.component(.day, from: date))")
+                    .font(.callout.weight(isToday ? .semibold : .regular))
+                    .padding(.horizontal, highlightPadding)
+                    .padding(.vertical, highlightPadding / 2)
+                    .background {
+                        if isToday {
+                            RoundedRectangle(cornerRadius: highlightCornerRadius, style: .continuous)
+                                .fill(Color.accentColor.opacity(0.15))
+                        } else if isSelected {
+                            RoundedRectangle(cornerRadius: highlightCornerRadius, style: .continuous)
+                                .fill(Color.secondary.opacity(0.22))
+                        }
+                    }
 
-                VStack(spacing: 6) {
-                    Text("\(calendar.component(.day, from: date))")
-                        .font(.body.weight(isToday ? .semibold : .regular))
-                        .frame(maxWidth: .infinity)
-
+                // Always reserve space for dots to keep day numbers aligned
+                HStack(spacing: dotSpacing) {
                     if dayData.hasItems {
-                        HStack(spacing: 3) {
-                            ForEach(dots.prefix(4)) { dot in
-                                Circle()
-                                    .fill(color(for: dot.color))
-                                    .frame(width: 8, height: 8)
-                            }
-                            if dots.count > 4 {
-                                Text("+\(dots.count - 4)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                        ForEach(dots.prefix(4)) { dot in
+                            Circle()
+                                .fill(color(for: dot.color))
+                                .frame(width: dotSize, height: dotSize)
+                        }
+                        if dots.count > 4 {
+                            Text("+\(dots.count - 4)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
-                .padding(.vertical, DesignSystem.Spacing.small)
+                .frame(height: dotSize)
             }
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
         .buttonStyle(.plain)
         .disabled(!dayData.hasItems)
@@ -184,19 +222,6 @@ private struct CalendarDayCell: View {
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(dayData.hasItems ? "Double-tap to open day details" : "No bills or payments on this day")
         .accessibilityAddTraits(.isButton)
-    }
-
-    @ViewBuilder
-    private var highlight: some View {
-        if isToday {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.accentColor.opacity(0.15))
-                .frame(width: 44, height: 44)
-        } else if isSelected {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.22))
-                .frame(width: 44, height: 44)
-        }
     }
 
     private func color(for dotColor: DotColor) -> Color {
@@ -232,4 +257,134 @@ private struct CalendarDayCell: View {
 
         return components.joined(separator: ", ")
     }
+}
+
+// MARK: - Previews
+
+#Preview("Paged Grid") {
+    struct PreviewWrapper: View {
+        @State private var pageIndex = 1
+
+        private let calendar = Calendar.current
+        private let today = Date()
+
+        private var months: [DateComponents] {
+            let now = today
+            return (-1...1).compactMap { offset in
+                guard let date = calendar.date(byAdding: .month, value: offset, to: now) else { return nil }
+                return calendar.dateComponents([.year, .month], from: date)
+            }
+        }
+
+        var body: some View {
+            CalendarPagedGridView(
+                months: months,
+                pageIndex: $pageIndex,
+                calendar: calendar,
+                today: today,
+                selectedDate: nil,
+                monthDataProvider: { _ in [:] },
+                onSelectDay: { _ in },
+                onMonthChange: { _ in }
+            )
+        }
+    }
+
+    return PreviewWrapper()
+}
+
+#Preview("With Sample Data") {
+    struct PreviewWrapper: View {
+        @State private var pageIndex = 1
+        @State private var selectedDate: Date?
+
+        private let calendar = Calendar.current
+        private let today = Date()
+
+        private var months: [DateComponents] {
+            let now = today
+            return (-1...1).compactMap { offset in
+                guard let date = calendar.date(byAdding: .month, value: offset, to: now) else { return nil }
+                return calendar.dateComponents([.year, .month], from: date)
+            }
+        }
+
+        private func sampleMonthData(for month: DateComponents) -> CalendarMonthGridData {
+            guard let monthStart = calendar.date(from: month) else { return [:] }
+
+            var data: CalendarMonthGridData = [:]
+
+            // Add some sample occurrences on different days
+            let sampleBill = Bill(
+                name: "Sample Bill",
+                amount: 100,
+                dueDate: today,
+                categoryIdentifier: .predefined(.utilities)
+            )
+
+            // Day with unpaid bill (today)
+            let todayStart = calendar.startOfDay(for: today)
+            if calendar.isDate(todayStart, equalTo: monthStart, toGranularity: .month) {
+                data[todayStart] = CalendarDayData(
+                    date: todayStart,
+                    occurrences: [BillOccurrence(bill: sampleBill, dueDate: todayStart)],
+                    payments: [],
+                    incomeOccurrences: []
+                )
+            }
+
+            // Day with paid bill (5 days ago)
+            if let fiveDaysAgo = calendar.date(byAdding: .day, value: -5, to: today) {
+                let fiveDaysAgoStart = calendar.startOfDay(for: fiveDaysAgo)
+                if calendar.isDate(fiveDaysAgoStart, equalTo: monthStart, toGranularity: .month) {
+                    let payment = Payment(
+                        amount: 50,
+                        datePaid: fiveDaysAgoStart,
+                        occurrenceDate: fiveDaysAgoStart,
+                        confirmationNumber: nil,
+                        bill: sampleBill
+                    )
+                    data[fiveDaysAgoStart] = CalendarDayData(
+                        date: fiveDaysAgoStart,
+                        occurrences: [],
+                        payments: [payment],
+                        incomeOccurrences: []
+                    )
+                }
+            }
+
+            // Day with income (10 days from now)
+            if let tenDaysFromNow = calendar.date(byAdding: .day, value: 10, to: today) {
+                let tenDaysStart = calendar.startOfDay(for: tenDaysFromNow)
+                if calendar.isDate(tenDaysStart, equalTo: monthStart, toGranularity: .month) {
+                    let income = Income(name: "Salary", amount: 5000, startDate: tenDaysStart)
+                    data[tenDaysStart] = CalendarDayData(
+                        date: tenDaysStart,
+                        occurrences: [],
+                        payments: [],
+                        incomeOccurrences: [IncomeOccurrence(from: income, on: tenDaysStart)]
+                    )
+                }
+            }
+
+            return data
+        }
+
+        var body: some View {
+            CalendarPagedGridView(
+                months: months,
+                pageIndex: $pageIndex,
+                calendar: calendar,
+                today: today,
+                selectedDate: selectedDate,
+                monthDataProvider: sampleMonthData,
+                onSelectDay: { dayData in
+                    selectedDate = dayData.date
+                },
+                onMonthChange: { _ in }
+            )
+        }
+    }
+
+    return PreviewWrapper()
 }

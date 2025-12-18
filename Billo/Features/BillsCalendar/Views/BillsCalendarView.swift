@@ -498,3 +498,19 @@ private extension View {
         ))
     }
 }
+
+// MARK: - Previews
+
+#Preview("Sample Data") {
+    let preview = BilloPreviewContainer.withSampleData()
+
+    return BillsCalendarView()
+        .billoPreviewEnvironment(preview)
+}
+
+#Preview("Empty State") {
+    let preview = BilloPreviewContainer.empty()
+
+    return BillsCalendarView()
+        .billoPreviewEnvironment(preview)
+}
