@@ -17,7 +17,7 @@ struct NotificationCoordinatorTests {
         func whenRemindersDisabledAndDigestEnabled_thenSchedulesDigestOnly() async throws {
             let referenceDate = makeDate(2025, 12, 1)
             let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: false,
                 digestEnabled: true,
                 occurrences: [occurrence],
@@ -35,7 +35,7 @@ struct NotificationCoordinatorTests {
         func whenDigestEnabledButNoBillsDueWithinLookahead_thenDoesNotScheduleDigest() async throws {
             let referenceDate = makeDate(2025, 12, 1)
             let outsideWindow = makeOccurrence(dueDate: makeDate(2025, 12, 20))
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: false,
                 digestEnabled: true,
                 occurrences: [outsideWindow],
@@ -59,7 +59,7 @@ struct NotificationCoordinatorTests {
                     amount: Decimal(idx)
                 )
             }
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: false,
                 digestEnabled: true,
                 digestLookaheadDays: 7,
@@ -86,7 +86,7 @@ struct NotificationCoordinatorTests {
             let referenceDate = makeDate(2025, 12, 10)
             let overdueBill = makeOccurrence(dueDate: makeDate(2025, 12, 9))
             let futureBill = makeOccurrence(dueDate: makeDate(2025, 12, 15))
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: false,
                 badgeMode: .daysBefore(1),
                 occurrences: [overdueBill, futureBill],
@@ -101,8 +101,8 @@ struct NotificationCoordinatorTests {
         @Test
         func whenManyOccurrencesExceedCap_thenSchedulesMaximum60Reminders() async throws {
             let referenceDate = makeDate(2025, 12, 1)
-            let occurrences = makeOccurrences(count: 40, startingFrom: referenceDate)
-            let (sut, center) = makeSUT(
+            let occurrences = makeOccurrences(count: 20, dueDate: makeDate(2025, 12, 15))
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: true,
                 reminderOffsets: [0, 3, 5, 7],
                 occurrences: occurrences,
@@ -115,10 +115,83 @@ struct NotificationCoordinatorTests {
         }
 
         @Test
+        func whenRefreshingWithRemindersEnabled_thenOccurrenceProviderIsCalledOnce() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 10))
+            let (sut, _, provider) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [0, 3],
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            #expect(provider.unpaidOccurrencesCalls.count == 1)
+            #expect(provider.unpaidOccurrencesCalls.first?.horizonDays == 90)
+        }
+
+        @Test
+        func whenRemindersDisabledAndDigestEnabled_thenOccurrenceProviderIsCalledOnce() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
+            let (sut, _, provider) = makeSUT(
+                remindersEnabled: false,
+                digestEnabled: true,
+                digestLookaheadDays: 7,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            #expect(provider.unpaidOccurrencesCalls.count == 1)
+            #expect(provider.unpaidOccurrencesCalls.first?.horizonDays == 90)
+        }
+
+        @Test
+        func whenRemindersEnabledButOffsetsEmpty_thenSchedulesNoReminders() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 15))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [],
+                digestEnabled: false,
+                badgeMode: .never,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            let reminderCount = center.addedRequests.filter { $0.identifier.hasPrefix("billo.r.") }.count
+            #expect(reminderCount == 0)
+        }
+
+        @Test
+        func whenOffsetsEmptyAndDigestEnabled_thenSchedulesDigest() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [],
+                digestEnabled: true,
+                digestLookaheadDays: 7,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digestScheduled)
+        }
+
+        @Test
         func whenPermissionDenied_thenClearsBadgeAndSchedulesNothing() async throws {
             let referenceDate = makeDate(2025, 12, 1)
             let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 5))
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 authorizationStatus: .denied,
                 remindersEnabled: true,
                 occurrences: [occurrence],
@@ -135,7 +208,7 @@ struct NotificationCoordinatorTests {
             let referenceDate = makeDate(2025, 12, 1)
             let usdBill = makeOccurrence(dueDate: makeDate(2025, 12, 2), name: "Rent", currency: "USD", amount: 10)
             let eurBill = makeOccurrence(dueDate: makeDate(2025, 12, 3), name: "Gym", currency: "EUR", amount: 20)
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: false,
                 digestEnabled: true,
                 occurrences: [usdBill, eurBill],
@@ -158,7 +231,7 @@ struct NotificationCoordinatorTests {
         func whenBadgeModeIsNever_thenBadgeIsCleared() async throws {
             let referenceDate = makeDate(2025, 12, 1)
             let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: false,
                 badgeMode: .never,
                 occurrences: [occurrence],
@@ -174,7 +247,7 @@ struct NotificationCoordinatorTests {
         func whenRemindersEnabled_thenSchedulesRemindersForEachOffset() async throws {
             let referenceDate = makeDate(2025, 12, 1)
             let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 10))
-            let (sut, center) = makeSUT(
+            let (sut, center, _) = makeSUT(
                 remindersEnabled: true,
                 reminderOffsets: [0, 3],
                 occurrences: [occurrence],
@@ -197,7 +270,7 @@ struct NotificationCoordinatorTests {
             let reminderOccurrence = makeOccurrence(dueDate: makeDate(2025, 12, 1))
             let reminderRequest = makeReminderRequest(for: reminderOccurrence, offsetDays: 0)
             let digestRequest = makeDigestRequest()
-            let (sut, center) = makeSUT(authorizationStatus: .denied)
+            let (sut, center, _) = makeSUT(authorizationStatus: .denied)
             center.pendingNotifications = [reminderRequest, digestRequest]
 
             try await sut.refreshAllNotifications(for: [])
@@ -216,7 +289,7 @@ struct NotificationCoordinatorTests {
             let secondReminder = makeReminderRequest(for: secondOccurrence, offsetDays: 3)
             let otherReminder = makeReminderRequest(for: otherOccurrence, offsetDays: 0)
 
-            let (sut, center) = makeSUT()
+            let (sut, center, _) = makeSUT()
             center.pendingNotifications = [firstReminder, secondReminder, otherReminder]
 
             await sut.cancelReminders(for: [firstOccurrence.id, secondOccurrence.id])
@@ -232,7 +305,7 @@ struct NotificationCoordinatorTests {
             let targetReminderLate = makeReminderRequest(for: targetOccurrence, offsetDays: 5)
             let unrelatedReminder = makeCustomReminderRequest(identifier: "unrelated.id")
 
-            let (sut, center) = makeSUT()
+            let (sut, center, _) = makeSUT()
             center.pendingNotifications = [targetReminderEarly, targetReminderLate, unrelatedReminder]
 
             await sut.cancelAllReminders(forBillID: String(describing: targetOccurrence.bill.persistentModelID))
@@ -248,7 +321,7 @@ struct NotificationCoordinatorTests {
             let existingReminder = makeReminderRequest(for: existingOccurrence, offsetDays: 0)
 
             let referenceDate = makeDate(2025, 11, 30)
-            let (sut, center) = makeSUT(remindersEnabled: true, reminderOffsets: [0, 3], referenceDate: referenceDate)
+            let (sut, center, _) = makeSUT(remindersEnabled: true, reminderOffsets: [0, 3], referenceDate: referenceDate)
             center.pendingNotifications = [existingReminder]
 
             try await sut.rescheduleReminders(
@@ -274,7 +347,7 @@ struct NotificationCoordinatorTests {
             let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 3))
             let existingReminder = makeReminderRequest(for: occurrence, offsetDays: 0)
 
-            let (sut, center) = makeSUT(remindersEnabled: false)
+            let (sut, center, _) = makeSUT(remindersEnabled: false)
             center.pendingNotifications = [existingReminder]
 
             try await sut.rescheduleReminders(
@@ -300,7 +373,7 @@ private func makeSUT(
     badgeMode: BadgeMode = .daysBefore(3),
     occurrences: [BillOccurrence] = [],
     referenceDate: Date = Date()
-) -> (sut: NotificationCoordinator, center: UNNotificationCenterSpy) {
+) -> (sut: NotificationCoordinator, center: UNNotificationCenterSpy, provider: BillOccurrenceProviderStub) {
     let center = UNNotificationCenterSpy()
     center.stubbedAuthorizationStatus = authorizationStatus
 
@@ -326,7 +399,7 @@ private func makeSUT(
         currentDate: { referenceDate }
     )
 
-    return (sut, center)
+    return (sut, center, provider)
 }
 
 private let testCalendar: Calendar = {
@@ -362,6 +435,13 @@ private func makeOccurrences(count: Int, startingFrom referenceDate: Date) -> [B
     (0..<count).map { idx in
         let date = testCalendar.date(byAdding: .day, value: idx + 1, to: referenceDate)!
         return makeOccurrence(dueDate: date)
+    }
+}
+
+@MainActor
+private func makeOccurrences(count: Int, dueDate: Date) -> [BillOccurrence] {
+    (0..<count).map { idx in
+        makeOccurrence(dueDate: dueDate, name: "Bill \(idx + 1)", amount: Decimal(idx + 1))
     }
 }
 

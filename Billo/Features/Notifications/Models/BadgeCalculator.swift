@@ -64,6 +64,23 @@ struct BadgeCalculator: Sendable, BadgeCalculating {
         return count
     }
 
+    /// Calculates badge count from precomputed occurrences (already filtered to a reasonable horizon).
+    /// Useful when the caller already has occurrences and wants to avoid recomputing them from bills.
+    @MainActor
+    func calculateBadgeCount(
+        occurrences: [BillOccurrence],
+        badgeMode: BadgeMode,
+        referenceDate: Date
+    ) -> Int {
+        if case .never = badgeMode {
+            return 0
+        }
+
+        let count = occurrences.filter { isIncludedInBadge($0, mode: badgeMode, referenceDate: referenceDate) }.count
+        Logger.log("Badge count: \(count), mode: \(badgeMode)", level: .debug)
+        return count
+    }
+
     /// Determines if an occurrence should be included in the badge count
     @MainActor
     private func isIncludedInBadge(

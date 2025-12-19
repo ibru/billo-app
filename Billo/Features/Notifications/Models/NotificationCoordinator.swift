@@ -81,7 +81,7 @@ final class NotificationCoordinator: NotificationCoordinating {
             return
         }
 
-        // 2. Calculate occurrences for both reminders and digest (using full horizon)
+        // 2. Calculate occurrences for reminders, digest, and badge (using full horizon)
         let allOccurrences = await occurrenceProvider.unpaidOccurrences(
             from: bills,
             referenceDate: referenceDate,
@@ -94,19 +94,20 @@ final class NotificationCoordinator: NotificationCoordinating {
 
         if preferences.remindersEnabled {
             // Calculate effective horizon (shrink if cap would be exceeded)
-            let effectiveHorizon = await calculateEffectiveHorizon(
-                bills: bills,
+            let effectiveHorizon = calculateEffectiveHorizon(
+                allOccurrences: allOccurrences,
                 referenceDate: referenceDate
             )
             Logger.log("Effective horizon: \(effectiveHorizon) days", level: .debug)
 
-            // Get occurrences within effective horizon for scheduling
-            let schedulingOccurrences = await occurrenceProvider.unpaidOccurrences(
-                from: bills,
-                referenceDate: referenceDate,
-                horizonDays: effectiveHorizon,
-                calendar: calendar
-            )
+            // Filter locally instead of re-querying SwiftData models.
+            // Note: allOccurrences already includes overdue occurrences within lookback window.
+            let schedulingOccurrences: [BillOccurrence]
+            if let horizonDate = calendar.date(byAdding: .day, value: effectiveHorizon, to: referenceDate) {
+                schedulingOccurrences = allOccurrences.filter { $0.dueDate <= horizonDate }
+            } else {
+                schedulingOccurrences = allOccurrences
+            }
 
             // Schedule within cap
             let scheduled = try await scheduleRemindersInternal(
@@ -140,7 +141,7 @@ final class NotificationCoordinator: NotificationCoordinating {
 
         // 5. Update badge using user-selected badge window (independent of reminders/digest)
         let badgeCount = badgeCalculator.calculateBadgeCount(
-            bills: bills,
+            occurrences: allOccurrences,
             badgeMode: preferences.badgeMode,
             referenceDate: referenceDate
         )
@@ -155,21 +156,24 @@ final class NotificationCoordinator: NotificationCoordinating {
     /// Calculates horizon that fits within notification cap
     /// Shrinks from baseHorizonDays down to minHorizonDays if needed
     private func calculateEffectiveHorizon(
-        bills: [Bill],
+        allOccurrences: [BillOccurrence],
         referenceDate: Date
-    ) async -> Int {
+    ) -> Int {
         let availableSlots = maxNotifications - reservedSlots
         let offsetCount = preferences.reminderOffsets.count
 
+        if offsetCount == 0 {
+            return baseHorizonDays
+        }
+
         // Try progressively shorter horizons
         for horizon in stride(from: baseHorizonDays, through: minHorizonDays, by: -7) {
-            let occurrences = await occurrenceProvider.unpaidOccurrences(
-                from: bills,
-                referenceDate: referenceDate,
-                horizonDays: horizon,
-                calendar: calendar
-            )
-            let requiredSlots = occurrences.count * offsetCount
+            guard let horizonDate = calendar.date(byAdding: .day, value: horizon, to: referenceDate) else {
+                continue
+            }
+
+            let count = allOccurrences.filter { $0.dueDate <= horizonDate }.count
+            let requiredSlots = count * offsetCount
 
             if requiredSlots <= availableSlots {
                 return horizon

@@ -13,12 +13,15 @@ protocol BillsRefreshing: Sendable {
 struct AppNotificationRefresher: Sendable {
     func refreshAndReschedule(
         billsModel: BillsRefreshing,
-        coordinator: NotificationCoordinating
+        coordinator: NotificationCoordinating,
+        refreshBills: Bool = true
     ) async {
-        do {
-            try billsModel.refresh()
-        } catch {
-            print("[Notifications] Failed to refresh bills before scheduling: \(error)")
+        if refreshBills {
+            do {
+                try billsModel.refresh()
+            } catch {
+                print("[Notifications] Failed to refresh bills before scheduling: \(error)")
+            }
         }
 
         do {

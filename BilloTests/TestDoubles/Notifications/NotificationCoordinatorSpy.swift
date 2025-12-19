@@ -23,6 +23,7 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
 
     var authorizationStatusToReturn: UNAuthorizationStatus = .authorized
     var requestAuthorizationResult: Bool = true
+    var refreshAllNotificationsError: (any Error)?
 
     // MARK: - Protocol implementation
 
@@ -38,6 +39,9 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
 
     func refreshAllNotifications(for bills: [Bill]) async throws {
         refreshAllNotificationsCalls.append(bills)
+        if let refreshAllNotificationsError {
+            throw refreshAllNotificationsError
+        }
     }
 
     func scheduleReminders(for occurrences: [BillOccurrence]) async throws {

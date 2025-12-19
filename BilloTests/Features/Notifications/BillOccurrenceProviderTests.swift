@@ -16,7 +16,7 @@ struct BillOccurrenceProviderTests {
     }()
 
     @Test
-    func WHEN_monthlyBillDueOn20th_AND_todayIs3rd_THEN_noTodayOccurrenceGenerated() async throws {
+    func whenMonthlyBillDueOn20thAndTodayIs3rd_thenNoTodayOccurrenceGenerated() async throws {
         // Given: Monthly bill due on 20th
         let bill = try makeBill(dueDate: makeDate(day: 20), recurrence: .monthly)
         let referenceDate = makeDate(day: 3)  // Today is the 3rd
@@ -37,14 +37,13 @@ struct BillOccurrenceProviderTests {
         #expect(!hasToday, "Should not generate a fake 'today' occurrence")
 
         // And: First occurrence should be on the 20th
-        if let first = occurrences.first {
-            let day = calendar.component(.day, from: first.dueDate)
-            #expect(day == 20, "First occurrence should be on the 20th, got \(day)")
-        }
+        let first = try #require(occurrences.first)
+        let day = calendar.component(.day, from: first.dueDate)
+        #expect(day == 20, "First occurrence should be on the 20th, got \(day)")
     }
 
     @Test
-    func WHEN_oneTimeBillDueOn10th_AND_todayIs3rd_THEN_occurrenceIs10th() async throws {
+    func whenOneTimeBillDueOn10thAndTodayIs3rd_thenOccurrenceIs10th() async throws {
         // Given: One-time bill due on 10th
         let bill = try makeBill(dueDate: makeDate(day: 10), recurrence: nil)
         let referenceDate = makeDate(day: 3)  // Today is the 3rd
@@ -62,14 +61,13 @@ struct BillOccurrenceProviderTests {
         #expect(occurrences.count == 1, "One-time bill should have exactly one occurrence")
 
         // And: It should be on the 10th
-        if let occurrence = occurrences.first {
-            let day = calendar.component(.day, from: occurrence.dueDate)
-            #expect(day == 10, "Occurrence should be on the 10th, got \(day)")
-        }
+        let occurrence = try #require(occurrences.first)
+        let day = calendar.component(.day, from: occurrence.dueDate)
+        #expect(day == 10, "Occurrence should be on the 10th, got \(day)")
     }
 
     @Test
-    func WHEN_weeklyBillDueOnMonday_AND_todayIsFriday_THEN_noTodayOccurrenceGenerated() async throws {
+    func whenWeeklyBillDueOnMondayAndTodayIsFriday_thenNoTodayOccurrenceGenerated() async throws {
         // Given: Weekly bill due on Monday (Jan 6, 2025)
         let bill = try makeBill(
             dueDate: makeDate(year: 2025, month: 1, day: 6),  // Monday
@@ -101,7 +99,7 @@ struct BillOccurrenceProviderTests {
     }
 
     @Test
-    func WHEN_billIsDueToday_THEN_todayOccurrenceIsIncluded() async throws {
+    func whenBillIsDueToday_thenTodayOccurrenceIsIncluded() async throws {
         // Given: Monthly bill due on the 10th, and today is the 10th
         let bill = try makeBill(dueDate: makeDate(day: 10), recurrence: .monthly)
         let referenceDate = makeDate(day: 10)  // Today is the 10th (due date)
@@ -122,14 +120,13 @@ struct BillOccurrenceProviderTests {
         #expect(hasToday, "Bill due today should be included in occurrences")
 
         // And: The occurrence should be on the 10th
-        if let todayOccurrence = occurrences.first(where: { calendar.isDate($0.dueDate, inSameDayAs: referenceDate) }) {
-            let day = calendar.component(.day, from: todayOccurrence.dueDate)
-            #expect(day == 10, "Today's occurrence should be on the 10th")
-        }
+        let todayOccurrence = try #require(occurrences.first(where: { calendar.isDate($0.dueDate, inSameDayAs: referenceDate) }))
+        let day = calendar.component(.day, from: todayOccurrence.dueDate)
+        #expect(day == 10, "Today's occurrence should be on the 10th")
     }
 
     @Test
-    func WHEN_billIsOverdue_THEN_overdueOccurrenceIsIncluded() async throws {
+    func whenBillIsOverdue_thenOverdueOccurrenceIsIncluded() async throws {
         // Given: Monthly bill due on the 5th, today is the 10th (5 days overdue)
         let bill = try makeBill(dueDate: makeDate(day: 5), recurrence: .monthly)
         let referenceDate = makeDate(day: 10)  // Today is the 10th
@@ -155,7 +152,7 @@ struct BillOccurrenceProviderTests {
     }
 
     @Test
-    func WHEN_weeklyBillNotDueToday_THEN_noFakeTodayOccurrence() async throws {
+    func whenWeeklyBillNotDueToday_thenNoFakeTodayOccurrence() async throws {
         // Given: Weekly bill starting on Dec 1 (Monday), today is Dec 3 (Wednesday)
         let bill = try makeBill(
             dueDate: makeDate(year: 2025, month: 12, day: 1),  // Monday
@@ -192,7 +189,7 @@ struct BillOccurrenceProviderTests {
     }
 
     @Test
-    func WHEN_billHasYearsOfHistory_THEN_onlyRecentOccurrencesIncluded() async throws {
+    func whenBillHasYearsOfHistory_thenOnlyRecentOccurrencesIncluded() async throws {
         // Given: Monthly bill from 3 years ago (2022), never paid
         let bill = try makeBill(
             dueDate: makeDate(year: 2022, month: 1, day: 15),
@@ -226,6 +223,171 @@ struct BillOccurrenceProviderTests {
         #expect(hasRecentOverdue, "Should include recent overdue occurrences within lookback window")
     }
 
+    @Test
+    func whenOccurrenceIsFullyPaid_thenThatOccurrenceIsExcluded() async throws {
+        let dueDate = makeDate(day: 10)
+        let referenceDate = makeDate(day: 10)
+        let (bill, context) = try makeBillWithContext(dueDate: dueDate, recurrence: .monthly)
+
+        let payment = Payment(
+            amount: 100,
+            datePaid: referenceDate,
+            occurrenceDate: dueDate,
+            bill: bill
+        )
+        context.insert(payment)
+        try context.save()
+
+        let sut = BillOccurrenceProvider()
+        let occurrences = await sut.unpaidOccurrences(
+            from: [bill],
+            referenceDate: referenceDate,
+            horizonDays: 90,
+            calendar: calendar
+        )
+
+        let includesPaidOccurrence = occurrences.contains { calendar.isDate($0.dueDate, inSameDayAs: dueDate) }
+        #expect(!includesPaidOccurrence, "Fully paid occurrence should not be returned as unpaid")
+        #expect(occurrences.contains { $0.dueDate > dueDate }, "Should still include future unpaid occurrences")
+    }
+
+    @Test
+    func whenOccurrenceIsPartiallyPaid_thenOccurrenceIsStillIncluded() async throws {
+        let dueDate = makeDate(day: 10)
+        let referenceDate = makeDate(day: 10)
+        let (bill, context) = try makeBillWithContext(dueDate: dueDate, recurrence: .monthly)
+
+        let payment = Payment(
+            amount: 50,
+            datePaid: referenceDate,
+            occurrenceDate: dueDate,
+            bill: bill
+        )
+        context.insert(payment)
+        try context.save()
+
+        let sut = BillOccurrenceProvider()
+        let occurrences = await sut.unpaidOccurrences(
+            from: [bill],
+            referenceDate: referenceDate,
+            horizonDays: 90,
+            calendar: calendar
+        )
+
+        let includesPartiallyPaidOccurrence = occurrences.contains { calendar.isDate($0.dueDate, inSameDayAs: dueDate) }
+        #expect(includesPartiallyPaidOccurrence, "Partially paid occurrence should still be returned as unpaid")
+    }
+
+    @Test
+    func whenMultiplePartialPaymentsSumToFull_thenOccurrenceIsExcluded() async throws {
+        let dueDate = makeDate(day: 10)
+        let referenceDate = makeDate(day: 10)
+        let (bill, context) = try makeBillWithContext(dueDate: dueDate, recurrence: .monthly)
+
+        let payment1 = Payment(
+            amount: 60,
+            datePaid: referenceDate,
+            occurrenceDate: dueDate,
+            bill: bill
+        )
+        let payment2 = Payment(
+            amount: 40,
+            datePaid: referenceDate,
+            occurrenceDate: dueDate,
+            bill: bill
+        )
+        context.insert(payment1)
+        context.insert(payment2)
+        try context.save()
+
+        let sut = BillOccurrenceProvider()
+        let occurrences = await sut.unpaidOccurrences(
+            from: [bill],
+            referenceDate: referenceDate,
+            horizonDays: 90,
+            calendar: calendar
+        )
+
+        let includesPaidOccurrence = occurrences.contains { calendar.isDate($0.dueDate, inSameDayAs: dueDate) }
+        #expect(!includesPaidOccurrence, "Occurrence should be excluded once sum(payments) reaches bill amount")
+    }
+
+    @Test
+    func whenBillsIsEmpty_thenReturnsEmpty() async throws {
+        let sut = BillOccurrenceProvider()
+        let occurrences = await sut.unpaidOccurrences(
+            from: [],
+            referenceDate: makeDate(day: 10),
+            horizonDays: 90,
+            calendar: calendar
+        )
+        #expect(occurrences.isEmpty)
+    }
+
+    @Test
+    func whenHorizonIsZero_thenFutureOccurrencesAreExcludedButOverdueIncluded() async throws {
+        let bill = try makeBill(dueDate: makeDate(day: 5), recurrence: .monthly)
+        let referenceDate = makeDate(day: 10)
+
+        let sut = BillOccurrenceProvider()
+        let occurrences = await sut.unpaidOccurrences(
+            from: [bill],
+            referenceDate: referenceDate,
+            horizonDays: 0,
+            calendar: calendar
+        )
+
+        let hasOverdue5th = occurrences.contains { calendar.isDate($0.dueDate, inSameDayAs: makeDate(day: 5)) }
+        #expect(hasOverdue5th, "Overdue occurrence should still be included when horizonDays is 0")
+
+        let hasFutureOccurrence = occurrences.contains { $0.dueDate > referenceDate }
+        #expect(!hasFutureOccurrence, "Future occurrences should be excluded when horizonDays is 0")
+    }
+
+    @Test
+    func whenRecurrenceHasEndDate_thenNoOccurrencesAfterEndDate() async throws {
+        let dueDate = makeDate(year: 2025, month: 12, day: 1)
+        let endDate = makeDate(year: 2026, month: 2, day: 1)
+        let referenceDate = makeDate(year: 2025, month: 12, day: 10)
+
+        let (bill, _) = try makeBillWithContext(
+            dueDate: dueDate,
+            recurrence: .monthly,
+            endDate: endDate
+        )
+
+        let sut = BillOccurrenceProvider()
+        let occurrences = await sut.unpaidOccurrences(
+            from: [bill],
+            referenceDate: referenceDate,
+            horizonDays: 365,
+            calendar: calendar
+        )
+
+        let latest = occurrences.map(\.dueDate).max()
+        #expect(latest != nil)
+        if let latest {
+            #expect(latest <= endDate, "Expected no occurrences after endDate")
+        }
+    }
+
+    @Test
+    func whenMultipleBills_thenOccurrencesAreSortedByDueDate() async throws {
+        let early = try makeBill(dueDate: makeDate(day: 5), recurrence: nil)
+        let late = try makeBill(dueDate: makeDate(day: 10), recurrence: nil)
+
+        let sut = BillOccurrenceProvider()
+        let occurrences = await sut.unpaidOccurrences(
+            from: [late, early],
+            referenceDate: makeDate(day: 3),
+            horizonDays: 90,
+            calendar: calendar
+        )
+
+        let dates = occurrences.map(\.dueDate)
+        #expect(dates == dates.sorted(), "Occurrences should be sorted by dueDate")
+    }
+
     // MARK: - Helpers
 
     private func makeBill(
@@ -249,6 +411,61 @@ struct BillOccurrenceProviderTests {
         try context.save()
 
         return bill
+    }
+
+    private func makeBillWithContext(
+        dueDate: Date,
+        recurrence: RepeatIntervalType?
+    ) throws -> (bill: Bill, context: ModelContext) {
+        let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = ModelContext(container)
+
+        let rule = recurrence.map { RecurrenceRule(pattern: $0, frequency: 1) }
+        let bill = Bill(
+            name: "Test Bill",
+            amount: 100,
+            dueDate: dueDate,
+            recurrenceRule: rule
+        )
+
+        context.insert(bill)
+        try context.save()
+
+        return (bill, context)
+    }
+
+    private func makeBillWithContext(
+        dueDate: Date,
+        recurrence: RepeatIntervalType?,
+        endDate: Date
+    ) throws -> (bill: Bill, context: ModelContext) {
+        let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = ModelContext(container)
+
+        let rule = recurrence.map {
+            RecurrenceRule(
+                pattern: $0,
+                frequency: 1,
+                endConditionType: .endDate,
+                endDate: endDate
+            )
+        }
+
+        let bill = Bill(
+            name: "Test Bill",
+            amount: 100,
+            dueDate: dueDate,
+            recurrenceRule: rule
+        )
+
+        context.insert(bill)
+        try context.save()
+
+        return (bill, context)
     }
 
     private func makeDate(year: Int = 2025, month: Int = 12, day: Int) -> Date {

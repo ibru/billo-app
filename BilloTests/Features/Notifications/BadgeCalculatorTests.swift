@@ -15,7 +15,7 @@ struct BadgeCalculatorTests {
     }()
 
     @Test
-    func whenModeNever_returnsZero() {
+    func whenModeNever_thenReturnsZero() {
         let calc = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
         let result = calc.calculateBadgeCount(
             bills: [],
@@ -26,7 +26,7 @@ struct BadgeCalculatorTests {
     }
 
     @Test
-    func whenDueAndOverdue_countsOnlyDueAndOverdue() {
+    func whenModeDueAndOverdue_thenCountsOnlyDueAndOverdue() {
         let calc = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
         let reference = makeDate(2025, 12, 10)
         let overdue = makeOccurrence(due: makeDate(2025, 12, 8))
@@ -43,7 +43,7 @@ struct BadgeCalculatorTests {
     }
 
     @Test
-    func whenDaysBeforeThree_includesOverdueDueAndWithinWindow() {
+    func whenModeDaysBeforeThree_thenIncludesOverdueDueAndWithinWindow() {
         let calc = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
         let reference = makeDate(2025, 12, 10)
         let overdue = makeOccurrence(due: makeDate(2025, 12, 8))
@@ -61,7 +61,7 @@ struct BadgeCalculatorTests {
     }
 
     @Test
-    func WHEN_recurringBillNotDueToday_THEN_badgeCountExcludesToday() {
+    func whenRecurringBillNotDueToday_thenBadgeCountExcludesToday() {
         // Given: Monthly bill due on 20th, today is 3rd
         let calc = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
         let reference = makeDate(2025, 12, 3)  // Today is the 3rd

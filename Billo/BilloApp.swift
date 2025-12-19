@@ -94,15 +94,26 @@ struct BilloApp: App {
                         )
                         settings.load()
 
+                        do {
+                            try bills.refresh()
+                        } catch {
+                            Logger.log("Failed to refresh bills on launch: \(error)", level: .error)
+                        }
+
                         billsModel = bills
                         notificationCoordinator = coordinator
                         preferencesStore = preferences
                         appSettingsModel = settings
 
-                        await appNotificationRefresher.refreshAndReschedule(
-                            billsModel: bills,
-                            coordinator: coordinator
-                        )
+                        Task { @MainActor in
+                            await Task.yield()
+                            await appNotificationRefresher.refreshAndReschedule(
+                                billsModel: bills,
+                                coordinator: coordinator,
+                                // Bills were just refreshed above; avoid an immediate second fetch.
+                                refreshBills: false
+                            )
+                        }
                     }
             }
         }
