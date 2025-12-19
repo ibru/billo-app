@@ -91,7 +91,7 @@ private struct CalendarGridView: View {
                     if let date = entries[index] {
                         CalendarDayCell(
                             date: date,
-                            dayData: monthData[calendar.startOfDay(for: date)] ?? CalendarDayData(date: date, occurrences: [], payments: [], incomeOccurrences: []),
+                            dayData: monthData[calendar.startOfDay(for: date)] ?? CalendarDayData(date: date),
                             calendar: calendar,
                             today: today,
                             isToday: calendar.isDate(date, inSameDayAs: today),
@@ -237,7 +237,7 @@ private struct CalendarDayCell: View {
 
     private var accessibilityLabel: String {
         let dayString = date.formatted(.dateTime.month(.abbreviated).day())
-        let occurrenceCount = dayData.occurrences.count
+        let billCount = dayData.futureOccurrencesWithPayments.count + dayData.pastOccurrences.count
         let paymentCount = dayData.payments.count
         let incomeCount = dayData.incomeOccurrences.count
 
@@ -249,7 +249,7 @@ private struct CalendarDayCell: View {
             if incomeCount > 0 {
                 components.append("\(incomeCount) income\(incomeCount == 1 ? "" : "s")")
             }
-            components.append("\(occurrenceCount) bill\(occurrenceCount == 1 ? "" : "s")")
+            components.append("\(billCount) bill\(billCount == 1 ? "" : "s")")
             components.append("\(paymentCount) payment\(paymentCount == 1 ? "" : "s")")
         } else {
             components.append("No bills or payments")
@@ -322,50 +322,45 @@ private struct CalendarDayCell: View {
                 categoryIdentifier: .predefined(.utilities)
             )
 
-            // Day with unpaid bill (today)
-            let todayStart = calendar.startOfDay(for: today)
-            if calendar.isDate(todayStart, equalTo: monthStart, toGranularity: .month) {
-                data[todayStart] = CalendarDayData(
-                    date: todayStart,
-                    occurrences: [BillOccurrence(bill: sampleBill, dueDate: todayStart)],
-                    payments: [],
-                    incomeOccurrences: []
-                )
-            }
+	            // Day with unpaid bill (today)
+	            let todayStart = calendar.startOfDay(for: today)
+	            if calendar.isDate(todayStart, equalTo: monthStart, toGranularity: .month) {
+	                let occurrence = BillOccurrence(bill: sampleBill, dueDate: todayStart)
+	                data[todayStart] = CalendarDayData(
+	                    date: todayStart,
+	                    futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])]
+	                )
+	            }
 
             // Day with paid bill (5 days ago)
             if let fiveDaysAgo = calendar.date(byAdding: .day, value: -5, to: today) {
                 let fiveDaysAgoStart = calendar.startOfDay(for: fiveDaysAgo)
                 if calendar.isDate(fiveDaysAgoStart, equalTo: monthStart, toGranularity: .month) {
-                    let payment = Payment(
-                        amount: 50,
-                        datePaid: fiveDaysAgoStart,
-                        occurrenceDate: fiveDaysAgoStart,
-                        confirmationNumber: nil,
-                        bill: sampleBill
-                    )
-                    data[fiveDaysAgoStart] = CalendarDayData(
-                        date: fiveDaysAgoStart,
-                        occurrences: [],
-                        payments: [payment],
-                        incomeOccurrences: []
-                    )
-                }
-            }
+	                    let payment = Payment(
+	                        amount: 50,
+	                        datePaid: fiveDaysAgoStart,
+	                        occurrenceDate: fiveDaysAgoStart,
+	                        confirmationNumber: nil,
+	                        bill: sampleBill
+	                    )
+	                    data[fiveDaysAgoStart] = CalendarDayData(
+	                        date: fiveDaysAgoStart,
+	                        payments: [payment]
+	                    )
+	                }
+	            }
 
             // Day with income (10 days from now)
             if let tenDaysFromNow = calendar.date(byAdding: .day, value: 10, to: today) {
                 let tenDaysStart = calendar.startOfDay(for: tenDaysFromNow)
-                if calendar.isDate(tenDaysStart, equalTo: monthStart, toGranularity: .month) {
-                    let income = Income(name: "Salary", amount: 5000, startDate: tenDaysStart)
-                    data[tenDaysStart] = CalendarDayData(
-                        date: tenDaysStart,
-                        occurrences: [],
-                        payments: [],
-                        incomeOccurrences: [IncomeOccurrence(from: income, on: tenDaysStart)]
-                    )
-                }
-            }
+	                if calendar.isDate(tenDaysStart, equalTo: monthStart, toGranularity: .month) {
+	                    let income = Income(name: "Salary", amount: 5000, startDate: tenDaysStart)
+	                    data[tenDaysStart] = CalendarDayData(
+	                        date: tenDaysStart,
+	                        incomeOccurrences: [IncomeOccurrence(from: income, on: tenDaysStart)]
+	                    )
+	                }
+	            }
 
             return data
         }

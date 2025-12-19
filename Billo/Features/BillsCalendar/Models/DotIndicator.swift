@@ -18,7 +18,6 @@ struct DotIndicator: Identifiable, Equatable {
 }
 
 enum DotIndicatorGenerator {
-    @MainActor
     static func dots(
         for dayData: CalendarDayData,
         relativeTo today: Date,
@@ -26,8 +25,9 @@ enum DotIndicatorGenerator {
     ) -> [DotIndicator] {
         var dots: [DotIndicator] = []
 
-        // Order: Income → Payments → Bills
-        // Income first (money coming in)
+        // Order: Income → Payments → Past bills → Future bills
+
+        // Income (money coming in)
         for incomeOccurrence in dayData.incomeOccurrences {
             dots.append(
                 DotIndicator(
@@ -37,7 +37,7 @@ enum DotIndicatorGenerator {
             )
         }
 
-        // Payments second (bills already paid)
+        // Payments (each payment gets its own dot on payment date)
         for payment in dayData.payments {
             dots.append(
                 DotIndicator(
@@ -47,17 +47,36 @@ enum DotIndicatorGenerator {
             )
         }
 
-        // Bill occurrences last (unpaid bills)
-        for occurrence in dayData.occurrences where occurrence.status(relativeTo: today, calendar: calendar) != .paid {
-            let color = urgencyColor(
-                for: occurrence.dueDate,
-                relativeTo: today,
-                calendar: calendar
-            )
+        // Past occurrences (on due date) - color based on payment status
+        for display in dayData.pastOccurrences {
+            let color: DotColor = switch display.status {
+            case .paid:
+                .green
+            case .partiallyPaid:
+                .orange
+            case .missed:
+                .red
+            }
 
             dots.append(
                 DotIndicator(
-                    id: "occ-\(occurrence.id.billID)-\(occurrence.id.dueTime)",
+                    id: "past-\(display.occurrence.id.billID)-\(display.occurrence.id.dueTime)",
+                    color: color
+                )
+            )
+        }
+
+        // Future occurrences (on due date) - green if prepaid, otherwise urgency color
+        for item in dayData.futureOccurrencesWithPayments {
+            let color: DotColor = if item.isPrepaid {
+                .green
+            } else {
+                urgencyColor(for: item.occurrence.dueDate, relativeTo: today, calendar: calendar)
+            }
+
+            dots.append(
+                DotIndicator(
+                    id: "occ-\(item.occurrence.id.billID)-\(item.occurrence.id.dueTime)",
                     color: color
                 )
             )

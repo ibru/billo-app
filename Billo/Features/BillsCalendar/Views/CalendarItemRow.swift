@@ -8,26 +8,23 @@ struct CalendarItemRow: View {
 
     var body: some View {
         switch item {
-        case .occurrence(let occurrence):
+        case .occurrence(let occurrence, let payments):
             NavigationLink(value: occurrence.bill) {
-                BillRowView(occurrence: occurrence, customCategories: customCategories)
+                CalendarFutureBillRow(
+                    occurrence: occurrence,
+                    payments: payments,
+                    customCategories: customCategories
+                )
                     .calendarCardStyle()
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
             .tint(.primary)
-        case .payment(let payment):
-            NavigationLink {
-                PaymentDetailView(payment: payment)
-            } label: {
-                PaymentRowView(
-                    payment: payment,
-                    customCategories: customCategories,
-                    leadingIconStyle: .checkmark,
-                    accentColor: .green,
-                    showsChevron: true
-                )
-                .calendarCardStyle()
+        case .pastOccurrence(let display):
+            NavigationLink(value: display.occurrence.bill) {
+                CalendarPastBillRow(display: display, customCategories: customCategories)
+                    .calendarCardStyle()
+                    .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
             .tint(.primary)
@@ -39,6 +36,8 @@ struct CalendarItemRow: View {
             }
             .buttonStyle(.plain)
             .tint(.primary)
+        case .todayDivider:
+            CalendarTodayDividerRow()
         case .emptyMonth:
             Text(String(localized: "No events this month"))
                 .font(.subheadline)
@@ -58,18 +57,12 @@ private struct CalendarIncomeRow: View {
 
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
-            Image(systemName: "banknote")
-                .foregroundStyle(DesignSystem.Color.income)
-                .font(.title2)
-                .frame(width: 40, alignment: .center)
+            CalendarDateStamp(date: incomeOccurrence.date)
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
                 Text(incomeOccurrence.name)
                     .font(.headline)
                     .lineLimit(1)
-                Text(incomeOccurrence.date, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Spacer()

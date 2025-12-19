@@ -1,6 +1,7 @@
 //  Created by Jiri Urbasek on 12/05/25.
 
 import Foundation
+import SwiftData
 
 enum CalendarSectionsBuilder {
     static func build(
@@ -9,10 +10,22 @@ enum CalendarSectionsBuilder {
         incomeOccurrences: [IncomeOccurrence] = [],
         from startMonth: DateComponents,
         to endMonth: DateComponents,
+        referenceDate: Date,
         calendar: Calendar
     ) -> [CalendarMonthSection] {
         guard let _ = startMonth.year, let _ = startMonth.month else { return [] }
         guard let _ = endMonth.year, let _ = endMonth.month else { return [] }
+
+        let startOfToday = calendar.startOfDay(for: referenceDate)
+
+        var paymentsByOccurrence: [CalendarPaymentKey: [Payment]] = [:]
+        paymentsByOccurrence.reserveCapacity(payments.count)
+        for payment in payments {
+            guard let billID = payment.bill?.persistentModelID else { continue }
+            let occurrenceDay = calendar.startOfDay(for: payment.occurrenceDate)
+            let key = CalendarPaymentKey(billID: billID, occurrenceDay: occurrenceDay)
+            paymentsByOccurrence[key, default: []].append(payment)
+        }
 
         var sections: [CalendarMonthSection] = []
         var current = startMonth
@@ -24,15 +37,30 @@ enum CalendarSectionsBuilder {
             }
 
             let monthOccurrences = occurrences.filter { contains($0.dueDate, in: monthInterval) }
-            let monthPayments = payments.filter { contains($0.datePaid, in: monthInterval) }
             let monthIncomes = incomeOccurrences.filter { contains($0.date, in: monthInterval) }
 
             var items: [CalendarListItem] = []
             items.append(contentsOf: monthIncomes.map { .income($0) })
-            items.append(contentsOf: monthOccurrences.map { .occurrence($0) })
-            items.append(contentsOf: monthPayments.map { .payment($0) })
 
-            // Sort by date first, then by type (income → payment → occurrence), then by id for stability
+            for occurrence in monthOccurrences {
+                let startOfDueDate = calendar.startOfDay(for: occurrence.dueDate)
+
+                let key = CalendarPaymentKey(billID: occurrence.bill.persistentModelID, occurrenceDay: startOfDueDate)
+                let occurrencePayments = paymentsByOccurrence[key] ?? []
+
+                let isPast = startOfDueDate < startOfToday
+                let isToday = startOfDueDate == startOfToday
+                let hasPayments = !occurrencePayments.isEmpty
+
+                if isPast || (isToday && hasPayments) {
+                    let display = PastBillDisplay(occurrence: occurrence, payments: occurrencePayments)
+                    items.append(.pastOccurrence(display))
+                } else {
+                    items.append(.occurrence(occurrence, payments: occurrencePayments))
+                }
+            }
+
+            // Sort by date first, then by type (income → bills → empty), then by id for stability
             items.sort { lhs, rhs in
                 if lhs.date != rhs.date {
                     return lhs.date < rhs.date
@@ -46,6 +74,16 @@ enum CalendarSectionsBuilder {
             let sectionId = Self.sectionId(from: current)
             if items.isEmpty {
                 items = [.emptyMonth(sectionId: sectionId)]
+            }
+
+            if !items.isEmpty, items.first?.isEmptyMonth != true, contains(startOfToday, in: monthInterval) {
+                let insertionIndex = items.firstIndex(where: { item in
+                    calendar.startOfDay(for: item.date) >= startOfToday
+                }) ?? items.count
+
+                if insertionIndex < items.count {
+                    items.insert(.todayDivider(date: startOfToday, sectionId: sectionId), at: insertionIndex)
+                }
             }
 
             // Calculate totals for the month

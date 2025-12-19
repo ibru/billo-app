@@ -25,6 +25,7 @@ struct BillsCalendarView: View {
     @State private var allOccurrences: [BillOccurrence] = []
     @State private var allPayments: [Payment] = []
     @State private var allIncomeOccurrences: [IncomeOccurrence] = []
+    @State private var referenceDate: Date = Date()
 
     init(
         calendar: Calendar = .current,
@@ -39,7 +40,6 @@ struct BillsCalendarView: View {
         content
             .dayDetailPresentation(
                 dayData: $selectedDayData,
-                calendar: calendar,
                 onMarkPaid: { occurrence in
                     await markPaid(occurrence)
                 }
@@ -78,7 +78,7 @@ struct BillsCalendarView: View {
                     months: months,
                     pageIndex: $pageIndex,
                     calendar: calendar,
-                    today: Date(),
+                    today: referenceDate,
                     selectedDate: selectedDayData?.date,
                     monthDataProvider: { month in
                         gridData(for: month)
@@ -150,6 +150,8 @@ struct BillsCalendarView: View {
 
     @MainActor
     private func refreshData() async {
+        referenceDate = Date()
+
         do {
             try billsModel.refresh()
         } catch {
@@ -162,10 +164,10 @@ struct BillsCalendarView: View {
             payments: payments,
             incomes: billsModel.incomes,
             calendar: calendar,
-            currentDate: Date()
+            currentDate: referenceDate
         )
         let latest = CalendarNavigationBounds.latestMonth(
-            from: Date(),
+            from: referenceDate,
             calendar: calendar
         )
         months = monthSequence(from: earliest, to: latest)
@@ -194,6 +196,7 @@ struct BillsCalendarView: View {
             incomeOccurrences: incomeOccurrences,
             from: earliest,
             to: latest,
+            referenceDate: referenceDate,
             calendar: calendar
         )
 
@@ -314,51 +317,13 @@ struct BillsCalendarView: View {
     }
 
     private func gridData(for month: DateComponents) -> CalendarMonthGridData {
-        if let section = sections.first(where: { $0.id == sectionId(for: month) }) {
-            var data: CalendarMonthGridData = [:]
-
-            func appendOccurrence(_ occurrence: BillOccurrence) {
-                let key = calendar.startOfDay(for: occurrence.dueDate)
-                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
-                day = CalendarDayData(date: key, occurrences: day.occurrences + [occurrence], payments: day.payments, incomeOccurrences: day.incomeOccurrences)
-                data[key] = day
-            }
-
-            func appendPayment(_ payment: Payment) {
-                let key = calendar.startOfDay(for: payment.datePaid)
-                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
-                day = CalendarDayData(date: key, occurrences: day.occurrences, payments: day.payments + [payment], incomeOccurrences: day.incomeOccurrences)
-                data[key] = day
-            }
-
-            func appendIncome(_ incomeOccurrence: IncomeOccurrence) {
-                let key = calendar.startOfDay(for: incomeOccurrence.date)
-                var day = data[key] ?? CalendarDayData(date: key, occurrences: [], payments: [], incomeOccurrences: [])
-                day = CalendarDayData(date: key, occurrences: day.occurrences, payments: day.payments, incomeOccurrences: day.incomeOccurrences + [incomeOccurrence])
-                data[key] = day
-            }
-
-            for item in section.items {
-                switch item {
-                case .occurrence(let occurrence):
-                    appendOccurrence(occurrence)
-                case .payment(let payment):
-                    appendPayment(payment)
-                case .income(let incomeOccurrence):
-                    appendIncome(incomeOccurrence)
-                case .emptyMonth:
-                    break
-                }
-            }
-            return data
-        }
-
         return CalendarMonthGridBuilder.build(
             month: month,
             calendar: calendar,
             occurrences: allOccurrences,
             payments: allPayments,
-            incomeOccurrences: allIncomeOccurrences
+            incomeOccurrences: allIncomeOccurrences,
+            referenceDate: referenceDate
         )
     }
 }
@@ -442,7 +407,6 @@ private struct MonthSectionHeader: View {
 
 private struct DayDetailPresentationModifier: ViewModifier {
     @Binding var dayData: CalendarDayData?
-    let calendar: Calendar
     let onMarkPaid: (BillOccurrence) async -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -454,8 +418,6 @@ private struct DayDetailPresentationModifier: ViewModifier {
                 .popover(item: $dayData) { dayData in
                     DayDetailSheet(
                         dayData: dayData,
-                        calendar: calendar,
-                        today: Date(),
                         onMarkPaid: onMarkPaid
                     )
                 }
@@ -465,8 +427,6 @@ private struct DayDetailPresentationModifier: ViewModifier {
                 .sheet(item: $dayData) { dayData in
                     DayDetailSheet(
                         dayData: dayData,
-                        calendar: calendar,
-                        today: Date(),
                         onMarkPaid: onMarkPaid
                     )
                 }
@@ -476,8 +436,6 @@ private struct DayDetailPresentationModifier: ViewModifier {
             .popover(item: $dayData) { dayData in
                 DayDetailSheet(
                     dayData: dayData,
-                    calendar: calendar,
-                    today: Date(),
                     onMarkPaid: onMarkPaid
                 )
             }
@@ -488,12 +446,10 @@ private struct DayDetailPresentationModifier: ViewModifier {
 private extension View {
     func dayDetailPresentation(
         dayData: Binding<CalendarDayData?>,
-        calendar: Calendar,
         onMarkPaid: @escaping (BillOccurrence) async -> Void
     ) -> some View {
         modifier(DayDetailPresentationModifier(
             dayData: dayData,
-            calendar: calendar,
             onMarkPaid: onMarkPaid
         ))
     }

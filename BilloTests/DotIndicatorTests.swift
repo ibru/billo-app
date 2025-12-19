@@ -124,7 +124,7 @@ struct DotIndicatorTests {
             bill: bill
         )
         context.insert(payment)
-        let dayData = CalendarDayData(date: bill.dueDate, occurrences: [], payments: [payment])
+        let dayData = CalendarDayData(date: bill.dueDate, payments: [payment])
 
         let dots = DotIndicatorGenerator.dots(
             for: dayData,

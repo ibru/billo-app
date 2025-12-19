@@ -13,6 +13,7 @@ struct CalendarMonthGridBuilderTests {
         let calendar = utcCalendar()
         let context = try makeContext()
         let month = DateComponents(year: 2025, month: 1)
+        let referenceDate = makeDate(year: 2024, month: 12, day: 31, calendar: calendar)
 
         let bill = makeBill(name: "Rent", dueDate: makeDate(year: 2025, month: 1, day: 5, calendar: calendar), in: context)
         let occurrences = [BillOccurrence(bill: bill, dueDate: bill.dueDate)]
@@ -21,12 +22,13 @@ struct CalendarMonthGridBuilderTests {
             month: month,
             calendar: calendar,
             occurrences: occurrences,
-            payments: []
+            payments: [],
+            referenceDate: referenceDate
         )
 
         let dayKey = calendar.startOfDay(for: bill.dueDate)
         let dayData = try #require(grid[dayKey])
-        #expect(dayData.occurrences.count == 1)
+        #expect(dayData.futureOccurrencesWithPayments.count == 1)
         #expect(dayData.payments.isEmpty)
     }
 
@@ -35,6 +37,7 @@ struct CalendarMonthGridBuilderTests {
         let calendar = utcCalendar()
         let context = try makeContext()
         let month = DateComponents(year: 2025, month: 2)
+        let referenceDate = makeDate(year: 2025, month: 2, day: 1, calendar: calendar)
 
         let bill = makeBill(name: "Loan", dueDate: makeDate(year: 2025, month: 1, day: 20, calendar: calendar), in: context)
         let paymentDate = makeDate(year: 2025, month: 2, day: 2, calendar: calendar)
@@ -44,13 +47,15 @@ struct CalendarMonthGridBuilderTests {
             month: month,
             calendar: calendar,
             occurrences: [],
-            payments: [payment]
+            payments: [payment],
+            referenceDate: referenceDate
         )
 
         let dayKey = calendar.startOfDay(for: paymentDate)
         let dayData = try #require(grid[dayKey])
         #expect(dayData.payments.count == 1)
-        #expect(dayData.occurrences.isEmpty)
+        #expect(dayData.futureOccurrencesWithPayments.isEmpty)
+        #expect(dayData.pastOccurrences.isEmpty)
     }
 
     @Test
@@ -58,6 +63,7 @@ struct CalendarMonthGridBuilderTests {
         let calendar = utcCalendar()
         let context = try makeContext()
         let month = DateComponents(year: 2025, month: 3)
+        let referenceDate = makeDate(year: 2025, month: 3, day: 9, calendar: calendar)
 
         let dueDate = makeDate(year: 2025, month: 3, day: 10, calendar: calendar)
         let bill = makeBill(name: "Utilities", dueDate: dueDate, in: context)
@@ -68,12 +74,13 @@ struct CalendarMonthGridBuilderTests {
             month: month,
             calendar: calendar,
             occurrences: [occurrence],
-            payments: [payment]
+            payments: [payment],
+            referenceDate: referenceDate
         )
 
         let dayKey = calendar.startOfDay(for: dueDate)
         let dayData = try #require(grid[dayKey])
-        #expect(dayData.occurrences.count == 1)
+        #expect(dayData.futureOccurrencesWithPayments.count == 1)
         #expect(dayData.payments.count == 1)
     }
 
@@ -82,6 +89,7 @@ struct CalendarMonthGridBuilderTests {
         let calendar = utcCalendar()
         let context = try makeContext()
         let month = DateComponents(year: 2025, month: 4)
+        let referenceDate = makeDate(year: 2025, month: 4, day: 1, calendar: calendar)
 
         let day = makeDate(year: 2025, month: 4, day: 15, calendar: calendar)
         let billA = makeBill(name: "A", dueDate: day, in: context)
@@ -95,12 +103,13 @@ struct CalendarMonthGridBuilderTests {
             month: month,
             calendar: calendar,
             occurrences: occurrences,
-            payments: []
+            payments: [],
+            referenceDate: referenceDate
         )
 
         let dayKey = calendar.startOfDay(for: day)
         let dayData = try #require(grid[dayKey])
-        #expect(dayData.occurrences.count == 2)
+        #expect(dayData.futureOccurrencesWithPayments.count == 2)
     }
 
     @Test
@@ -108,6 +117,7 @@ struct CalendarMonthGridBuilderTests {
         let calendar = utcCalendar()
         let context = try makeContext()
         let month = DateComponents(year: 2025, month: 5)
+        let referenceDate = makeDate(year: 2025, month: 5, day: 1, calendar: calendar)
 
         let inMonthDate = makeDate(year: 2025, month: 5, day: 1, calendar: calendar)
         let outMonthDate = makeDate(year: 2025, month: 6, day: 1, calendar: calendar)
@@ -126,12 +136,13 @@ struct CalendarMonthGridBuilderTests {
             month: month,
             calendar: calendar,
             occurrences: occurrences,
-            payments: [payment]
+            payments: [payment],
+            referenceDate: referenceDate
         )
 
         #expect(grid.keys.count == 1)
         let key = calendar.startOfDay(for: inMonthDate)
-        #expect(grid[key]?.occurrences.count == 1)
+        #expect(grid[key]?.futureOccurrencesWithPayments.count == 1)
         #expect(grid[key]?.payments.count == 0)
     }
 
@@ -142,10 +153,62 @@ struct CalendarMonthGridBuilderTests {
             month: DateComponents(), // missing month/year
             calendar: calendar,
             occurrences: [],
-            payments: []
+            payments: [],
+            referenceDate: Date()
         )
 
         #expect(grid.isEmpty)
+    }
+
+    @Test
+    func when_occurrenceIsTodayWithPayments_then_classifiedAsPastOccurrence() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let today = makeDate(year: 2025, month: 7, day: 10, calendar: calendar)
+        let month = DateComponents(year: 2025, month: 7)
+
+        let bill = makeBill(name: "Today", dueDate: today, in: context)
+        let occurrence = BillOccurrence(bill: bill, dueDate: today)
+        let payment = makePayment(amount: 10, paid: today, occurrence: today, bill: bill, in: context)
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: [occurrence],
+            payments: [payment],
+            referenceDate: today
+        )
+
+        let dayKey = calendar.startOfDay(for: today)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.pastOccurrences.count == 1)
+        #expect(dayData.futureOccurrencesWithPayments.isEmpty)
+    }
+
+    @Test
+    func when_paymentDateIsInMonthButOccurrenceDueDateIsInDifferentMonth_then_paymentAppearsInThatMonthDayData() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let january = DateComponents(year: 2025, month: 1)
+        let referenceDate = makeDate(year: 2025, month: 1, day: 15, calendar: calendar)
+
+        let dueDateInFebruary = makeDate(year: 2025, month: 2, day: 15, calendar: calendar)
+        let bill = makeBill(name: "Prepaid", dueDate: dueDateInFebruary, in: context)
+
+        let paymentDateInJanuary = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
+        let payment = makePayment(amount: 100, paid: paymentDateInJanuary, occurrence: dueDateInFebruary, bill: bill, in: context)
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: january,
+            calendar: calendar,
+            occurrences: [], // due date is in February
+            payments: [payment],
+            referenceDate: referenceDate
+        )
+
+        let dayKey = calendar.startOfDay(for: paymentDateInJanuary)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.payments.count == 1)
     }
 }
 

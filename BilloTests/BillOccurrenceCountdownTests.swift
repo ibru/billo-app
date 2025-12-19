@@ -173,7 +173,7 @@ private extension BillOccurrence.Countdown {
 // MARK: - SwiftTesting Debug Support
 
 @MainActor
-extension BillOccurrence.Countdown: CustomTestStringConvertible, CustomDebugStringConvertible {
+extension BillOccurrence.Countdown: @retroactive CustomTestStringConvertible, @retroactive CustomDebugStringConvertible {
     public var debugDescription: String { testDescription }
 
     public var testDescription: String {
