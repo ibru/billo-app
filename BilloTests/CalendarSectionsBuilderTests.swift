@@ -438,7 +438,7 @@ struct CalendarSectionsBuilderTests {
     }
 
     @Test
-    func when_allItemsAreBeforeToday_then_todayDividerNotInserted() throws {
+    func when_allItemsAreBeforeToday_then_todayDividerInsertedAtEnd() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let today = makeDate(year: 2025, month: 1, day: 20, calendar: calendar)
@@ -458,8 +458,17 @@ struct CalendarSectionsBuilderTests {
         )
 
         let january = try #require(sections.first { $0.id == "2025-01" })
-        #expect(january.items.count == 1)
-        #expect(january.items.contains { if case .todayDivider = $0 { true } else { false } } == false)
+        #expect(january.items.count == 2)
+
+        // Past occurrence comes first
+        let first = try requireItem(january.items, at: 0)
+        _ = try #require(extractPastOccurrence(from: first))
+
+        // Today divider is at the end
+        let second = try requireItem(january.items, at: 1)
+        let divider = try #require(extractTodayDivider(from: second))
+        #expect(divider.date == calendar.startOfDay(for: today))
+        #expect(divider.sectionId == "2025-01")
     }
 
     @Test

@@ -7,6 +7,26 @@ import Foundation
 
 @Suite("Bill - Occurrence Generation") @MainActor
 struct BillOccurrenceGenerationTests {
+    @Test func whenBillHasDueDay3_andRangeStartsDay1_thenGenerateOccurrencesPreservesDueDay() throws {
+        let (bill, _) = try makeSUT(
+            dueDate: makeDate(month: 12, day: 3),
+            pattern: .monthly
+        )
+
+        let rangeStart = makeDate(month: 12, day: 1)
+        let rangeEnd = makeDate(year: 2026, month: 3, day: 31)
+
+        let occurrences = bill.generateOccurrences(from: rangeStart, until: rangeEnd, calendar: .current)
+
+        let expected = [
+            makeDate(month: 12, day: 3),
+            makeDate(year: 2026, month: 1, day: 3),
+            makeDate(year: 2026, month: 2, day: 3),
+            makeDate(year: 2026, month: 3, day: 3)
+        ]
+
+        #expect(occurrences == expected)
+    }
 
     @Test func whenWeeklyBill_thenPreservesWeekday() throws {
         let (bill, _) = try makeSUT(

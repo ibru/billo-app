@@ -169,14 +169,20 @@ extension Bill {
         calendar: Calendar
     ) -> [Date] {
         guard let rule = recurrenceRule else {
-            return [dueDate]
+            return (dueDate >= startDate && dueDate <= endDate) ? [dueDate] : []
         }
 
-        return rule.generateOccurrences(
-            from: startDate,
+        // IMPORTANT:
+        // Always generate from the original `dueDate` (anchor) and then filter to the requested window.
+        // Generating from `startDate` would shift the schedule (e.g., everything becomes due on the 1st),
+        // and payments keyed by real occurrence dates would no longer match.
+        let allOccurrences = rule.generateOccurrences(
+            from: dueDate,
             until: endDate,
             calendar: calendar
         )
+
+        return allOccurrences.filter { $0 >= startDate }
     }
 
     // MARK: - Partial Payments Support
