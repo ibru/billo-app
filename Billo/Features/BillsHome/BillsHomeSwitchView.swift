@@ -5,6 +5,8 @@ import SwiftUI
 enum AppDestination: Hashable {
     case paymentHistory
     case incomeList
+    case charts
+    case dataExport
 }
 
 struct BillsHomeSwitchView: View {
@@ -17,6 +19,9 @@ struct BillsHomeSwitchView: View {
 
     @State private var showingAddBill = false
     @State private var showingSettings = false
+    @State private var navigationPath = NavigationPath()
+    @State private var calendarIsAtCurrentMonth = true
+    @State private var calendarScrollToTodayToken = 0
 
     private var nextViewMode: BillsHomeViewMode {
         switch viewModeBinding.wrappedValue {
@@ -34,16 +39,20 @@ struct BillsHomeSwitchView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             Group {
                 switch viewModeBinding.wrappedValue {
                 case .list:
                     BillsListView()
+                        .navigationTitle("Bills")
                 case .calendar:
-                    BillsCalendarView(onAddBill: { showingAddBill = true })
+                    BillsCalendarView(
+                        onAddBill: { showingAddBill = true },
+                        isAtCurrentMonth: $calendarIsAtCurrentMonth,
+                        scrollToTodayToken: $calendarScrollToTodayToken
+                    )
                 }
             }
-            .navigationTitle("Bills")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: Bill.self) { bill in
                 BillDetailView(bill: bill)
@@ -58,6 +67,10 @@ struct BillsHomeSwitchView: View {
                     PaymentHistoryView()
                 case .incomeList:
                     IncomeListView()
+                case .charts:
+                    ChartsView()
+                case .dataExport:
+                    DataExportView()
                 }
             }
             .navigationDestination(for: Income.self) { income in
@@ -65,11 +78,28 @@ struct BillsHomeSwitchView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        showingSettings = true
+                    Menu {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Label(String(localized: "Settings"), systemImage: "gear")
+                        }
+
+                        Button {
+                            navigationPath.append(AppDestination.charts)
+                        } label: {
+                            Label(String(localized: "Charts"), systemImage: "chart.bar")
+                        }
+
+                        Button {
+                            navigationPath.append(AppDestination.dataExport)
+                        } label: {
+                            Label(String(localized: "Data Export"), systemImage: "square.and.arrow.up")
+                        }
                     } label: {
-                        Image(systemName: "gear")
+                        Image(systemName: "ellipsis.circle")
                     }
+                    .accessibilityLabel(String(localized: "More"))
                 }
 
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -92,6 +122,14 @@ struct BillsHomeSwitchView: View {
                         Image(systemName: "plus")
                     }
                 }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HomeFloatingBottomBarView(
+                    showToday: viewModeBinding.wrappedValue == .calendar && !calendarIsAtCurrentMonth,
+                    onToday: { calendarScrollToTodayToken += 1 },
+                    onPaymentHistory: { navigationPath.append(AppDestination.paymentHistory) },
+                    onIncome: { navigationPath.append(AppDestination.incomeList) }
+                )
             }
             .sheet(isPresented: $showingAddBill) {
                 BillEditView(mode: .adding)
@@ -123,4 +161,81 @@ struct BillsHomeSwitchView: View {
             }
         }
     }
+}
+
+private struct HomeFloatingBottomBarView: View {
+    let showToday: Bool
+    let onToday: () -> Void
+    let onPaymentHistory: () -> Void
+    let onIncome: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center) {
+            if showToday {
+                FloatingPillButton(
+                    verticalPadding: 4,
+                    horizontalPadding: 4,
+                    action: onToday
+                ) {
+                    Text(String(localized: "Today"))
+                        .font(.headline)
+                        .frame(height: 44)
+                        .padding(.horizontal, DesignSystem.Spacing.medium)
+                }
+                .accessibilityLabel(String(localized: "Today"))
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.small)
+
+            HomeFloatingQuickActionsView(
+                onPaymentHistory: onPaymentHistory,
+                onIncome: onIncome
+            )
+        }
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.top, DesignSystem.Spacing.extraSmall)
+    }
+}
+
+private struct HomeFloatingQuickActionsView: View {
+    let onPaymentHistory: () -> Void
+    let onIncome: () -> Void
+
+    var body: some View {
+        FloatingPill {
+            HStack(spacing: 0) {
+                Button(action: onPaymentHistory) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel(String(localized: "Payment History"))
+
+                Divider()
+                    .frame(height: 22)
+
+                Button(action: onIncome) {
+                    Image(systemName: "banknote")
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel(String(localized: "Income"))
+            }
+            .font(.headline)
+        }
+    }
+}
+
+#Preview("Bills Home (Sample Data)") {
+    let preview = BilloPreviewContainer.withSampleData()
+    return BillsHomeSwitchView()
+        .billoPreviewEnvironment(preview)
+}
+
+#Preview("Bills Home (Empty)") {
+    let preview = BilloPreviewContainer.empty()
+    return BillsHomeSwitchView()
+        .billoPreviewEnvironment(preview)
 }

@@ -58,6 +58,17 @@ struct CalendarPagedGridView: View {
         .tabViewStyle(.page(indexDisplayMode: .never))
         .frame(height: currentMonth.map { gridHeight(for: $0) } ?? gridHeight(for: months.first ?? DateComponents()))
         .animation(.easeInOut(duration: 0.2), value: pageIndex)
+        .accessibilityScrollAction { edge in
+            guard !months.isEmpty else { return }
+            switch edge {
+            case .leading:
+                pageIndex = max(0, pageIndex - 1)
+            case .trailing:
+                pageIndex = min(months.count - 1, pageIndex + 1)
+            default:
+                break
+            }
+        }
         .onChange(of: pageIndex) { _, newIndex in
             guard months.indices.contains(newIndex) else { return }
             onMonthChange(months[newIndex])

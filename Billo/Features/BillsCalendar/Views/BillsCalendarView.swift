@@ -7,6 +7,9 @@ struct BillsCalendarView: View {
     private let calendar: Calendar
     private let onAddBill: () -> Void
 
+    @Binding private var isAtCurrentMonth: Bool
+    @Binding private var scrollToTodayToken: Int
+
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettings
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
@@ -29,15 +32,20 @@ struct BillsCalendarView: View {
 
     init(
         calendar: Calendar = .current,
-        onAddBill: @escaping () -> Void = {}
+        onAddBill: @escaping () -> Void = {},
+        isAtCurrentMonth: Binding<Bool> = .constant(true),
+        scrollToTodayToken: Binding<Int> = .constant(0)
     ) {
         self.calendar = calendar
         self.onAddBill = onAddBill
+        _isAtCurrentMonth = isAtCurrentMonth
+        _scrollToTodayToken = scrollToTodayToken
         _displayedMonth = State(initialValue: calendar.dateComponents([.year, .month], from: Date()))
     }
 
     var body: some View {
         content
+            .navigationTitle(monthTitle(for: displayedMonth))
             .dayDetailPresentation(
                 dayData: $selectedDayData,
                 onMarkPaid: { occurrence in
@@ -55,6 +63,10 @@ struct BillsCalendarView: View {
             }
             .onChange(of: displayedMonth) { _, _ in
                 scrollTarget = sectionId(for: displayedMonth)
+                updateIsAtCurrentMonth()
+            }
+            .onChange(of: scrollToTodayToken) { _, _ in
+                scrollToToday()
             }
     }
 
@@ -66,14 +78,6 @@ struct BillsCalendarView: View {
             }
         } else {
             VStack(spacing: 0) {
-                MonthHeaderView(
-                    title: monthTitle(for: displayedMonth),
-                    canGoBack: canNavigateBackward,
-                    canGoForward: canNavigateForward,
-                    onBack: { movePage(by: -1) },
-                    onForward: { movePage(by: 1) }
-                )
-
                 CalendarPagedGridView(
                     months: months,
                     pageIndex: $pageIndex,
@@ -89,6 +93,7 @@ struct BillsCalendarView: View {
                     onMonthChange: { newMonth in
                         displayedMonth = newMonth
                         scrollTarget = sectionId(for: newMonth)
+                        updateIsAtCurrentMonth()
                     }
                 )
                 Divider()
@@ -132,20 +137,23 @@ struct BillsCalendarView: View {
         }
     }
 
-    private var canNavigateBackward: Bool {
-        pageIndex > 0
+    private func scrollToToday() {
+        let todayMonth = calendar.dateComponents([.year, .month], from: referenceDate)
+        guard let index = monthIndex(for: todayMonth) else { return }
+
+        withAnimation(.easeInOut) {
+            pageIndex = index
+            displayedMonth = todayMonth
+            scrollTarget = sectionId(for: todayMonth)
+        }
     }
 
-    private var canNavigateForward: Bool {
-        pageIndex < months.count - 1
-    }
-
-    private func movePage(by delta: Int) {
-        let target = pageIndex + delta
-        guard months.indices.contains(target) else { return }
-        pageIndex = target
-        displayedMonth = months[target]
-        scrollTarget = sectionId(for: displayedMonth)
+    private func updateIsAtCurrentMonth() {
+        isAtCurrentMonth = CalendarMonthComparison.isSameMonth(
+            displayedMonth,
+            as: referenceDate,
+            calendar: calendar
+        )
     }
 
     @MainActor
@@ -204,6 +212,8 @@ struct BillsCalendarView: View {
             scrollTarget = sectionId(for: displayedMonth)
             hasInitialScroll = true
         }
+
+        updateIsAtCurrentMonth()
     }
 
     private func buildOccurrences(
