@@ -18,6 +18,13 @@ struct BillsHomeSwitchView: View {
     @State private var showingAddBill = false
     @State private var showingSettings = false
 
+    private var nextViewMode: BillsHomeViewMode {
+        switch viewModeBinding.wrappedValue {
+        case .list: .calendar
+        case .calendar: .list
+        }
+    }
+
     private var viewModeBinding: Binding<BillsHomeViewMode> {
         Binding {
             BillsHomeViewMode(rawValue: viewModeRawValue) ?? .list
@@ -65,18 +72,24 @@ struct BillsHomeSwitchView: View {
                     }
                 }
 
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        withAnimation {
+                            viewModeBinding.wrappedValue = nextViewMode
+                        }
+                    } label: {
+                        Image(systemName: nextViewMode.iconName)
+                    }
+                    .accessibilityLabel(
+                        viewModeBinding.wrappedValue == .list
+                            ? String(localized: "Switch to Calendar")
+                            : String(localized: "Switch to List")
+                    )
+
                     Button {
                         showingAddBill = true
                     } label: {
                         Image(systemName: "plus")
-                    }
-                }
-            }
-            .toolbarTitleMenu {
-                Picker("Default view", selection: viewModeBinding) {
-                    ForEach(BillsHomeViewMode.allCases) { mode in
-                        Label(mode.title, systemImage: mode.iconName).tag(mode)
                     }
                 }
             }
