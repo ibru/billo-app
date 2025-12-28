@@ -238,8 +238,8 @@ struct BillEditView: View {
 extension BillEditView.Mode {
     var title: String {
         switch self {
-        case .adding: return "Add Bill"
-        case .editing: return "Edit Bill"
+        case .adding: return String(localized: "Add Bill")
+        case .editing: return String(localized: "Edit Bill")
         }
     }
 }

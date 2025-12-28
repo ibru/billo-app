@@ -12,12 +12,12 @@ enum DefaultCategoryIdentifier: String, CaseIterable, Codable, Sendable {
 
     var displayName: String {
         switch self {
-        case .utilities: return "Utilities"
-        case .subscriptions: return "Subscriptions"
-        case .housing: return "Housing"
-        case .insurance: return "Insurance"
-        case .loans: return "Loans"
-        case .other: return "Other"
+        case .utilities: return String(localized: "Utilities")
+        case .subscriptions: return String(localized: "Subscriptions")
+        case .housing: return String(localized: "Housing")
+        case .insurance: return String(localized: "Insurance")
+        case .loans: return String(localized: "Loans")
+        case .other: return String(localized: "Other")
         }
     }
 

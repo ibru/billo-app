@@ -3,13 +3,23 @@
 import Foundation
 
 enum BillSection: String, CaseIterable, Identifiable {
-    case overdue = "Overdue"
-    case today = "Today"
-    case next7Days = "Next 7 Days"
-    case next30Days = "Next 30 Days"
-    case later = "Later"
+    case overdue
+    case today
+    case next7Days
+    case next30Days
+    case later
 
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .overdue: return String(localized: "Overdue")
+        case .today: return String(localized: "Today")
+        case .next7Days: return String(localized: "Next 7 Days")
+        case .next30Days: return String(localized: "Next 30 Days")
+        case .later: return String(localized: "Later")
+        }
+    }
 }
 
 struct BillsListSections {
@@ -215,7 +225,8 @@ struct BillsListSections {
         let incomeTotal = monthIncomes.reduce(Decimal.zero) { $0 + $1.amount }
 
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MMMM yyyy"
+        dateFormatter.locale = .autoupdatingCurrent
+        dateFormatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
         let periodLabel = dateFormatter.string(from: referenceDate)
 
         return MonthlyTotals(

@@ -30,7 +30,10 @@ struct CurrencyRow: View {
         }
         .padding(.vertical, DesignSystem.Spacing.extraSmall)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(currency.name), \(currency.code)")
+        .accessibilityLabel(String(
+            localized: "\(currency.name), \(currency.code)",
+            comment: "Accessibility: currency picker row label (currency name, currency code)"
+        ))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

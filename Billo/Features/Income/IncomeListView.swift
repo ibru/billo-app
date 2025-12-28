@@ -7,24 +7,24 @@ struct IncomeListView: View {
 
     @State private var showingAddIncome = false
 
-    var body: some View {
-        List {
-            if billsModel.incomes.isEmpty {
-                EmptyStateView()
+	    var body: some View {
+	        List {
+	            if billsModel.incomes.isEmpty {
+	                EmptyStateView()
             } else {
                 ForEach(billsModel.incomes) { income in
                     NavigationLink(value: income) {
                         IncomeRowView(income: income)
                     }
                 }
-                .onDelete(perform: deleteIncome)
-            }
-        }
-        .navigationTitle(String(localized: "Income"))
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingAddIncome = true
+	                .onDelete(perform: deleteIncome)
+	            }
+	        }
+	        .navigationTitle("Income")
+	        .toolbar {
+	            ToolbarItem(placement: .primaryAction) {
+	                Button {
+	                    showingAddIncome = true
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -46,15 +46,15 @@ struct IncomeListView: View {
     }
 }
 
-private struct EmptyStateView: View {
-    var body: some View {
-        ContentUnavailableView {
-            Label(String(localized: "No Income"), systemImage: "banknote")
-        } description: {
-            Text(String(localized: "Add your income sources to track your budget"))
-        }
-    }
-}
+	private struct EmptyStateView: View {
+	    var body: some View {
+	        ContentUnavailableView {
+	            Label("No Income", systemImage: "banknote")
+	        } description: {
+	            Text("Add your income sources to track your budget")
+	        }
+	    }
+	}
 
 struct IncomeRowView: View {
     let income: Income
@@ -63,9 +63,9 @@ struct IncomeRowView: View {
         income.amount.formatted(.currency(code: income.currencyCode))
     }
 
-    private var frequencyLabel: String {
-        income.recurrenceRule?.pattern.displayName ?? String(localized: "One-time")
-    }
+	    private var frequencyLabel: String {
+	        income.recurrenceRule?.pattern.displayName ?? String(localized: "One-time")
+	    }
 
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
@@ -78,16 +78,16 @@ struct IncomeRowView: View {
                     .font(.headline)
                     .foregroundStyle(.primary)
 
-                if let rule = income.recurrenceRule {
-                    Text(rule.pattern.displayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(String(localized: "One-time"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+	                if let rule = income.recurrenceRule {
+	                    Text(rule.pattern.displayName)
+	                        .font(.caption)
+	                        .foregroundStyle(.secondary)
+	                } else {
+	                    Text("One-time")
+	                        .font(.caption)
+	                        .foregroundStyle(.secondary)
+	                }
+	            }
 
             Spacer()
 
@@ -103,6 +103,9 @@ struct IncomeRowView: View {
         }
         .padding(.vertical, DesignSystem.Spacing.small)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Income: \(income.name), \(formattedAmount), \(frequencyLabel)")
+        .accessibilityLabel(String(
+            localized: "Income: \(income.name), \(formattedAmount), \(frequencyLabel)",
+            comment: "Accessibility: income row label (name, amount, recurrence)"
+        ))
     }
 }

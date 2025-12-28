@@ -16,14 +16,14 @@ struct CurrencyPickerSheet: View {
         CurrencyItem.filtered(by: searchText)
     }
 
-    var body: some View {
-        NavigationStack {
-            List {
-                if !filteredPopularCurrencies.isEmpty {
-                    Section(String(localized: "Popular Currencies")) {
-                        ForEach(filteredPopularCurrencies) { currency in
-                            CurrencyRow(
-                                currency: currency,
+	    var body: some View {
+	        NavigationStack {
+	            List {
+	                if !filteredPopularCurrencies.isEmpty {
+	                    Section("Popular Currencies") {
+	                        ForEach(filteredPopularCurrencies) { currency in
+	                            CurrencyRow(
+	                                currency: currency,
                                 isSelected: currency.code == selectedCurrency
                             )
                             .contentShape(Rectangle())
@@ -32,14 +32,14 @@ struct CurrencyPickerSheet: View {
                                 dismiss()
                             }
                         }
-                    }
-                }
-
-                if !filteredCurrencies.isEmpty {
-                    Section(String(localized: "All Currencies")) {
-                        ForEach(filteredCurrencies) { currency in
-                            CurrencyRow(
-                                currency: currency,
+	                    }
+	                }
+	
+	                if !filteredCurrencies.isEmpty {
+	                    Section("All Currencies") {
+	                        ForEach(filteredCurrencies) { currency in
+	                            CurrencyRow(
+	                                currency: currency,
                                 isSelected: currency.code == selectedCurrency
                             )
                             .contentShape(Rectangle())
@@ -48,22 +48,22 @@ struct CurrencyPickerSheet: View {
                                 dismiss()
                             }
                         }
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: Text("Search currencies"))
-            .navigationTitle(String(localized: "Select Currency"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Cancel")) {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
+	                    }
+	                }
+	            }
+	            .searchable(text: $searchText, prompt: Text("Search currencies"))
+	            .navigationTitle("Select Currency")
+	            .navigationBarTitleDisplayMode(.inline)
+	            .toolbar {
+	                ToolbarItem(placement: .cancellationAction) {
+	                    Button("Cancel") {
+	                        dismiss()
+	                    }
+	                }
+	            }
+	        }
+	    }
+	}
 
 #Preview("CurrencyPickerSheet") {
     @Previewable @State var selectedCurrency = "USD"

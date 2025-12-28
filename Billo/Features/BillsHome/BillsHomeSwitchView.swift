@@ -76,45 +76,45 @@ struct BillsHomeSwitchView: View {
             .navigationDestination(for: Income.self) { income in
                 IncomeDetailView(income: income)
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Label(String(localized: "Settings"), systemImage: "gear")
-                        }
-
-                        Button {
-                            navigationPath.append(AppDestination.charts)
-                        } label: {
-                            Label(String(localized: "Charts"), systemImage: "chart.bar")
-                        }
-
-                        Button {
-                            navigationPath.append(AppDestination.dataExport)
-                        } label: {
-                            Label(String(localized: "Data Export"), systemImage: "square.and.arrow.up")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .accessibilityLabel(String(localized: "More"))
-                }
+	            .toolbar {
+	                ToolbarItem(placement: .navigationBarLeading) {
+	                    Menu {
+	                        Button {
+	                            showingSettings = true
+	                        } label: {
+	                            Label("Settings", systemImage: "gear")
+	                        }
+	
+	                        Button {
+	                            navigationPath.append(AppDestination.charts)
+	                        } label: {
+	                            Label("Charts", systemImage: "chart.bar")
+	                        }
+	
+	                        Button {
+	                            navigationPath.append(AppDestination.dataExport)
+	                        } label: {
+	                            Label("Data Export", systemImage: "square.and.arrow.up")
+	                        }
+	                    } label: {
+	                        Image(systemName: "ellipsis.circle")
+	                    }
+	                    .accessibilityLabel(Text("More"))
+	                }
 
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         withAnimation {
                             viewModeBinding.wrappedValue = nextViewMode
                         }
-                    } label: {
-                        Image(systemName: nextViewMode.iconName)
-                    }
-                    .accessibilityLabel(
-                        viewModeBinding.wrappedValue == .list
-                            ? String(localized: "Switch to Calendar")
-                            : String(localized: "Switch to List")
-                    )
+	                    } label: {
+	                        Image(systemName: nextViewMode.iconName)
+	                    }
+	                    .accessibilityLabel(
+	                        viewModeBinding.wrappedValue == .list
+	                            ? Text("Switch to Calendar")
+	                            : Text("Switch to List")
+	                    )
 
                     Button {
                         showingAddBill = true
@@ -169,21 +169,21 @@ private struct HomeFloatingBottomBarView: View {
     let onPaymentHistory: () -> Void
     let onIncome: () -> Void
 
-    var body: some View {
-        HStack(alignment: .center) {
-            if showToday {
+	    var body: some View {
+	        HStack(alignment: .center) {
+	            if showToday {
                 FloatingPillButton(
                     verticalPadding: 4,
                     horizontalPadding: 4,
                     action: onToday
-                ) {
-                    Text(String(localized: "Today"))
-                        .font(.headline)
-                        .frame(height: 44)
-                        .padding(.horizontal, DesignSystem.Spacing.medium)
-                }
-                .accessibilityLabel(String(localized: "Today"))
-            }
+	                ) {
+	                    Text("Today")
+	                        .font(.headline)
+	                        .frame(height: 44)
+	                        .padding(.horizontal, DesignSystem.Spacing.medium)
+	                }
+	                .accessibilityLabel(Text("Today"))
+	            }
 
             Spacer(minLength: DesignSystem.Spacing.small)
 
@@ -201,16 +201,16 @@ private struct HomeFloatingQuickActionsView: View {
     let onPaymentHistory: () -> Void
     let onIncome: () -> Void
 
-    var body: some View {
-        FloatingPill {
-            HStack(spacing: 0) {
+	    var body: some View {
+	        FloatingPill {
+	            HStack(spacing: 0) {
                 Button(action: onPaymentHistory) {
                     Image(systemName: "clock.arrow.circlepath")
                         .symbolRenderingMode(.hierarchical)
-                }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-                .accessibilityLabel(String(localized: "Payment History"))
+	                }
+	                .frame(width: 44, height: 44)
+	                .contentShape(Rectangle())
+	                .accessibilityLabel(Text("Payment History"))
 
                 Divider()
                     .frame(height: 22)
@@ -218,15 +218,15 @@ private struct HomeFloatingQuickActionsView: View {
                 Button(action: onIncome) {
                     Image(systemName: "banknote")
                         .symbolRenderingMode(.hierarchical)
-                }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-                .accessibilityLabel(String(localized: "Income"))
-            }
-            .font(.headline)
-        }
-    }
-}
+	                }
+	                .frame(width: 44, height: 44)
+	                .contentShape(Rectangle())
+	                .accessibilityLabel(Text("Income"))
+	            }
+	            .font(.headline)
+	        }
+	    }
+	}
 
 #Preview("Bills Home (Sample Data)") {
     let preview = BilloPreviewContainer.withSampleData()

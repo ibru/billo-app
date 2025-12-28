@@ -11,11 +11,11 @@ enum NotificationActionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .billNotFound:
-            return "Bill no longer exists"
+            return String(localized: "Bill no longer exists")
         case .invalidIdentifier:
-            return "Invalid notification"
+            return String(localized: "Invalid notification")
         case .paymentFailed(let error):
-            return "Payment failed: \(error.localizedDescription)"
+            return String(localized: "Payment failed: \(error.localizedDescription)")
         }
     }
 }

@@ -30,12 +30,12 @@ struct BillsCalendarView: View {
     @State private var allIncomeOccurrences: [IncomeOccurrence] = []
     @State private var referenceDate: Date = Date()
 
-    init(
-        calendar: Calendar = .current,
-        onAddBill: @escaping () -> Void = {},
-        isAtCurrentMonth: Binding<Bool> = .constant(true),
-        scrollToTodayToken: Binding<Int> = .constant(0)
-    ) {
+	    init(
+	        calendar: Calendar = .autoupdatingCurrent,
+	        onAddBill: @escaping () -> Void = {},
+	        isAtCurrentMonth: Binding<Bool> = .constant(true),
+	        scrollToTodayToken: Binding<Int> = .constant(0)
+	    ) {
         self.calendar = calendar
         self.onAddBill = onAddBill
         _isAtCurrentMonth = isAtCurrentMonth
@@ -401,17 +401,17 @@ private struct MonthSectionHeader: View {
     }
 
     @ViewBuilder
-    private var remainingView: some View {
-        HStack(spacing: 0) {
-            Spacer()
-            Text("Remaining: ")
-                .foregroundStyle(.secondary)
-            Text(section.netRemaining, format: .currency(code: currencyCode))
-                .foregroundStyle(remainingColor)
-        }
-        .font(.caption)
-    }
-}
+	    private var remainingView: some View {
+	        HStack(spacing: 4) {
+	            Spacer()
+	            Text("Remaining:")
+	                .foregroundStyle(.secondary)
+	            Text(section.netRemaining, format: .currency(code: currencyCode))
+	                .foregroundStyle(remainingColor)
+	        }
+	        .font(.caption)
+	    }
+	}
 
 // MARK: - Day Detail Presentation Modifier
 

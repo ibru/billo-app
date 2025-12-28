@@ -55,18 +55,31 @@ struct CalendarPastBillRow: View {
         switch display.status {
         case .paid:
             if let lastDate = display.lastPaymentDate {
-                return "\(display.occurrence.name), paid \(formattedAmount) on \(lastDate.formatted(.dateTime.month(.wide).day().year()))"
+                let paidOn = lastDate.formatted(.dateTime.month(.wide).day().year())
+                return String(
+                    localized: "\(display.occurrence.name), paid \(formattedAmount) on \(paidOn)",
+                    comment: "Accessibility: paid bill row (bill name, amount, paid date)"
+                )
             }
-            return "\(display.occurrence.name), paid \(formattedAmount)"
+            return String(
+                localized: "\(display.occurrence.name), paid \(formattedAmount)",
+                comment: "Accessibility: paid bill row without paid date (bill name, amount)"
+            )
 
         case .partiallyPaid(let paid, let remaining):
             let paidString = paid.formatted(.currency(code: display.occurrence.currencyCode))
             let remainingString = remaining.formatted(.currency(code: display.occurrence.currencyCode))
-            return "\(display.occurrence.name), partially paid, \(paidString) of \(formattedAmount), remaining \(remainingString)"
+            return String(
+                localized: "\(display.occurrence.name), partially paid, \(paidString) of \(formattedAmount), remaining \(remainingString)",
+                comment: "Accessibility: partially-paid bill row (bill name, paid amount, total, remaining)"
+            )
 
         case .missed:
             let dueString = display.occurrence.dueDate.formatted(.dateTime.month(.wide).day().year())
-            return "Missed: \(display.occurrence.name), \(formattedAmount), was due \(dueString)"
+            return String(
+                localized: "Missed: \(display.occurrence.name), \(formattedAmount), was due \(dueString)",
+                comment: "Accessibility: missed bill row (bill name, amount, due date)"
+            )
         }
     }
 
@@ -75,10 +88,14 @@ struct CalendarPastBillRow: View {
         switch display.status {
         case .paid:
             if let lastDate = display.lastPaymentDate {
+                let paidOnDateString = lastDate.formatted(.dateTime.month(.abbreviated).day())
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    Text("Paid on \(lastDate, format: .dateTime.month(.abbreviated).day())")
+                    Text(String(
+                        localized: "Paid on \(paidOnDateString)",
+                        comment: "Calendar past bill row: paid-on label with date"
+                    ))
                         .foregroundStyle(.green)
                 }
                 .font(.caption)
@@ -90,27 +107,44 @@ struct CalendarPastBillRow: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 ForEach(payments.prefix(maxVisible)) { payment in
-                    Text("Paid \(payment.amount, format: .currency(code: display.occurrence.currencyCode)) \(payment.datePaid, format: .dateTime.month(.abbreviated).day())")
+                    let paymentAmountString = payment.amount.formatted(.currency(code: display.occurrence.currencyCode))
+                    let paymentDateString = payment.datePaid.formatted(.dateTime.month(.abbreviated).day())
+                    Text(String(
+                        localized: "Paid \(paymentAmountString) \(paymentDateString)",
+                        comment: "Calendar past bill row: payment line (amount and date)"
+                    ))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 if payments.count > maxVisible {
-                    Text("+\(payments.count - maxVisible) more payments")
+                    let additionalCount = payments.count - maxVisible
+                    Text(String(
+                        localized: additionalCount == 1 ? "+\(additionalCount) more payment" : "+\(additionalCount) more payments",
+                        comment: "Calendar past bill row: additional payments count"
+                    ))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
 
-                Text("Remaining: \(remaining, format: .currency(code: display.occurrence.currencyCode))")
+                let remainingString = remaining.formatted(.currency(code: display.occurrence.currencyCode))
+                Text(String(
+                    localized: "Remaining: \(remainingString)",
+                    comment: "Calendar past bill row: remaining amount label"
+                ))
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
 
         case .missed:
+            let dueDateString = display.occurrence.dueDate.formatted(.dateTime.month(.abbreviated).day())
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(.red)
-                Text("Was due \(display.occurrence.dueDate, format: .dateTime.month(.abbreviated).day())")
+                Text(String(
+                    localized: "Was due \(dueDateString)",
+                    comment: "Calendar past bill row: was-due label with due date"
+                ))
                     .foregroundStyle(.red)
             }
             .font(.caption)

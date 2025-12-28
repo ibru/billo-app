@@ -52,28 +52,28 @@ struct IncomeEditView: View {
         appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section(String(localized: "Basic Information")) {
-                    TextField(String(localized: "Name"), text: $name)
-
-                    LabeledContent(String(localized: "Amount")) {
-                        TextField(String(localized: "Amount"), value: $amount, format: .number)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.decimalPad)
-                    }
-
-                    DatePicker(String(localized: "Start Date"), selection: $startDate, displayedComponents: .date)
-                }
-
-                Section(String(localized: "Recurrence")) {
-                    Toggle(String(localized: "Repeat"), isOn: $isRepeating)
-                        .onChange(of: isRepeating) { _, newValue in
-                            if newValue {
-                                anchorRepeatFieldsToStartDate()
-                            }
-                        }
+	    var body: some View {
+	        NavigationStack {
+	            Form {
+	                Section("Basic Information") {
+	                    TextField("Name", text: $name)
+	
+	                    LabeledContent("Amount") {
+	                        TextField("Amount", value: $amount, format: .number)
+	                            .multilineTextAlignment(.trailing)
+	                            .keyboardType(.decimalPad)
+	                    }
+	
+	                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+	                }
+	
+	                Section("Recurrence") {
+	                    Toggle("Repeat", isOn: $isRepeating)
+	                        .onChange(of: isRepeating) { _, newValue in
+	                            if newValue {
+	                                anchorRepeatFieldsToStartDate()
+	                            }
+	                        }
 
                     if isRepeating {
                         RepeatIntervalPicker(
@@ -86,30 +86,30 @@ struct IncomeEditView: View {
                     }
                 }
 
-                Section(String(localized: "End Date")) {
-                    Toggle(String(localized: "Has End Date"), isOn: $hasEndDate)
-
-                    if hasEndDate {
-                        DatePicker(String(localized: "End Date"), selection: $endDate, in: startDate..., displayedComponents: .date)
-                    }
-                }
-            }
+	                Section("End Date") {
+	                    Toggle("Has End Date", isOn: $hasEndDate)
+	
+	                    if hasEndDate {
+	                        DatePicker("End Date", selection: $endDate, in: startDate..., displayedComponents: .date)
+	                    }
+	                }
+	            }
             .navigationTitle(mode.title)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Cancel")) {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Save")) {
-                        save()
-                    }
-                    .disabled(name.isEmpty || amount <= 0)
-                }
-            }
+	            .toolbar {
+	                ToolbarItem(placement: .cancellationAction) {
+	                    Button("Cancel") {
+	                        dismiss()
+	                    }
+	                }
+	
+	                ToolbarItem(placement: .confirmationAction) {
+	                    Button("Save") {
+	                        save()
+	                    }
+	                    .disabled(name.isEmpty || amount <= 0)
+	                }
+	            }
             .onChange(of: startDate) { _, _ in
                 if isRepeating {
                     anchorRepeatFieldsToStartDate()

@@ -17,8 +17,8 @@ enum BillsHomeViewMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .list: "List"
-        case .calendar: "Calendar"
+        case .list: String(localized: "List")
+        case .calendar: String(localized: "Calendar")
         }
     }
 }

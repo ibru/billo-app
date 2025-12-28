@@ -169,14 +169,14 @@ struct CurrencyOnboardingView: View {
         }
     }
 
-    private var primaryButtonTitle: String {
-        if let currency = selectedCurrency {
-            return String(localized: "Use \(currency.code)")
-        } else {
-            return String(localized: "Continue")
-        }
-    }
-}
+	    private var primaryButtonTitle: LocalizedStringKey {
+	        if let currency = selectedCurrency {
+	            "Use \(currency.code)"
+	        } else {
+	            "Continue"
+	        }
+	    }
+	}
 
 #Preview("With Device Currency") {
     let preview = BilloPreviewContainer.empty()

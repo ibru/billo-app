@@ -121,17 +121,13 @@ enum Weekday: Int, Codable, CaseIterable {
         Weekday(rawValue: weekday)
     }
 
-    var displayName: String {
-        switch self {
-        case .sunday: return "Sunday"
-        case .monday: return "Monday"
-        case .tuesday: return "Tuesday"
-        case .wednesday: return "Wednesday"
-        case .thursday: return "Thursday"
-        case .friday: return "Friday"
-        case .saturday: return "Saturday"
-        }
+    func displayName(locale: Locale = .autoupdatingCurrent) -> String {
+        var calendar = Calendar.autoupdatingCurrent
+        calendar.locale = locale
+        return calendar.weekdaySymbols[rawValue - 1]
     }
+
+    var displayName: String { displayName() }
 }
 
 enum EndConditionType: String, Codable, CaseIterable {

@@ -3,21 +3,21 @@
 import SwiftUI
 
 struct CalendarTodayDividerRow: View {
-    var body: some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
-            line
-            Text(String(localized: "Today"))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            line
-        }
+	    var body: some View {
+	        HStack(spacing: DesignSystem.Spacing.small) {
+	            line
+	            Text("Today")
+	                .font(.caption.weight(.semibold))
+	                .foregroundStyle(.secondary)
+	            line
+	        }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, DesignSystem.Spacing.medium)
-        .padding(.vertical, DesignSystem.Spacing.small)
-        .background(Color.clear)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Today")
-    }
+	        .padding(.vertical, DesignSystem.Spacing.small)
+	        .background(Color.clear)
+	        .accessibilityElement(children: .ignore)
+	        .accessibilityLabel(Text("Today"))
+	    }
 
     private var line: some View {
         Rectangle()
@@ -25,4 +25,3 @@ struct CalendarTodayDividerRow: View {
             .frame(height: 1)
     }
 }
-

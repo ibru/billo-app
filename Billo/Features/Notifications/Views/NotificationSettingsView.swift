@@ -41,9 +41,9 @@ struct NotificationSettingsView: View {
                         get: { model.digestLookaheadDays },
                         set: { model.setDigestLookaheadDays($0) }
                     )) {
-                        Text("3 days").tag(3)
-                        Text("5 days").tag(5)
-                        Text("7 days").tag(7)
+                        ForEach([3, 5, 7], id: \.self) { days in
+                            Text("\(days) days").tag(days)
+                        }
                     }
 
                     digestTimePicker
@@ -140,7 +140,9 @@ struct NotificationSettingsView: View {
 
     private func offsetButton(_ offset: Int) -> some View {
         let isSelected = model.reminderOffsets.contains(offset)
-        let label = offset == 0 ? "Day of" : "\(offset) days"
+        let label: LocalizedStringKey =
+            offset == 0 ? "Day of" :
+                offset == 1 ? "\(offset) day" : "\(offset) days"
 
         return Button {
             model.toggleReminderOffset(offset)
@@ -161,7 +163,22 @@ struct NotificationSettingsView: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(label) before due date")
+        .accessibilityLabel(
+            offset == 0
+                ? String(
+                    localized: "On due date",
+                    comment: "Accessibility: reminder offset option (same-day)"
+                )
+                : offset == 1
+                    ? String(
+                        localized: "\(offset) day before due date",
+                        comment: "Accessibility: reminder offset option (e.g. '1 day before due date')"
+                    )
+                    : String(
+                        localized: "\(offset) days before due date",
+                        comment: "Accessibility: reminder offset option (e.g. '3 days before due date')"
+                    )
+        )
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
@@ -210,10 +227,10 @@ struct NotificationSettingsView: View {
         )) {
             Text("Never").tag(BadgeMode.never)
             Text("Due / Overdue only").tag(BadgeMode.dueAndOverdue)
-            Text("1 day before").tag(BadgeMode.daysBefore(1))
-            Text("3 days before").tag(BadgeMode.daysBefore(3))
-            Text("5 days before").tag(BadgeMode.daysBefore(5))
-            Text("7 days before").tag(BadgeMode.daysBefore(7))
+            ForEach([1, 3, 5, 7], id: \.self) { days in
+                Text(days == 1 ? "\(days) day before" : "\(days) days before")
+                    .tag(BadgeMode.daysBefore(days))
+            }
         }
         .help("Badge counts unpaid occurrences within selected window")
     }

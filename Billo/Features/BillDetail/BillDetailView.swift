@@ -171,6 +171,7 @@ struct BillDetailView: View {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = code
+        formatter.locale = .autoupdatingCurrent
         return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
     }
 }
@@ -344,6 +345,7 @@ struct MarkPaidSheet: View {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = bill.currencyCode
+        formatter.locale = .autoupdatingCurrent
         return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
     }
 }

@@ -12,9 +12,9 @@ struct RepeatIntervalPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Picker("Repeat Type", selection: $selectedIntervalType) {
-                Text("Weekly").tag(RepeatIntervalType.weekly)
-                Text("Monthly").tag(RepeatIntervalType.monthly)
-                Text("Yearly").tag(RepeatIntervalType.yearly)
+                Text(RepeatIntervalType.weekly.displayName).tag(RepeatIntervalType.weekly)
+                Text(RepeatIntervalType.monthly.displayName).tag(RepeatIntervalType.monthly)
+                Text(RepeatIntervalType.yearly.displayName).tag(RepeatIntervalType.yearly)
             }
             .pickerStyle(.segmented)
 
@@ -37,7 +37,16 @@ struct RepeatIntervalPicker: View {
                 .labelsHidden()
                 .frame(width: 60)
 
-                Text(frequency == 1 ? "week on" : "weeks on")
+                Text(frequency == 1
+                    ? String(
+                        localized: "week on",
+                        comment: "Repeat interval picker: fragment used in 'Every [N] week(s) on [weekday]'"
+                    )
+                    : String(
+                        localized: "weeks on",
+                        comment: "Repeat interval picker: fragment used in 'Every [N] week(s) on [weekday]'"
+                    )
+                )
 
                 Picker("Day of Week", selection: $dayOfWeek) {
                     ForEach(Weekday.allCases, id: \.self) { day in
@@ -59,11 +68,20 @@ struct RepeatIntervalPicker: View {
                 .labelsHidden()
                 .frame(width: 60)
 
-                Text(frequency == 1 ? "month on the" : "months on the")
+                Text(frequency == 1
+                    ? String(
+                        localized: "month on the",
+                        comment: "Repeat interval picker: fragment used in 'Every [N] month(s) on the [ordinal day]'"
+                    )
+                    : String(
+                        localized: "months on the",
+                        comment: "Repeat interval picker: fragment used in 'Every [N] month(s) on the [ordinal day]'"
+                    )
+                )
 
                 Picker("Day of Month", selection: $dayOfMonth) {
                     ForEach(1...31, id: \.self) { day in
-                        Text("\(day)\(daySuffix(day))").tag(day)
+                        Text(day.localizedOrdinal()).tag(day)
                     }
                 }
                 .labelsHidden()
@@ -71,15 +89,6 @@ struct RepeatIntervalPicker: View {
 
         case .yearly:
             EmptyView()
-        }
-    }
-
-    private func daySuffix(_ day: Int) -> String {
-        switch day {
-        case 1, 21, 31: return "st"
-        case 2, 22: return "nd"
-        case 3, 23: return "rd"
-        default: return "th"
         }
     }
 }

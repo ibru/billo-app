@@ -13,7 +13,10 @@ struct SettingsView: View {
     private var currencyDisplayText: String {
         guard let code = appSettingsModel.currencyCode else { return "" }
         let name = Locale.current.localizedString(forCurrencyCode: code) ?? code
-        return "\(name) (\(code))"
+        return String(
+            localized: "\(name) (\(code))",
+            comment: "Settings: currency display label (localized currency name + currency code)"
+        )
     }
 
     var body: some View {

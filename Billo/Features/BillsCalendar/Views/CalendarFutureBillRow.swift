@@ -48,10 +48,14 @@ struct CalendarFutureBillRow: View {
                     .foregroundStyle(.primary)
 
                 if let prepaidDate {
+                    let prepaidDateString = prepaidDate.formatted(.dateTime.month(.abbreviated).day())
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
-                        Text("Prepaid \(prepaidDate, format: .dateTime.month(.abbreviated).day())")
+                        Text(String(
+                            localized: "Prepaid \(prepaidDateString)",
+                            comment: "Calendar row: prepaid label with payment date"
+                        ))
                             .foregroundStyle(.green)
                     }
                     .font(.caption)
@@ -66,8 +70,14 @@ struct CalendarFutureBillRow: View {
     private var accessibilityLabel: String {
         let dueString = occurrence.dueDate.formatted(.dateTime.month(.wide).day().year())
         if isPrepaid {
-            return "\(occurrence.name), prepaid, \(formattedAmount), due \(dueString)"
+            return String(
+                localized: "\(occurrence.name), prepaid, \(formattedAmount), due \(dueString)",
+                comment: "Accessibility: prepaid bill row (bill name, prepaid, amount, due date)"
+            )
         }
-        return "\(occurrence.name), \(formattedAmount), due \(dueString)"
+        return String(
+            localized: "\(occurrence.name), \(formattedAmount), due \(dueString)",
+            comment: "Accessibility: unpaid bill row (bill name, amount, due date)"
+        )
     }
 }

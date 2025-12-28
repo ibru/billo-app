@@ -1,6 +1,7 @@
 //  Created by Jiri Urbasek on 12/05/25.
 
 import SwiftUI
+import Foundation
 
 struct CalendarPagedGridView: View {
     let months: [DateComponents]
@@ -40,7 +41,7 @@ struct CalendarPagedGridView: View {
         return months[pageIndex]
     }
 
-    var body: some View {
+	    var body: some View {
         TabView(selection: $pageIndex) {
             ForEach(Array(months.enumerated()), id: \.offset) { index, month in
                 CalendarGridView(
@@ -227,13 +228,22 @@ private struct CalendarDayCell: View {
             }
             .frame(maxWidth: .infinity, alignment: .top)
         }
-        .buttonStyle(.plain)
-        .disabled(!dayData.hasItems)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint(dayData.hasItems ? "Double-tap to open day details" : "No bills or payments on this day")
-        .accessibilityAddTraits(.isButton)
-    }
+	        .buttonStyle(.plain)
+	        .disabled(!dayData.hasItems)
+	        .accessibilityElement(children: .ignore)
+	        .accessibilityLabel(accessibilityLabel)
+	        .accessibilityHint(dayData.hasItems
+	            ? String(
+	                localized: "Double-tap to open day details",
+	                comment: "Accessibility hint for a calendar day cell that has items"
+	            )
+	            : String(
+	                localized: "No bills or payments on this day",
+	                comment: "Accessibility hint for a calendar day cell that has no items"
+	            )
+	        )
+	        .accessibilityAddTraits(.isButton)
+	    }
 
     private func color(for dotColor: DotColor) -> Color {
         switch dotColor {
@@ -246,29 +256,47 @@ private struct CalendarDayCell: View {
         }
     }
 
-    private var accessibilityLabel: String {
-        let dayString = date.formatted(.dateTime.month(.abbreviated).day())
-        let billCount = dayData.futureOccurrencesWithPayments.count + dayData.pastOccurrences.count
-        let paymentCount = dayData.payments.count
-        let incomeCount = dayData.incomeOccurrences.count
-
-        var components: [String] = [dayString]
-        if isToday { components.append("today") }
-        if isSelected { components.append("selected") }
-
-        if dayData.hasItems {
-            if incomeCount > 0 {
-                components.append("\(incomeCount) income\(incomeCount == 1 ? "" : "s")")
-            }
-            components.append("\(billCount) bill\(billCount == 1 ? "" : "s")")
-            components.append("\(paymentCount) payment\(paymentCount == 1 ? "" : "s")")
-        } else {
-            components.append("No bills or payments")
-        }
-
-        return components.joined(separator: ", ")
-    }
-}
+	    private var accessibilityLabel: String {
+	        let dayString = date.formatted(.dateTime.month(.abbreviated).day())
+	        let billCount = dayData.futureOccurrencesWithPayments.count + dayData.pastOccurrences.count
+	        let paymentCount = dayData.payments.count
+	        let incomeCount = dayData.incomeOccurrences.count
+	
+	        var components: [String] = [dayString]
+	        if isToday {
+	            components.append(String(localized: "today", comment: "Accessibility: day state (today)"))
+	        }
+	        if isSelected {
+	            components.append(String(localized: "selected", comment: "Accessibility: day state (selected)"))
+	        }
+	
+	        if dayData.hasItems {
+	            if incomeCount > 0 {
+	                components.append(String(
+	                    localized: incomeCount == 1 ? "\(incomeCount) income" : "\(incomeCount) incomes",
+	                    comment: "Accessibility: calendar day cell income count"
+	                ))
+	            }
+	            components.append(String(
+	                localized: billCount == 1 ? "\(billCount) bill" : "\(billCount) bills",
+	                comment: "Accessibility: calendar day cell bill count"
+	            ))
+	            components.append(String(
+	                localized: paymentCount == 1 ? "\(paymentCount) payment" : "\(paymentCount) payments",
+	                comment: "Accessibility: calendar day cell payment count"
+	            ))
+	        } else {
+	            components.append(String(
+	                localized: "No bills or payments",
+	                comment: "Accessibility: calendar day cell empty state"
+	            ))
+	        }
+	
+	        let listFormatter = ListFormatter()
+	        listFormatter.locale = .autoupdatingCurrent
+	        return listFormatter.string(from: components) ?? components.joined(separator: ", ")
+	    }
+	}
 
 // MARK: - Previews
 

@@ -89,23 +89,89 @@ final class BillModel {
     }
 
     var recurrenceDescription: String? {
-        guard let rule = bill.recurrenceRule else { return nil }
+        recurrenceDescription()
+    }
 
-        let frequencyPrefix = rule.frequency == 1 ? "" : "Every \(rule.frequency) "
+    func recurrenceDescription(locale: Locale = .autoupdatingCurrent) -> String? {
+        guard let rule = bill.recurrenceRule else { return nil }
 
         switch rule.pattern {
         case .weekly:
+            if rule.frequency == 1 {
+                if let day = rule.dayOfWeek {
+                    return String(
+                        localized: "Weekly on \(day.displayName(locale: locale))",
+                        locale: locale,
+                        comment: "Recurrence description: weekly pattern with weekday"
+                    )
+                }
+
+                return String(
+                    localized: "Weekly",
+                    locale: locale,
+                    comment: "Recurrence description: weekly pattern"
+                )
+            }
+
             if let day = rule.dayOfWeek {
-                return "\(frequencyPrefix)week(s) on \(day.displayName)"
+                return String(
+                    localized: "Every \(rule.frequency) weeks on \(day.displayName(locale: locale))",
+                    locale: locale,
+                    comment: "Recurrence description: every N weeks with weekday"
+                )
             }
-            return "\(frequencyPrefix)week(s)"
+
+            return String(
+                localized: "Every \(rule.frequency) weeks",
+                locale: locale,
+                comment: "Recurrence description: every N weeks"
+            )
+
         case .monthly:
-            if let day = rule.dayOfMonth {
-                return "\(frequencyPrefix)month(s) on the \(day)\(daySuffix(day))"
+            if rule.frequency == 1 {
+                if let day = rule.dayOfMonth {
+                    return String(
+                        localized: "Monthly on the \(day.localizedOrdinal(locale: locale))",
+                        locale: locale,
+                        comment: "Recurrence description: monthly pattern with day-of-month ordinal"
+                    )
+                }
+
+                return String(
+                    localized: "Monthly",
+                    locale: locale,
+                    comment: "Recurrence description: monthly pattern"
+                )
             }
-            return "\(frequencyPrefix)month(s)"
+
+            if let day = rule.dayOfMonth {
+                return String(
+                    localized: "Every \(rule.frequency) months on the \(day.localizedOrdinal(locale: locale))",
+                    locale: locale,
+                    comment: "Recurrence description: every N months with day-of-month ordinal"
+                )
+            }
+
+            return String(
+                localized: "Every \(rule.frequency) months",
+                locale: locale,
+                comment: "Recurrence description: every N months"
+            )
+
         case .yearly:
-            return "\(frequencyPrefix)year(s)"
+            if rule.frequency == 1 {
+                return String(
+                    localized: "Yearly",
+                    locale: locale,
+                    comment: "Recurrence description: yearly pattern"
+                )
+            }
+
+            return String(
+                localized: "Every \(rule.frequency) years",
+                locale: locale,
+                comment: "Recurrence description: every N years"
+            )
         }
     }
 
@@ -148,14 +214,5 @@ final class BillModel {
         )
 
         return Array(occurrences.prefix(count))
-    }
-
-    private func daySuffix(_ day: Int) -> String {
-        switch day {
-        case 1, 21, 31: return "st"
-        case 2, 22: return "nd"
-        case 3, 23: return "rd"
-        default: return "th"
-        }
     }
 }

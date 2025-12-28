@@ -8,38 +8,38 @@ struct DayDetailSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    var body: some View {
-        NavigationStack {
-            List {
-                if !dayData.incomeOccurrences.isEmpty {
-                    Section(String(localized: "Income")) {
-                        ForEach(dayData.incomeOccurrences, id: \.id) { incomeOccurrence in
-                            IncomeOccurrenceRow(incomeOccurrence: incomeOccurrence)
-                        }
-                    }
-                }
-
-                if !dayData.payments.isEmpty {
-                    Section(String(localized: "Paid")) {
-                        ForEach(dayData.payments) { payment in
-                            DaySheetPaymentRow(payment: payment)
-                        }
-                    }
-                }
-
-                if !dayData.pastOccurrences.isEmpty {
-                    Section(String(localized: "Past")) {
-                        ForEach(dayData.pastOccurrences) { display in
-                            DaySheetPastOccurrenceRow(display: display)
-                        }
-                    }
-                }
-
-                if !dayData.occurrences.isEmpty {
-                    Section(String(localized: "Due")) {
-                        ForEach(dayData.occurrences) { occurrence in
-                            DaySheetOccurrenceRow(
-                                occurrence: occurrence,
+	    var body: some View {
+	        NavigationStack {
+	            List {
+	                if !dayData.incomeOccurrences.isEmpty {
+	                    Section("Income") {
+	                        ForEach(dayData.incomeOccurrences, id: \.id) { incomeOccurrence in
+	                            IncomeOccurrenceRow(incomeOccurrence: incomeOccurrence)
+	                        }
+	                    }
+	                }
+	
+	                if !dayData.payments.isEmpty {
+	                    Section("Paid") {
+	                        ForEach(dayData.payments) { payment in
+	                            DaySheetPaymentRow(payment: payment)
+	                        }
+	                    }
+	                }
+	
+	                if !dayData.pastOccurrences.isEmpty {
+	                    Section("Past") {
+	                        ForEach(dayData.pastOccurrences) { display in
+	                            DaySheetPastOccurrenceRow(display: display)
+	                        }
+	                    }
+	                }
+	
+	                if !dayData.occurrences.isEmpty {
+	                    Section("Due") {
+	                        ForEach(dayData.occurrences) { occurrence in
+	                            DaySheetOccurrenceRow(
+	                                occurrence: occurrence,
                                 onMarkPaid: {
                                     Task {
                                         await onMarkPaid(occurrence)
@@ -51,16 +51,16 @@ struct DayDetailSheet: View {
                     }
                 }
             }
-            .navigationTitle(dayData.date.formatted(.dateTime.month(.wide).day()))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Done")) { dismiss() }
-                }
-            }
-        }
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
+	            .navigationTitle(dayData.date.formatted(.dateTime.month(.wide).day()))
+	            .navigationBarTitleDisplayMode(.inline)
+	            .toolbar {
+	                ToolbarItem(placement: .cancellationAction) {
+	                    Button("Done") { dismiss() }
+	                }
+	            }
+	        }
+	        .presentationDetents([.medium])
+	        .presentationDragIndicator(.visible)
     }
 }
 
@@ -72,15 +72,21 @@ private struct DaySheetPaymentRow: View {
         payment.bill?.currencyCode ?? "USD"
     }
 
-    var body: some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
-            CalendarDateStamp(date: payment.datePaid)
-
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
-                Text(payment.bill?.name ?? String(localized: "Unknown Bill"))
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-            }
+	    var body: some View {
+	        HStack(spacing: DesignSystem.Spacing.small) {
+	            CalendarDateStamp(date: payment.datePaid)
+	
+	            VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
+	                if let billName = payment.bill?.name {
+	                    Text(billName)
+	                        .font(.headline)
+	                        .foregroundStyle(.primary)
+	                } else {
+	                    Text("Unknown Bill")
+	                        .font(.headline)
+	                        .foregroundStyle(.primary)
+	                }
+	            }
 
             Spacer()
 
@@ -89,7 +95,11 @@ private struct DaySheetPaymentRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.primary)
 
-                Text("for \(payment.occurrenceDate, format: .dateTime.month(.abbreviated).day())")
+                let occurrenceDateString = payment.occurrenceDate.formatted(.dateTime.month(.abbreviated).day())
+                Text(String(
+                    localized: "for \(occurrenceDateString)",
+                    comment: "Day details: payment row subtitle (occurrence date)"
+                ))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -105,7 +115,10 @@ private struct DaySheetPaymentRow: View {
         let amountString = payment.amount.formatted(.currency(code: currencyCode))
         let paidOn = payment.datePaid.formatted(.dateTime.month(.wide).day().year())
         let forOccurrence = payment.occurrenceDate.formatted(.dateTime.month(.wide).day().year())
-        return "\(billName), paid \(amountString) on \(paidOn), for \(forOccurrence)"
+        return String(
+            localized: "\(billName), paid \(amountString) on \(paidOn), for \(forOccurrence)",
+            comment: "Accessibility: day details payment row (bill name, amount, paid date, occurrence date)"
+        )
     }
 }
 
@@ -143,10 +156,14 @@ private struct DaySheetPastOccurrenceRow: View {
         switch display.status {
         case .paid:
             if let lastDate = display.lastPaymentDate {
+                let paidOnDateString = lastDate.formatted(.dateTime.month(.abbreviated).day())
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    Text("Paid on \(lastDate, format: .dateTime.month(.abbreviated).day())")
+                    Text(String(
+                        localized: "Paid on \(paidOnDateString)",
+                        comment: "Day details: paid status label with date"
+                    ))
                         .foregroundStyle(.green)
                 }
                 .font(.caption)
@@ -158,27 +175,44 @@ private struct DaySheetPastOccurrenceRow: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 ForEach(payments.prefix(maxVisible)) { payment in
-                    Text("Paid \(payment.amount, format: .currency(code: display.occurrence.currencyCode)) \(payment.datePaid, format: .dateTime.month(.abbreviated).day())")
+                    let paymentAmountString = payment.amount.formatted(.currency(code: display.occurrence.currencyCode))
+                    let paymentDateString = payment.datePaid.formatted(.dateTime.month(.abbreviated).day())
+                    Text(String(
+                        localized: "Paid \(paymentAmountString) \(paymentDateString)",
+                        comment: "Day details: payment line (amount and date)"
+                    ))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 if payments.count > maxVisible {
-                    Text("+\(payments.count - maxVisible) more payments")
+                    let additionalCount = payments.count - maxVisible
+                    Text(String(
+                        localized: additionalCount == 1 ? "+\(additionalCount) more payment" : "+\(additionalCount) more payments",
+                        comment: "Day details: additional payments count"
+                    ))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
 
-                Text("Remaining: \(remaining, format: .currency(code: display.occurrence.currencyCode))")
+                let remainingString = remaining.formatted(.currency(code: display.occurrence.currencyCode))
+                Text(String(
+                    localized: "Remaining: \(remainingString)",
+                    comment: "Day details: remaining amount label"
+                ))
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
 
         case .missed:
+            let dueDateString = display.occurrence.dueDate.formatted(.dateTime.month(.abbreviated).day())
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(.red)
-                Text("Was due \(display.occurrence.dueDate, format: .dateTime.month(.abbreviated).day())")
+                Text(String(
+                    localized: "Was due \(dueDateString)",
+                    comment: "Day details: missed status label with due date"
+                ))
                     .foregroundStyle(.red)
             }
             .font(.caption)
@@ -192,16 +226,28 @@ private struct DaySheetPastOccurrenceRow: View {
         case .paid:
             if let lastDate = display.lastPaymentDate {
                 let paidOn = lastDate.formatted(.dateTime.month(.wide).day().year())
-                return "\(name), paid \(amountString) on \(paidOn)"
+                return String(
+                    localized: "\(name), paid \(amountString) on \(paidOn)",
+                    comment: "Accessibility: day details paid bill row (name, amount, paid date)"
+                )
             }
-            return "\(name), paid \(amountString)"
+            return String(
+                localized: "\(name), paid \(amountString)",
+                comment: "Accessibility: day details paid bill row without paid date (name, amount)"
+            )
         case .partiallyPaid(let paid, let remaining):
             let paidString = paid.formatted(.currency(code: display.occurrence.currencyCode))
             let remainingString = remaining.formatted(.currency(code: display.occurrence.currencyCode))
-            return "\(name), partially paid, \(paidString) of \(amountString), remaining \(remainingString)"
+            return String(
+                localized: "\(name), partially paid, \(paidString) of \(amountString), remaining \(remainingString)",
+                comment: "Accessibility: day details partially-paid bill row (name, paid, total, remaining)"
+            )
         case .missed:
             let dueString = display.occurrence.dueDate.formatted(.dateTime.month(.wide).day().year())
-            return "Missed: \(name), \(amountString), was due \(dueString)"
+            return String(
+                localized: "Missed: \(name), \(amountString), was due \(dueString)",
+                comment: "Accessibility: day details missed bill row (name, amount, due date)"
+            )
         }
     }
 }
@@ -231,11 +277,14 @@ private struct IncomeOccurrenceRow: View {
         }
         .padding(.vertical, DesignSystem.Spacing.small)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Income: \(incomeOccurrence.name), \(formattedAmount)")
+        .accessibilityLabel(String(
+            localized: "Income: \(incomeOccurrence.name), \(formattedAmount)",
+            comment: "Accessibility: day details income row label (name, amount)"
+        ))
     }
 }
 
-private struct DaySheetOccurrenceRow: View {
+	private struct DaySheetOccurrenceRow: View {
     let occurrence: BillOccurrence
     let onMarkPaid: () -> Void
 
@@ -243,8 +292,8 @@ private struct DaySheetOccurrenceRow: View {
         occurrence.currencyCode
     }
 
-    var body: some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
+	    var body: some View {
+	        HStack(spacing: DesignSystem.Spacing.small) {
             CalendarDateStamp(date: occurrence.dueDate)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -254,17 +303,20 @@ private struct DaySheetOccurrenceRow: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
-                Text(occurrence.amount, format: .currency(code: currencyCode))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-
-                Button(String(localized: "Mark Paid")) {
-                    onMarkPaid()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .accessibilityLabel("Mark paid for \(occurrence.name)")
+	            VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
+	                Text(occurrence.amount, format: .currency(code: currencyCode))
+	                    .font(.subheadline)
+	                    .foregroundStyle(.primary)
+	
+	                Button("Mark Paid") {
+	                    onMarkPaid()
+	                }
+	                .buttonStyle(.borderedProminent)
+	                .tint(.green)
+                .accessibilityLabel(String(
+                    localized: "Mark paid for \(occurrence.name)",
+                    comment: "Accessibility: mark paid button (bill name)"
+                ))
             }
         }
         .padding(.vertical, DesignSystem.Spacing.small)
@@ -276,6 +328,9 @@ private struct DaySheetOccurrenceRow: View {
     private var accessibilityLabel: String {
         let amountString = occurrence.amount.formatted(.currency(code: currencyCode))
         let dueString = occurrence.dueDate.formatted(.dateTime.month(.wide).day().year())
-        return "\(occurrence.name), \(amountString), due \(dueString)"
+        return String(
+            localized: "\(occurrence.name), \(amountString), due \(dueString)",
+            comment: "Accessibility: day details due bill row (name, amount, due date)"
+        )
     }
 }

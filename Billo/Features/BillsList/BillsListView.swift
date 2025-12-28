@@ -84,7 +84,7 @@ private struct PaymentHistoryNavigationRow: View {
             NavigationLink(value: AppDestination.paymentHistory) {
                 HStack(spacing: DesignSystem.Spacing.small) {
                     Image(systemName: "clock.arrow.circlepath")
-                    Text(String(localized: "Payment History"))
+                    Text("Payment History")
                     Spacer()
                 }
                 .font(.caption)
@@ -93,7 +93,7 @@ private struct PaymentHistoryNavigationRow: View {
                 HStack(spacing: DesignSystem.Spacing.small) {
                     Image(systemName: "banknote")
                         .foregroundStyle(DesignSystem.Color.income)
-                    Text(String(localized: "Income"))
+                    Text("Income")
                     Spacer()
                 }
                 .font(.caption)
@@ -283,7 +283,10 @@ private struct CountdownBadgeView: View {
         }
         .fixedSize()
         .aspectRatio(1, contentMode: .fit)
-        .accessibilityLabel("\(numberText) \(unitText)")
+        .accessibilityLabel(String(
+            localized: "\(numberText) \(unitText)",
+            comment: "Accessibility: summary ring label (number and unit)"
+        ))
     }
 }
 
@@ -299,7 +302,7 @@ private struct BillSectionHeader: View {
         }
 
         return HStack(spacing: DesignSystem.Spacing.small) {
-            Text(section.rawValue.uppercased())
+            Text(section.displayName)
             Spacer()
             if section != .later {
                 Text(totalAmount, format: .currency(code: currencyCode))

@@ -31,20 +31,27 @@ struct PaymentRowView: View {
         accentColor == nil ? .secondary : .primary
     }
 
-    var body: some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
-            leadingIcon
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(payment.bill?.name ?? String(localized: "Payment"))
-                    .font(.subheadline.weight(accentColor == nil ? .regular : .semibold))
-                    .foregroundStyle(nameColor)
-                    .lineLimit(1)
-
-                Text(payment.datePaid, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+	    var body: some View {
+	        HStack(spacing: DesignSystem.Spacing.small) {
+	            leadingIcon
+	
+	            VStack(alignment: .leading, spacing: 2) {
+	                if let billName = payment.bill?.name {
+	                    Text(billName)
+	                        .font(.subheadline.weight(accentColor == nil ? .regular : .semibold))
+	                        .foregroundStyle(nameColor)
+	                        .lineLimit(1)
+	                } else {
+	                    Text("Payment")
+	                        .font(.subheadline.weight(accentColor == nil ? .regular : .semibold))
+	                        .foregroundStyle(nameColor)
+	                        .lineLimit(1)
+	                }
+	
+	                Text(payment.datePaid, style: .date)
+	                    .font(.caption)
+	                    .foregroundStyle(.secondary)
+	            }
 
             Spacer()
 
@@ -88,6 +95,9 @@ struct PaymentRowView: View {
     private var accessibilityLabel: String {
         let name = payment.bill?.name ?? String(localized: "Payment")
         let dateString = payment.datePaid.formatted(.dateTime.month().day().year())
-        return "\(name), paid on \(dateString)"
+        return String(
+            localized: "\(name), paid on \(dateString)",
+            comment: "Accessibility: payment row label (bill name, paid-on date)"
+        )
     }
 }

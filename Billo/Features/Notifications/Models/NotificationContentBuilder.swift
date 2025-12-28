@@ -65,9 +65,28 @@ struct NotificationContentBuilder: Sendable {
         billCount: Int,
         lookaheadDays: Int
     ) -> String {
-        let billsText = billCount == 1 ? "bill" : "bills"
-        let daysText = lookaheadDays == 1 ? "day" : "days"
-        return String(localized: "\(billCount) \(billsText) due in next \(lookaheadDays) \(daysText)")
+        switch (billCount == 1, lookaheadDays == 1) {
+        case (true, true):
+            return String(
+                localized: "\(billCount) bill due in next \(lookaheadDays) day",
+                comment: "Notification digest title (singular bill, singular day)"
+            )
+        case (true, false):
+            return String(
+                localized: "\(billCount) bill due in next \(lookaheadDays) days",
+                comment: "Notification digest title (singular bill, plural days)"
+            )
+        case (false, true):
+            return String(
+                localized: "\(billCount) bills due in next \(lookaheadDays) day",
+                comment: "Notification digest title (plural bills, singular day)"
+            )
+        case (false, false):
+            return String(
+                localized: "\(billCount) bills due in next \(lookaheadDays) days",
+                comment: "Notification digest title (plural bills, plural days)"
+            )
+        }
     }
 
     /// Builds digest body listing first N bills (name, amount, due date), then truncates.

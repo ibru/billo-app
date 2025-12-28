@@ -39,7 +39,7 @@ struct CalendarItemRow: View {
         case .todayDivider:
             CalendarTodayDividerRow()
         case .emptyMonth:
-            Text(String(localized: "No events this month"))
+            Text("No events this month")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -73,7 +73,10 @@ private struct CalendarIncomeRow: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Income: \(incomeOccurrence.name), \(formattedAmount)")
+        .accessibilityLabel(String(
+            localized: "Income: \(incomeOccurrence.name), \(formattedAmount)",
+            comment: "Accessibility: calendar income row label (income name, amount)"
+        ))
     }
 }
 

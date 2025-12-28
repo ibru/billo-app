@@ -2,21 +2,20 @@
 
 import SwiftUI
 
-struct DataExportView: View {
-    var body: some View {
-        ContentUnavailableView(
-            String(localized: "Data Export"),
-            systemImage: "square.and.arrow.up",
-            description: Text(String(localized: "Coming soon"))
-        )
-        .navigationTitle(String(localized: "Data Export"))
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
+	struct DataExportView: View {
+	    var body: some View {
+	        ContentUnavailableView(
+	            "Data Export",
+	            systemImage: "square.and.arrow.up",
+	            description: Text("Coming soon")
+	        )
+	        .navigationTitle("Data Export")
+	        .navigationBarTitleDisplayMode(.inline)
+	    }
+	}
 
 #Preview {
     NavigationStack {
         DataExportView()
     }
 }
-

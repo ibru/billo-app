@@ -24,14 +24,14 @@ struct SettingsCurrencyPickerView: View {
         CurrencyItem.filtered(by: searchText)
     }
 
-    var body: some View {
-        List {
-            if !filteredPopularCurrencies.isEmpty {
-                Section(String(localized: "Popular Currencies")) {
-                    ForEach(filteredPopularCurrencies) { currency in
-                        CurrencyRow(
-                            currency: currency,
-                            isSelected: currentCurrencyCode == currency.code
+	    var body: some View {
+	        List {
+	            if !filteredPopularCurrencies.isEmpty {
+	                Section("Popular Currencies") {
+	                    ForEach(filteredPopularCurrencies) { currency in
+	                        CurrencyRow(
+	                            currency: currency,
+	                            isSelected: currentCurrencyCode == currency.code
                         )
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -40,51 +40,51 @@ struct SettingsCurrencyPickerView: View {
                     }
                 }
             }
-
-            if !filteredCurrencies.isEmpty {
-                Section(String(localized: "All Currencies")) {
-                    ForEach(filteredCurrencies) { currency in
-                        CurrencyRow(
-                            currency: currency,
-                            isSelected: currentCurrencyCode == currency.code
+	
+	            if !filteredCurrencies.isEmpty {
+	                Section("All Currencies") {
+	                    ForEach(filteredCurrencies) { currency in
+	                        CurrencyRow(
+	                            currency: currency,
+	                            isSelected: currentCurrencyCode == currency.code
                         )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             handleCurrencyTap(currency.code)
                         }
                     }
-                }
-            }
-        }
-        .navigationTitle(String(localized: "Currency"))
-        .searchable(text: $searchText, prompt: Text("Search currencies"))
-        .disabled(isUpdating)
-        .overlay {
-            if isUpdating {
+	                }
+	            }
+	        }
+	        .navigationTitle("Currency")
+	        .searchable(text: $searchText, prompt: Text("Search currencies"))
+	        .disabled(isUpdating)
+	        .overlay {
+	            if isUpdating {
                 ProgressView()
                     .scaleEffect(1.5)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.ultraThinMaterial)
             }
-        }
-        .alert(
-            String(localized: "Change Currency?"),
-            isPresented: $showConfirmation,
-            presenting: pendingCurrencyCode
-        ) { _ in
-            Button(String(localized: "Cancel"), role: .cancel) {
-                pendingCurrencyCode = nil
-            }
-            Button(String(localized: "Change")) {
-                confirmCurrencyChange()
-            }
-        } message: { code in
-            let currencyName = CurrencyItem.localizedName(for: code)
+	        }
+	        .alert(
+	            "Change Currency?",
+	            isPresented: $showConfirmation,
+	            presenting: pendingCurrencyCode
+	        ) { _ in
+	            Button("Cancel", role: .cancel) {
+	                pendingCurrencyCode = nil
+	            }
+	            Button("Change") {
+	                confirmCurrencyChange()
+	            }
+	        } message: { code in
+	            let currencyName = CurrencyItem.localizedName(for: code)
             Text("Changing currency will relabel all existing bills and incomes to \(currencyName). Amounts will not be converted. This cannot be undone.")
-        }
-        .alert("Error", isPresented: .constant(errorMessage != nil)) {
-            Button("OK") { errorMessage = nil }
-        } message: {
+	        }
+	        .alert("Error", isPresented: .constant(errorMessage != nil)) {
+	            Button("OK") { errorMessage = nil }
+	        } message: {
             if let errorMessage {
                 Text(errorMessage)
             }
