@@ -35,6 +35,8 @@ struct BilloApp: App {
     @State private var notificationCoordinator: NotificationCoordinator?
     @State private var preferencesStore: NotificationPreferencesStore?
     @State private var appSettingsModel: AppSettingsModel?
+    @State private var appFlowModel: AppFlowModel?
+    @State private var storeKitManager: StoreKitManager?
     private let notificationDelegate = NotificationDelegate()
     private let appNotificationRefresher = AppNotificationRefresher()
 
@@ -48,17 +50,14 @@ struct BilloApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel {
-                if appSettingsModel.currencyCode == nil {
-                    CurrencyOnboardingView()
-                        .environment(appSettingsModel)
-                } else {
-                    BillsHomeSwitchView()
-                        .environment(billsModel)
-                        .environment(notificationCoordinator)
-                        .environment(preferencesStore)
-                        .environment(appSettingsModel)
-                }
+            if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel, let appFlowModel, let storeKitManager {
+                AppRootView()
+                    .environment(billsModel)
+                    .environment(notificationCoordinator)
+                    .environment(preferencesStore)
+                    .environment(appSettingsModel)
+                    .environment(appFlowModel)
+                    .environment(storeKitManager)
             } else {
                 ProgressView()
                     .task {
@@ -94,6 +93,33 @@ struct BilloApp: App {
                         )
                         settings.load()
 
+#if DEBUG
+//                         DEBUG: Reset first-launch onboarding.
+//                         Uncomment to force the marketing onboarding + paywall to show again.
+                        
+//                         do {
+//                             var persistence = AppPersistence()
+//                             persistence.resetAll()
+//                        
+//                             let appSettings = AppSettings.getOrCreate(in: context)
+//                             appSettings.currencyCode = nil
+//                             try context.save()
+//                        
+//                             settings.load()
+//                         } catch {
+//                             Logger.log("Failed to reset onboarding: \(error)", level: .error)
+//                         }
+#endif
+
+                        let flow = AppFlowModel()
+                        let storeKit = StoreKitManager()
+                        storeKit.start()
+
+                        if settings.currencyCode != nil {
+                            flow.completeOnboarding()
+                            flow.markFirstLaunchPaywallShown()
+                        }
+
                         do {
                             try bills.refresh()
                         } catch {
@@ -104,6 +130,8 @@ struct BilloApp: App {
                         notificationCoordinator = coordinator
                         preferencesStore = preferences
                         appSettingsModel = settings
+                        appFlowModel = flow
+                        storeKitManager = storeKit
 
                         Task { @MainActor in
                             await Task.yield()

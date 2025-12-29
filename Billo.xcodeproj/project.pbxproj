@@ -153,10 +153,10 @@
 			buildConfigurationList = 49007DB12ED5B1D8009FD9ED /* Build configuration list for PBXProject "Billo" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
-				knownRegions = (
-					en,
-					Base,
-				);
+			knownRegions = (
+				en,
+				Base,
+			);
 			mainGroup = 49007DAD2ED5B1D8009FD9ED;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
