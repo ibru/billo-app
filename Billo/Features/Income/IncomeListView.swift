@@ -1,5 +1,6 @@
 //  Created by Jiri Urbasek on 12/10/25.
 
+import SwiftData
 import SwiftUI
 
 struct IncomeListView: View {
@@ -13,7 +14,7 @@ struct IncomeListView: View {
 	                EmptyStateView()
             } else {
                 ForEach(billsModel.incomes) { income in
-                    NavigationLink(value: income) {
+                    NavigationLink(value: HomeDetailDestination.income(income.persistentModelID)) {
                         IncomeRowView(income: income)
                     }
                 }

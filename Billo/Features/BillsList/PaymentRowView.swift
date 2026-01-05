@@ -62,7 +62,7 @@ struct PaymentRowView: View {
             if showsChevron {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color(.tertiaryLabel))
+                    .foregroundStyle(DesignSystem.Color.tertiaryLabel)
             }
         }
         .padding(.vertical, accentColor == nil ? DesignSystem.Spacing.small / 2 : DesignSystem.Spacing.small)

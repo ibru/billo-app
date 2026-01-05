@@ -52,7 +52,7 @@ struct DayDetailSheet: View {
                 }
             }
 	            .navigationTitle(dayData.date.formatted(.dateTime.month(.wide).day()))
-	            .navigationBarTitleDisplayMode(.inline)
+	            .platformInlineNavigationTitle()
 	            .toolbar {
 	                ToolbarItem(placement: .cancellationAction) {
 	                    Button("Done") { dismiss() }

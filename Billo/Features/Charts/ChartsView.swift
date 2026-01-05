@@ -10,7 +10,7 @@ import SwiftUI
 	            description: Text("Coming soon")
 	        )
 	        .navigationTitle("Charts")
-	        .navigationBarTitleDisplayMode(.inline)
+	        .platformInlineNavigationTitle()
 	    }
 	}
 

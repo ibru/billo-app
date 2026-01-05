@@ -5,14 +5,7 @@ import UserNotifications
 enum NotificationToggleLogic {
     /// Returns true if system authorization allows delivering notifications for reminders.
     nonisolated static func isAuthorized(for status: UNAuthorizationStatus) -> Bool {
-        switch status {
-        case .authorized, .provisional, .ephemeral:
-            return true
-        case .denied, .notDetermined:
-            return false
-        @unknown default:
-            return false
-        }
+        status.isEffectivelyAuthorizedForReminders
     }
 
     /// Effective reminder toggle value combining user preference and system permission.

@@ -183,8 +183,12 @@ final class NotificationSettingsModel {
         case .denied:
             showPermissionDeniedAlert = true
 
-        case .authorized, .provisional, .ephemeral:
+        case .authorized, .provisional:
             preferences.setRemindersEnabled(true)
+#if os(iOS)
+        case .ephemeral:
+            preferences.setRemindersEnabled(true)
+#endif
 
         @unknown default:
             break

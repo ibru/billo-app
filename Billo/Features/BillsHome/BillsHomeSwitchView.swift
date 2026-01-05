@@ -1,13 +1,8 @@
 //  Created by Jiri Urbasek on 12/05/25.
 
 import SwiftUI
-
-enum AppDestination: Hashable {
-    case paymentHistory
-    case incomeList
-    case charts
-    case dataExport
-}
+import SwiftData
+import UIKit
 
 struct BillsHomeSwitchView: View {
     @AppStorage("billsDefaultView") private var viewModeRawValue: String = BillsHomeViewMode.list.rawValue
@@ -16,12 +11,19 @@ struct BillsHomeSwitchView: View {
     @Environment(NotificationCoordinator.self) private var notificationCoordinator
     @Environment(NotificationPreferencesStore.self) private var preferencesStore
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showingAddBill = false
     @State private var showingSettings = false
-    @State private var navigationPath = NavigationPath()
     @State private var calendarIsAtCurrentMonth = true
     @State private var calendarScrollToTodayToken = 0
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var selection: HomeDetailDestination?
+    @State private var detailPath: [HomeDetailDestination] = []
+
+    private var usesStackNavigation: Bool {
+        horizontalSizeClass == .compact
+    }
 
     private var nextViewMode: BillsHomeViewMode {
         switch viewModeBinding.wrappedValue {
@@ -39,82 +41,128 @@ struct BillsHomeSwitchView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
-            Group {
-                switch viewModeBinding.wrappedValue {
-                case .list:
-                    BillsListView()
-                        .navigationTitle("Bills")
-                case .calendar:
-                    BillsCalendarView(
-                        onAddBill: { showingAddBill = true },
-                        isAtCurrentMonth: $calendarIsAtCurrentMonth,
-                        scrollToTodayToken: $calendarScrollToTodayToken
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            if usesStackNavigation == false {
+                masterColumnContent
+                    .navigationSplitViewColumnWidth(min: 380, ideal: 450, max: 520)
+            } else {
+                masterColumnContent
+            }
+        } detail: {
+            NavigationStack(path: $detailPath) {
+                if let selection {
+                    destinationView(for: selection)
+                } else {
+                    ContentUnavailableView(
+                        "Select a bill",
+                        systemImage: "doc.text.magnifyingglass",
+                        description: Text("Choose an item from the list or calendar")
                     )
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: Bill.self) { bill in
-                BillDetailView(bill: bill)
-                    .environment(BillModel(bill: bill, modelContext: modelContext))
+            .navigationDestination(for: HomeDetailDestination.self) { destination in
+                destinationView(for: destination)
             }
-            .navigationDestination(for: Payment.self) { payment in
-                PaymentDetailView(payment: payment)
-            }
-            .navigationDestination(for: AppDestination.self) { destination in
-                switch destination {
-                case .paymentHistory:
-                    PaymentHistoryView()
-                case .incomeList:
-                    IncomeListView()
-                case .charts:
-                    ChartsView()
-                case .dataExport:
-                    DataExportView()
+        }
+        .onChange(of: selection) { _, _ in
+            detailPath.removeAll()
+        }
+        .sheet(isPresented: $showingAddBill) {
+            BillEditView(mode: .adding)
+                .environment(billsModel)
+        }
+        .sheet(isPresented: $showingSettings) {
+            NavigationStack {
+                SettingsView(
+                    notificationSettingsModel: NotificationSettingsModel(
+                        preferences: preferencesStore,
+                        coordinator: notificationCoordinator,
+                        openSettingsHandler: {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                    )
+                )
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            showingSettings = false
+                        }
+                    }
                 }
             }
-            .navigationDestination(for: Income.self) { income in
-                IncomeDetailView(income: income)
+        }
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            Button {
+                showingSettings = true
+            } label: {
+                Label("Settings", systemImage: "gear")
             }
-	            .toolbar {
-	                ToolbarItem(placement: .navigationBarLeading) {
-	                    Menu {
-	                        Button {
-	                            showingSettings = true
-	                        } label: {
-	                            Label("Settings", systemImage: "gear")
-	                        }
-	
-	                        Button {
-	                            navigationPath.append(AppDestination.charts)
-	                        } label: {
-	                            Label("Charts", systemImage: "chart.bar")
-	                        }
-	
-	                        Button {
-	                            navigationPath.append(AppDestination.dataExport)
-	                        } label: {
-	                            Label("Data Export", systemImage: "square.and.arrow.up")
-	                        }
-	                    } label: {
-	                        Image(systemName: "ellipsis.circle")
-	                    }
-	                    .accessibilityLabel(Text("More"))
-	                }
+
+            if horizontalSizeClass == .compact {
+                NavigationLink(value: HomeDetailDestination.charts) {
+                    Label("Charts", systemImage: "chart.bar")
+                }
+            } else {
+                Button {
+                    openSelection(.charts)
+                } label: {
+                    Label("Charts", systemImage: "chart.bar")
+                }
+            }
+
+            if horizontalSizeClass == .compact {
+                NavigationLink(value: HomeDetailDestination.dataExport) {
+                    Label("Data Export", systemImage: "square.and.arrow.up")
+                }
+            } else {
+                Button {
+                    openSelection(.dataExport)
+                } label: {
+                    Label("Data Export", systemImage: "square.and.arrow.up")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .accessibilityLabel(Text("More"))
+    }
+
+    @ViewBuilder
+    private var masterColumnContent: some View {
+        if horizontalSizeClass == .compact {
+            masterColumnBase
+                .navigationDestination(for: HomeDetailDestination.self) { destination in
+                    destinationView(for: destination)
+                }
+        } else {
+            masterColumnBase
+        }
+    }
+
+    private var masterColumnBase: some View {
+        masterContent
+            .platformInlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) { moreMenu }
 
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         withAnimation {
                             viewModeBinding.wrappedValue = nextViewMode
                         }
-	                    } label: {
-	                        Image(systemName: nextViewMode.iconName)
-	                    }
-	                    .accessibilityLabel(
-	                        viewModeBinding.wrappedValue == .list
-	                            ? Text("Switch to Calendar")
-	                            : Text("Switch to List")
-	                    )
+                    } label: {
+                        Image(systemName: nextViewMode.iconName)
+                    }
+                    .accessibilityLabel(
+                        viewModeBinding.wrappedValue == .list
+                            ? Text("Switch to Calendar")
+                            : Text("Switch to List")
+                    )
 
                     Button {
                         showingAddBill = true
@@ -124,50 +172,100 @@ struct BillsHomeSwitchView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                HomeFloatingBottomBarView(
-                    showToday: viewModeBinding.wrappedValue == .calendar && !calendarIsAtCurrentMonth,
-                    onToday: { calendarScrollToTodayToken += 1 },
-                    onPaymentHistory: { navigationPath.append(AppDestination.paymentHistory) },
-                    onIncome: { navigationPath.append(AppDestination.incomeList) }
-                )
-            }
-            .sheet(isPresented: $showingAddBill) {
-                BillEditView(mode: .adding)
-                    .environment(billsModel)
-            }
-            .sheet(isPresented: $showingSettings) {
-                NavigationStack {
-                    SettingsView(
-                        notificationSettingsModel: NotificationSettingsModel(
-                            preferences: preferencesStore,
-                            coordinator: notificationCoordinator,
-                            openSettingsHandler: {
-#if os(iOS)
-                                if let url = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(url)
-                                }
-#endif
-                            }
-                        )
+                if usesStackNavigation || viewModeBinding.wrappedValue == .calendar {
+                    HomeFloatingBottomBarView(
+                        showToday: viewModeBinding.wrappedValue == .calendar && !calendarIsAtCurrentMonth,
+                        usesStackNavigation: usesStackNavigation,
+                        onToday: { calendarScrollToTodayToken += 1 },
+                        onOpen: openSelection
                     )
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
-                                showingSettings = false
-                            }
-                        }
-                    }
+                } else {
+                    EmptyView()
                 }
             }
+    }
+
+    @ViewBuilder
+    private var masterContent: some View {
+        switch viewModeBinding.wrappedValue {
+        case .list:
+            BillsListView(
+                usesStackNavigation: usesStackNavigation,
+                onOpen: openSelection
+            )
+                .navigationTitle("Bills")
+        case .calendar:
+            BillsCalendarView(
+                usesStackNavigation: usesStackNavigation,
+                onAddBill: { showingAddBill = true },
+                onOpen: openSelection,
+                isAtCurrentMonth: $calendarIsAtCurrentMonth,
+                scrollToTodayToken: $calendarScrollToTodayToken
+            )
+        }
+    }
+
+    private func openSelection(_ destination: HomeDetailDestination) {
+        selection = destination
+    }
+
+    @ViewBuilder
+    private func destinationView(for destination: HomeDetailDestination) -> some View {
+        switch destination {
+        case .bill(let billID):
+            if let bill = modelContext.model(for: billID) as? Bill {
+                BillDetailView(bill: bill)
+                    .environment(BillModel(bill: bill, modelContext: modelContext))
+            } else {
+                ContentUnavailableView(
+                    "Bill Not Found",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("This bill may have been deleted")
+                )
+            }
+
+        case .paymentHistory:
+            PaymentHistoryView()
+
+        case .payment(let paymentID):
+            if let payment = modelContext.model(for: paymentID) as? Payment {
+                PaymentDetailView(payment: payment)
+            } else {
+                ContentUnavailableView(
+                    "Payment Not Found",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("This payment may have been deleted")
+                )
+            }
+
+        case .incomeList:
+            IncomeListView()
+
+        case .income(let incomeID):
+            if let income = modelContext.model(for: incomeID) as? Income {
+                IncomeDetailView(income: income)
+            } else {
+                ContentUnavailableView(
+                    "Income Not Found",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("This income may have been deleted")
+                )
+            }
+
+        case .charts:
+            ChartsView()
+
+        case .dataExport:
+            DataExportView()
         }
     }
 }
 
 private struct HomeFloatingBottomBarView: View {
     let showToday: Bool
+    let usesStackNavigation: Bool
     let onToday: () -> Void
-    let onPaymentHistory: () -> Void
-    let onIncome: () -> Void
+    let onOpen: (HomeDetailDestination) -> Void
 
 	    var body: some View {
 	        HStack(alignment: .center) {
@@ -188,8 +286,8 @@ private struct HomeFloatingBottomBarView: View {
             Spacer(minLength: DesignSystem.Spacing.small)
 
             HomeFloatingQuickActionsView(
-                onPaymentHistory: onPaymentHistory,
-                onIncome: onIncome
+                usesStackNavigation: usesStackNavigation,
+                onOpen: onOpen
             )
         }
         .padding(.horizontal, DesignSystem.Spacing.medium)
@@ -198,16 +296,37 @@ private struct HomeFloatingBottomBarView: View {
 }
 
 private struct HomeFloatingQuickActionsView: View {
-    let onPaymentHistory: () -> Void
-    let onIncome: () -> Void
+    let usesStackNavigation: Bool
+    let onOpen: (HomeDetailDestination) -> Void
+
+    @ViewBuilder
+    private func quickAction(
+        destination: HomeDetailDestination,
+        systemImage: String
+    ) -> some View {
+        if usesStackNavigation {
+            NavigationLink(value: destination) {
+                Image(systemName: systemImage)
+                    .symbolRenderingMode(.hierarchical)
+            }
+        } else {
+            Button {
+                onOpen(destination)
+            } label: {
+                Image(systemName: systemImage)
+                    .symbolRenderingMode(.hierarchical)
+            }
+        }
+    }
 
 	    var body: some View {
 	        FloatingPill {
 	            HStack(spacing: 0) {
-                Button(action: onPaymentHistory) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .symbolRenderingMode(.hierarchical)
-	                }
+                quickAction(
+                    destination: .paymentHistory,
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .buttonStyle(.plain)
 	                .frame(width: 44, height: 44)
 	                .contentShape(Rectangle())
 	                .accessibilityLabel(Text("Payment History"))
@@ -215,10 +334,11 @@ private struct HomeFloatingQuickActionsView: View {
                 Divider()
                     .frame(height: 22)
 
-                Button(action: onIncome) {
-                    Image(systemName: "banknote")
-                        .symbolRenderingMode(.hierarchical)
-	                }
+                quickAction(
+                    destination: .incomeList,
+                    systemImage: "banknote"
+                )
+                .buttonStyle(.plain)
 	                .frame(width: 44, height: 44)
 	                .contentShape(Rectangle())
 	                .accessibilityLabel(Text("Income"))

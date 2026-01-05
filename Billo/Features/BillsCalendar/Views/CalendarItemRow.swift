@@ -1,41 +1,78 @@
 //  Created by Jiri Urbasek on 12/05/25.
 
+import SwiftData
 import SwiftUI
 
 struct CalendarItemRow: View {
+    let usesStackNavigation: Bool
     let item: CalendarListItem
     let customCategories: [CustomCategory]
+    let onOpen: (HomeDetailDestination) -> Void
 
     var body: some View {
         switch item {
         case .occurrence(let occurrence, let payments):
-            NavigationLink(value: occurrence.bill) {
-                CalendarFutureBillRow(
-                    occurrence: occurrence,
-                    payments: payments,
-                    customCategories: customCategories
-                )
-                    .calendarCardStyle()
-                    .foregroundStyle(.primary)
+            if usesStackNavigation {
+                NavigationLink(value: HomeDetailDestination.bill(occurrence.bill.persistentModelID)) {
+                    CalendarFutureBillRow(
+                        occurrence: occurrence,
+                        payments: payments,
+                        customCategories: customCategories
+                    )
+                        .calendarCardStyle()
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    onOpen(.bill(occurrence.bill.persistentModelID))
+                } label: {
+                    CalendarFutureBillRow(
+                        occurrence: occurrence,
+                        payments: payments,
+                        customCategories: customCategories
+                    )
+                        .calendarCardStyle()
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            .tint(.primary)
         case .pastOccurrence(let display):
-            NavigationLink(value: display.occurrence.bill) {
-                CalendarPastBillRow(display: display, customCategories: customCategories)
-                    .calendarCardStyle()
-                    .foregroundStyle(.primary)
+            if usesStackNavigation {
+                NavigationLink(value: HomeDetailDestination.bill(display.occurrence.bill.persistentModelID)) {
+                    CalendarPastBillRow(display: display, customCategories: customCategories)
+                        .calendarCardStyle()
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    onOpen(.bill(display.occurrence.bill.persistentModelID))
+                } label: {
+                    CalendarPastBillRow(display: display, customCategories: customCategories)
+                        .calendarCardStyle()
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            .tint(.primary)
         case .income(let incomeOccurrence):
-            NavigationLink(value: incomeOccurrence.income) {
-                CalendarIncomeRow(incomeOccurrence: incomeOccurrence)
-                    .calendarCardStyle()
-                    .foregroundStyle(.primary)
+            if usesStackNavigation {
+                NavigationLink(value: HomeDetailDestination.income(incomeOccurrence.income.persistentModelID)) {
+                    CalendarIncomeRow(incomeOccurrence: incomeOccurrence)
+                        .calendarCardStyle()
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    onOpen(.income(incomeOccurrence.income.persistentModelID))
+                } label: {
+                    CalendarIncomeRow(incomeOccurrence: incomeOccurrence)
+                        .calendarCardStyle()
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            .tint(.primary)
         case .todayDivider:
             CalendarTodayDividerRow()
         case .emptyMonth:
@@ -87,7 +124,7 @@ private extension View {
             .padding(.vertical, DesignSystem.Spacing.small)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(.systemBackground))
+                    .fill(DesignSystem.Color.background)
                     .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
             )
             .padding(.horizontal, DesignSystem.Spacing.medium)

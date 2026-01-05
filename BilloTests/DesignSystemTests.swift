@@ -2,8 +2,15 @@
 
 import Testing
 import SwiftUI
-import UIKit
 @testable import Billo
+
+#if canImport(UIKit)
+import UIKit
+private typealias PlatformColor = UIColor
+#elseif canImport(AppKit)
+import AppKit
+private typealias PlatformColor = NSColor
+#endif
 
 @MainActor
 @Suite("DesignSystem Category Mapping")
@@ -21,8 +28,8 @@ struct DesignSystemCategoryMappingTests {
     }
 
     @Test func whenColorTokenUsesVariant_thenReturnsSameColorAsCanonicalToken() {
-        let baseline = UIColor(DesignSystem.Color.categoryColor(for: "utility"))
-        let variant = UIColor(DesignSystem.Color.categoryColor(for: "Utilities"))
+        let baseline = PlatformColor(DesignSystem.Color.categoryColor(for: "utility"))
+        let variant = PlatformColor(DesignSystem.Color.categoryColor(for: "Utilities"))
 
         #expect(variant == baseline)
     }

@@ -10,7 +10,7 @@ import SwiftUI
 	            description: Text("Coming soon")
 	        )
 	        .navigationTitle("Data Export")
-	        .navigationBarTitleDisplayMode(.inline)
+	        .platformInlineNavigationTitle()
 	    }
 	}
 

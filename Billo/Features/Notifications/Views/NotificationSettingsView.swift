@@ -2,9 +2,6 @@
 
 import SwiftUI
 import UserNotifications
-#if os(iOS)
-import UIKit
-#endif
 
 struct NotificationSettingsView: View {
     @Environment(NotificationSettingsModel.self) private var model
@@ -63,11 +60,9 @@ struct NotificationSettingsView: View {
             )
         ) {
             Button("Cancel", role: .cancel) { }
-#if os(iOS)
             Button("Open Settings") {
                 model.openSettings()
             }
-#endif
         } message: {
             Text("Enable notifications in Settings to receive bill reminders.")
         }
@@ -84,31 +79,28 @@ struct NotificationSettingsView: View {
 
     @ViewBuilder
     private var permissionStatusView: some View {
-        switch model.authorizationStatus {
-        case .authorized, .provisional, .ephemeral:
+        if model.authorizationStatus.isEffectivelyAuthorizedForReminders {
             Label("Notifications Enabled", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
-        case .denied:
+        } else if model.authorizationStatus == .denied {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications Disabled", systemImage: "xmark.circle.fill")
                     .foregroundStyle(.red)
                 Text("Enable in Settings to receive reminders")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-#if os(iOS)
                 Button("Open Settings") {
                     model.openSettings()
                 }
                 .buttonStyle(.bordered)
-#endif
                 Text("Reminders stay off until permission is granted.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-        case .notDetermined:
+        } else if model.authorizationStatus == .notDetermined {
             Label("Notifications Not Yet Configured", systemImage: "bell.badge")
                 .foregroundStyle(.secondary)
-        @unknown default:
+        } else {
             EmptyView()
         }
     }

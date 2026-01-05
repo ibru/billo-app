@@ -22,12 +22,12 @@ struct NotificationSettingsModelTests {
     @Test
     func whenSceneBecomesActive_thenRefreshesAuthorizationStatus() async {
         let (sut, coordinator, _) = makeSUT()
-        coordinator.authorizationStatusToReturn = .ephemeral
+        coordinator.authorizationStatusToReturn = .provisional
 
         await sut.onScenePhaseChange(.active)
 
         #expect(coordinator.currentStatusCallCount == 1)
-        #expect(sut.authorizationStatus == .ephemeral)
+        #expect(sut.authorizationStatus == .provisional)
     }
 
     @Test

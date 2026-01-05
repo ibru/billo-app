@@ -2,6 +2,9 @@
 
 import SwiftUI
 import Foundation
+#if os(iOS)
+import UIKit
+#endif
 
 struct CalendarPagedGridView: View {
     let months: [DateComponents]
@@ -41,23 +44,44 @@ struct CalendarPagedGridView: View {
         return months[pageIndex]
     }
 
+    private var showsMonthNavigationHeader: Bool {
+#if os(iOS)
+        return UIDevice.current.userInterfaceIdiom != .phone
+#else
+        return true
+#endif
+    }
+
+    private var monthTitle: String {
+        guard let currentMonth,
+              let date = calendar.date(from: currentMonth) else { return "" }
+        return date.formatted(.dateTime.month(.wide).year())
+    }
+
 	    var body: some View {
-        TabView(selection: $pageIndex) {
-            ForEach(Array(months.enumerated()), id: \.offset) { index, month in
-                CalendarGridView(
-                    displayedMonth: month,
-                    calendar: calendar,
-                    today: today,
-                    selectedDate: selectedDate,
-                    monthData: monthDataProvider(month),
-                    onSelectDay: onSelectDay
-                )
-                .tag(index)
-                .padding(.top, DesignSystem.Spacing.extraSmall)
+        VStack(spacing: DesignSystem.Spacing.extraSmall) {
+            if showsMonthNavigationHeader {
+                monthNavigationHeader
+                    .padding(.horizontal, DesignSystem.Spacing.medium)
             }
+
+            TabView(selection: $pageIndex) {
+                ForEach(Array(months.enumerated()), id: \.offset) { index, month in
+                    CalendarGridView(
+                        displayedMonth: month,
+                        calendar: calendar,
+                        today: today,
+                        selectedDate: selectedDate,
+                        monthData: monthDataProvider(month),
+                        onSelectDay: onSelectDay
+                    )
+                    .tag(index)
+                    .padding(.top, DesignSystem.Spacing.extraSmall)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: currentMonth.map { gridHeight(for: $0) } ?? gridHeight(for: months.first ?? DateComponents()))
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .frame(height: currentMonth.map { gridHeight(for: $0) } ?? gridHeight(for: months.first ?? DateComponents()))
         .animation(.easeInOut(duration: 0.2), value: pageIndex)
         .accessibilityScrollAction { edge in
             guard !months.isEmpty else { return }
@@ -74,6 +98,43 @@ struct CalendarPagedGridView: View {
             guard months.indices.contains(newIndex) else { return }
             onMonthChange(months[newIndex])
         }
+    }
+
+    private var monthNavigationHeader: some View {
+        let canGoToPrevious = !months.isEmpty && pageIndex > 0
+        let canGoToNext = !months.isEmpty && pageIndex < (months.count - 1)
+
+        return HStack(spacing: DesignSystem.Spacing.medium) {
+            Button {
+                guard canGoToPrevious else { return }
+                pageIndex -= 1
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline.weight(.semibold))
+                    .frame(minWidth: 24, minHeight: 24)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGoToPrevious)
+            .accessibilityLabel(Text("Previous month"))
+
+            Text(monthTitle)
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .accessibilityAddTraits(.isHeader)
+
+            Button {
+                guard canGoToNext else { return }
+                pageIndex += 1
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.headline.weight(.semibold))
+                    .frame(minWidth: 24, minHeight: 24)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGoToNext)
+            .accessibilityLabel(Text("Next month"))
+        }
+        .padding(.vertical, DesignSystem.Spacing.extraSmall)
     }
 }
 

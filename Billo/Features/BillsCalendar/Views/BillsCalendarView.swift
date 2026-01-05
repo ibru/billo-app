@@ -5,7 +5,9 @@ import SwiftUI
 
 struct BillsCalendarView: View {
     private let calendar: Calendar
+    private let usesStackNavigation: Bool
     private let onAddBill: () -> Void
+    private let onOpen: (HomeDetailDestination) -> Void
 
     @Binding private var isAtCurrentMonth: Bool
     @Binding private var scrollToTodayToken: Int
@@ -32,12 +34,16 @@ struct BillsCalendarView: View {
 
 	    init(
 	        calendar: Calendar = .autoupdatingCurrent,
+            usesStackNavigation: Bool = true,
 	        onAddBill: @escaping () -> Void = {},
+	        onOpen: @escaping (HomeDetailDestination) -> Void = { _ in },
 	        isAtCurrentMonth: Binding<Bool> = .constant(true),
 	        scrollToTodayToken: Binding<Int> = .constant(0)
 	    ) {
         self.calendar = calendar
+        self.usesStackNavigation = usesStackNavigation
         self.onAddBill = onAddBill
+        self.onOpen = onOpen
         _isAtCurrentMonth = isAtCurrentMonth
         _scrollToTodayToken = scrollToTodayToken
         _displayedMonth = State(initialValue: calendar.dateComponents([.year, .month], from: Date()))
@@ -45,7 +51,7 @@ struct BillsCalendarView: View {
 
     var body: some View {
         content
-            .navigationTitle(monthTitle(for: displayedMonth))
+            .navigationTitle(navigationTitle)
             .dayDetailPresentation(
                 dayData: $selectedDayData,
                 onMarkPaid: { occurrence in
@@ -68,6 +74,14 @@ struct BillsCalendarView: View {
             .onChange(of: scrollToTodayToken) { _, _ in
                 scrollToToday()
             }
+    }
+
+    private var navigationTitle: String {
+        if usesStackNavigation {
+            return monthTitle(for: displayedMonth)
+        }
+
+        return String(localized: "Calendar")
     }
 
     @ViewBuilder
@@ -105,8 +119,10 @@ struct BillsCalendarView: View {
                                 Section {
                                     ForEach(section.items) { item in
                                         CalendarItemRow(
+                                            usesStackNavigation: usesStackNavigation,
                                             item: item,
-                                            customCategories: customCategories
+                                            customCategories: customCategories,
+                                            onOpen: onOpen
                                         )
                                         .scrollTargetLayout()
                                     }
@@ -123,7 +139,7 @@ struct BillsCalendarView: View {
                         .scrollTargetLayout()
                     }
                     .scrollIndicators(.visible)
-                    .background(Color(.systemGroupedBackground))
+                    .background(DesignSystem.Color.groupedBackground)
                     .onChange(of: scrollTarget) { _, target in
                         guard let target else { return }
                         withAnimation(.easeInOut) {
@@ -374,7 +390,7 @@ private struct MonthSectionHeader: View {
         .padding(.horizontal, DesignSystem.Spacing.medium)
         .padding(.vertical, DesignSystem.Spacing.small)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemGroupedBackground))
+        .background(DesignSystem.Color.groupedBackground)
     }
 
     @ViewBuilder
@@ -423,24 +439,13 @@ private struct DayDetailPresentationModifier: ViewModifier {
 
     func body(content: Content) -> some View {
 #if os(iOS)
-        if horizontalSizeClass == .regular {
-            content
-                .popover(item: $dayData) { dayData in
-                    DayDetailSheet(
-                        dayData: dayData,
-                        onMarkPaid: onMarkPaid
-                    )
-                }
-                .presentationCompactAdaptation(.sheet)
-        } else {
-            content
-                .sheet(item: $dayData) { dayData in
-                    DayDetailSheet(
-                        dayData: dayData,
-                        onMarkPaid: onMarkPaid
-                    )
-                }
-        }
+        content
+            .sheet(item: $dayData) { dayData in
+                DayDetailSheet(
+                    dayData: dayData,
+                    onMarkPaid: onMarkPaid
+                )
+            }
 #else
         content
             .popover(item: $dayData) { dayData in

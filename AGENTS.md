@@ -21,7 +21,8 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 ## Commands
 - Build (simulator default): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1' build`
 - Clean build: `xcodebuild -project Billo.xcodeproj -scheme Billo clean`
-- Unit tests: `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1' test`
+- Unit tests (default: Mac Catalyst): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst,name=My Mac' test`
+- Unit tests (iOS Simulator): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1' test`
 - Focused tests: append `-only-testing:BilloTests/<TestClass>`
 - No external dependencies: Project uses only native Apple frameworks (SwiftUI, SwiftData, StoreKit 2, Charts)
 

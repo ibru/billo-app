@@ -123,7 +123,7 @@ struct BillDetailView: View {
             }
         }
         .navigationTitle(billModel.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .platformInlineNavigationTitle()
         .sheet(isPresented: $showingEditSheet) {
             BillEditView(mode: .editing(bill))
                 .environment(billModel)
@@ -202,7 +202,7 @@ struct MarkPaidSheet: View {
                     LabeledContent("Amount") {
                         TextField("Amount", value: $amount, format: .number)
                             .multilineTextAlignment(.trailing)
-                            .keyboardType(.decimalPad)
+                            .platformDecimalKeyboard()
                     }
 
                     DatePicker("Date Paid", selection: $datePaid, displayedComponents: .date)
@@ -247,7 +247,7 @@ struct MarkPaidSheet: View {
                 }
             }
             .navigationTitle("Mark as Paid")
-            .navigationBarTitleDisplayMode(.inline)
+            .platformInlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

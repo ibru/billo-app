@@ -53,7 +53,7 @@ struct CurrencyPickerSheet: View {
 	            }
 	            .searchable(text: $searchText, prompt: Text("Search currencies"))
 	            .navigationTitle("Select Currency")
-	            .navigationBarTitleDisplayMode(.inline)
+	            .platformInlineNavigationTitle()
 	            .toolbar {
 	                ToolbarItem(placement: .cancellationAction) {
 	                    Button("Cancel") {

@@ -68,7 +68,7 @@ struct PurchaseThankYouView: View {
             .offset(y: showContent ? 0 : 16)
             .accessibilityIdentifier("thank_you_continue")
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(DesignSystem.Color.background.ignoresSafeArea())
         .onAppear {
             withAnimation(.spring(duration: 0.6)) {
                 showContent = true

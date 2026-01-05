@@ -75,7 +75,7 @@ struct PaywallView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
+            DesignSystem.Color.background
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -495,7 +495,7 @@ private struct SubscriptionOptionRow: View {
 
                 ZStack {
                     Circle()
-                        .stroke(isSelected ? Color.accentColor : Color(.separator), lineWidth: 2)
+                        .stroke(isSelected ? Color.accentColor : DesignSystem.Color.separator, lineWidth: 2)
                         .frame(width: 24, height: 24)
 
                     if isSelected {
@@ -508,7 +508,7 @@ private struct SubscriptionOptionRow: View {
             .padding(DesignSystem.Spacing.medium)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(isSelected ? Color.accentColor : Color(.separator), lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? Color.accentColor : DesignSystem.Color.separator, lineWidth: isSelected ? 2 : 1)
             )
         }
         .buttonStyle(.plain)

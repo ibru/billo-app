@@ -71,7 +71,7 @@ struct BillEditView: View {
                     LabeledContent("Amount") {
                         TextField("Amount", value: $amount, format: .number)
                             .multilineTextAlignment(.trailing)
-                            .keyboardType(.decimalPad)
+                            .platformDecimalKeyboard()
                     }
 
                     DatePicker("Due Date", selection: $dueDate, displayedComponents: .date)
@@ -124,12 +124,12 @@ struct BillEditView: View {
                     TextField("Account ID", text: $accountIdentifier)
 
                     TextField("Provider URL", text: $providerURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
+                        .platformURLKeyboard()
+                        .platformNeverAutocapitalization()
                 }
             }
             .navigationTitle(mode.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .platformInlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {

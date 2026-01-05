@@ -49,7 +49,6 @@ struct FirstLaunchMarketingStepTemplateView: View {
             .padding(.bottom, DesignSystem.Spacing.large)
             .accessibilityIdentifier("onboarding_continue")
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(DesignSystem.Color.background.ignoresSafeArea())
     }
 }
-

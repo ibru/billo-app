@@ -32,7 +32,7 @@ struct PaymentHistoryView: View {
                 )
             } else {
                 ForEach(displayedPayments, id: \.persistentModelID) { payment in
-                    NavigationLink(value: payment) {
+                    NavigationLink(value: HomeDetailDestination.payment(payment.persistentModelID)) {
                         PaymentRowView(payment: payment, customCategories: customCategories)
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {

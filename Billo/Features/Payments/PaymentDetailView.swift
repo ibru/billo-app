@@ -65,7 +65,7 @@ struct PaymentDetailView: View {
             }
         }
         .navigationTitle("Payment")
-        .navigationBarTitleDisplayMode(.inline)
+        .platformInlineNavigationTitle()
         .confirmationDialog(
             "Delete Payment",
             isPresented: $showDeleteConfirmation,

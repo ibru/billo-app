@@ -10,7 +10,16 @@ struct BillsListView: View {
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
-    init() { }
+    private let usesStackNavigation: Bool
+    private let onOpen: (HomeDetailDestination) -> Void
+
+    init(
+        usesStackNavigation: Bool = true,
+        onOpen: @escaping (HomeDetailDestination) -> Void = { _ in }
+    ) {
+        self.usesStackNavigation = usesStackNavigation
+        self.onOpen = onOpen
+    }
 
     private var currencyCode: String {
         appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
@@ -23,12 +32,15 @@ struct BillsListView: View {
                 totals: billsModel.sections.monthlyTotals,
                 currencyCode: currencyCode
             )
-            PaymentHistoryNavigationRow()
+            PaymentHistoryNavigationRow(
+                usesStackNavigation: usesStackNavigation,
+                onOpen: onOpen
+            )
                 .listRowBackground(Color.clear)
 
             billSections()
         }
-        .listSectionSpacing(0)
+        .platformListSectionSpacing(0)
         .task {
             do {
                 try billsModel.refresh()
@@ -42,21 +54,38 @@ struct BillsListView: View {
     private func billSections() -> some View {
         ForEach(BillSection.allCases) { section in
             if let occurrences = billsModel.sections.occurrencesBySection[section], !occurrences.isEmpty {
-                Section {
-                    ForEach(occurrences) { occurrence in
-                        NavigationLink(value: occurrence.bill) {
-                            BillRowView(occurrence: occurrence, customCategories: customCategories)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button {
-                                markPaid(occurrence)
-                            } label: {
-                                Label("Paid Today", systemImage: "checkmark.circle")
-                            }
-                            .tint(.green)
-                        }
-                    }
-                } header: {
+	                Section {
+	                    ForEach(occurrences) { occurrence in
+	                        if usesStackNavigation {
+	                            NavigationLink(value: HomeDetailDestination.bill(occurrence.bill.persistentModelID)) {
+	                                BillRowView(occurrence: occurrence, customCategories: customCategories)
+	                            }
+	                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+	                                Button {
+	                                    markPaid(occurrence)
+	                                } label: {
+	                                    Label("Paid Today", systemImage: "checkmark.circle")
+	                                }
+	                                .tint(.green)
+	                            }
+	                        } else {
+	                            Button {
+	                                onOpen(.bill(occurrence.bill.persistentModelID))
+	                            } label: {
+	                                BillRowView(occurrence: occurrence, customCategories: customCategories)
+	                            }
+	                            .buttonStyle(.plain)
+	                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+	                                Button {
+	                                    markPaid(occurrence)
+	                                } label: {
+	                                    Label("Paid Today", systemImage: "checkmark.circle")
+	                                }
+	                                .tint(.green)
+	                            }
+	                        }
+	                    }
+	                } header: {
                     BillSectionHeader(
                         section: section,
                         occurrences: occurrences,
@@ -79,26 +108,56 @@ struct BillsListView: View {
 }
 
 private struct PaymentHistoryNavigationRow: View {
+    let usesStackNavigation: Bool
+    let onOpen: (HomeDetailDestination) -> Void
+
     var body: some View {
         Section {
-            NavigationLink(value: AppDestination.paymentHistory) {
-                HStack(spacing: DesignSystem.Spacing.small) {
-                    Image(systemName: "clock.arrow.circlepath")
-                    Text("Payment History")
-                    Spacer()
-                }
-                .font(.caption)
-            }
-            NavigationLink(value: AppDestination.incomeList) {
-                HStack(spacing: DesignSystem.Spacing.small) {
-                    Image(systemName: "banknote")
-                        .foregroundStyle(DesignSystem.Color.income)
-                    Text("Income")
-                    Spacer()
-                }
-                .font(.caption)
-            }
+            navigationRow(
+                title: "Payment History",
+                systemImage: "clock.arrow.circlepath",
+                destination: .paymentHistory
+            )
+
+            navigationRow(
+                title: "Income",
+                systemImage: "banknote",
+                iconColor: DesignSystem.Color.income,
+                destination: .incomeList
+            )
         }
+    }
+
+    @ViewBuilder
+    private func navigationRow(
+        title: String,
+        systemImage: String,
+        iconColor: SwiftUI.Color? = nil,
+        destination: HomeDetailDestination
+    ) -> some View {
+        if usesStackNavigation {
+            NavigationLink(value: destination) {
+                rowLabel(title: title, systemImage: systemImage, iconColor: iconColor)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button {
+                onOpen(destination)
+            } label: {
+                rowLabel(title: title, systemImage: systemImage, iconColor: iconColor)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func rowLabel(title: String, systemImage: String, iconColor: SwiftUI.Color?) -> some View {
+        HStack(spacing: DesignSystem.Spacing.small) {
+            Image(systemName: systemImage)
+                .foregroundStyle(iconColor ?? .primary)
+            Text(title)
+            Spacer()
+        }
+        .font(.caption)
     }
 }
 
@@ -115,10 +174,10 @@ private struct SummarySectionView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(.systemGray6))
+                    .fill(DesignSystem.Color.groupedBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(.systemGray4), lineWidth: 0.5)
+                            .stroke(DesignSystem.Color.separator, lineWidth: 0.5)
                     )
             )
         }

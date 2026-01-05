@@ -61,7 +61,7 @@ struct IncomeEditView: View {
 	                    LabeledContent("Amount") {
 	                        TextField("Amount", value: $amount, format: .number)
 	                            .multilineTextAlignment(.trailing)
-	                            .keyboardType(.decimalPad)
+	                            .platformDecimalKeyboard()
 	                    }
 	
 	                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
@@ -95,7 +95,7 @@ struct IncomeEditView: View {
 	                }
 	            }
             .navigationTitle(mode.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .platformInlineNavigationTitle()
 	            .toolbar {
 	                ToolbarItem(placement: .cancellationAction) {
 	                    Button("Cancel") {

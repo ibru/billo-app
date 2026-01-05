@@ -9,7 +9,15 @@ struct NotificationToggleStateTests {
 
     @Test
     func whenPreferenceEnabledAndStatusAllowsNotifications_thenToggleIsOn() {
-        for status in [UNAuthorizationStatus.authorized, .provisional, .ephemeral] {
+        let statuses: [UNAuthorizationStatus] = {
+#if os(iOS)
+            [.authorized, .provisional, .ephemeral]
+#else
+            [.authorized, .provisional]
+#endif
+        }()
+
+        for status in statuses {
             let isOn = makeEffectiveState(preferenceEnabled: true, status: status)
             #expect(isOn)
         }
@@ -42,7 +50,9 @@ struct NotificationToggleStateTests {
     func whenCheckingAuthorizationHelper_thenReturnsTrueOnlyForAllowedStatuses() {
         #expect(NotificationToggleLogic.isAuthorized(for: .authorized))
         #expect(NotificationToggleLogic.isAuthorized(for: .provisional))
+        #if os(iOS)
         #expect(NotificationToggleLogic.isAuthorized(for: .ephemeral))
+        #endif
 
         #expect(NotificationToggleLogic.isAuthorized(for: .denied) == false)
         #expect(NotificationToggleLogic.isAuthorized(for: .notDetermined) == false)
