@@ -12,7 +12,7 @@ struct FloatingPill<Content: View>: View {
     var body: some View {
         content
             .billoFloatingPillPadding()
-            .billoFloatingGlassEffect(.regular)
+            .billoFloatingGlassEffect()
             .background(FloatingPillHitTestBlocker())
             .buttonStyle(.plain)
     }
@@ -44,7 +44,7 @@ struct FloatingPillButton<Label: View>: View {
             vertical: verticalPadding,
             horizontal: horizontalPadding
         )
-        .billoFloatingGlassEffect(.regular)
+        .billoFloatingGlassEffect()
         .buttonStyle(.plain)
     }
 }
