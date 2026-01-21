@@ -27,7 +27,7 @@ struct BillEditView: View {
     @State private var isSaving: Bool = false
     @State private var saveErrorMessage: String?
 
-    @State private var isRepeating: Bool = false
+    @State private var selectedRecurrencePreset: RecurrencePreset = .none
     @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
     @State private var draftFrequency: Int = 1
     @State private var draftDayOfWeek: Weekday = .monday
@@ -46,7 +46,7 @@ struct BillEditView: View {
             _notes = State(initialValue: bill.notes ?? "")
             _accountIdentifier = State(initialValue: bill.accountIdentifier ?? "")
             _providerURL = State(initialValue: bill.providerURL ?? "")
-            _isRepeating = State(initialValue: bill.recurrenceRule != nil)
+            _selectedRecurrencePreset = State(initialValue: bill.recurrenceRule?.matchingPreset ?? .none)
 
             if let rule = bill.recurrenceRule {
                 _draftSelectedIntervalType = State(initialValue: rule.pattern)
@@ -90,23 +90,17 @@ struct BillEditView: View {
                     }
                 }
 
-                Section("Recurrence") {
-                    Toggle("Repeat", isOn: $isRepeating)
-                        .onChange(of: isRepeating) { _, newValue in
-                            if newValue {
-                                anchorRepeatFieldsToDueDate()
-                            }
-                        }
+                Section(String(localized: "Repeat")) {
+                    RecurrencePresetPicker(
+                        selectedPreset: $selectedRecurrencePreset,
+                        intervalType: $draftSelectedIntervalType,
+                        frequency: $draftFrequency,
+                        dayOfWeek: $draftDayOfWeek,
+                        dayOfMonth: $draftDayOfMonth,
+                        anchorDate: dueDate
+                    )
 
-                    if isRepeating {
-                        RepeatIntervalPicker(
-                            selectedIntervalType: $draftSelectedIntervalType,
-                            frequency: $draftFrequency,
-                            dayOfWeek: $draftDayOfWeek,
-                            dayOfMonth: $draftDayOfMonth,
-                            dueDate: dueDate
-                        )
-
+                    if selectedRecurrencePreset != .none {
                         Picker("End Condition", selection: $draftSelectedEndConditionType) {
                             Text("Never").tag(EndConditionType.never)
                             Text("On Date").tag(EndConditionType.endDate)
@@ -145,14 +139,6 @@ struct BillEditView: View {
                     .disabled(name.isEmpty || amount <= 0 || isSaving)
                 }
             }
-            .onChange(of: dueDate) { _, _ in
-                if isRepeating {
-                    anchorRepeatFieldsToDueDate()
-                }
-            }
-            .onChange(of: draftSelectedIntervalType) { _, _ in
-                anchorRepeatFieldsToDueDate()
-            }
             .alert("Error", isPresented: .constant(saveErrorMessage != nil)) {
                 Button("OK") {
                     saveErrorMessage = nil
@@ -184,10 +170,7 @@ struct BillEditView: View {
                         providerURL: providerURL.isEmpty ? nil : providerURL,
                         categoryIdentifier: selectedCategoryIdentifier
                     )
-
-                    if isRepeating {
-                        bill.recurrenceRule = buildRecurrenceRule()
-                    }
+                    bill.recurrenceRule = buildRecurrenceRule()
 
                     try await billsModel.addBill(bill)
 
@@ -201,11 +184,7 @@ struct BillEditView: View {
                     bill.categoryIdentifier = selectedCategoryIdentifier
                     bill.lastUpdatedDate = Date()
 
-                    if isRepeating {
-                        bill.recurrenceRule = buildRecurrenceRule()
-                    } else {
-                        bill.recurrenceRule = nil
-                    }
+                    bill.recurrenceRule = buildRecurrenceRule()
 
                     try await billsModel.updateBill(bill)
                 }
@@ -218,28 +197,15 @@ struct BillEditView: View {
         }
     }
 
-    private func buildRecurrenceRule() -> RecurrenceRule {
-        RecurrenceRule(
-            pattern: draftSelectedIntervalType,
+    private func buildRecurrenceRule() -> RecurrenceRule? {
+        selectedRecurrencePreset.buildRecurrenceRule(
+            intervalType: draftSelectedIntervalType,
             frequency: draftFrequency,
-            dayOfWeek: draftSelectedIntervalType == .weekly ? draftDayOfWeek : nil,
-            dayOfMonth: draftSelectedIntervalType == .monthly ? draftDayOfMonth : nil,
+            dayOfWeek: draftDayOfWeek,
+            dayOfMonth: draftDayOfMonth,
             endConditionType: draftSelectedEndConditionType,
-            endDate: draftSelectedEndConditionType == .endDate ? draftEndDate : nil
+            endDate: draftEndDate
         )
-    }
-
-    private func anchorRepeatFieldsToDueDate() {
-        let calendar = Calendar.current
-        switch draftSelectedIntervalType {
-        case .weekly:
-            let weekday = calendar.component(.weekday, from: dueDate)
-            draftDayOfWeek = Weekday.fromCalendarWeekday(weekday) ?? .monday
-        case .monthly:
-            draftDayOfMonth = calendar.component(.day, from: dueDate)
-        case .yearly:
-            break
-        }
     }
 
     private var categoryOptions: [CategoryDisplayInfo] {

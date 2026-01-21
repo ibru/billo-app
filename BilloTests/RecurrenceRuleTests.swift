@@ -121,6 +121,39 @@ struct RecurrenceRuleTests {
             #expect(occurrences.last == maxDate)
         }
     }
+
+    @Suite("matchingPreset")
+    struct MatchingPreset {
+        @Test func whenWeeklyFrequencyOneAndHasDayOfWeek_thenMatchesWeekly() {
+            let sut = RecurrenceRule(pattern: .weekly, frequency: 1, dayOfWeek: .monday)
+
+            #expect(sut.matchingPreset == .weekly)
+        }
+
+        @Test func whenWeeklyFrequencyTwoAndHasDayOfWeek_thenMatchesBiweekly() {
+            let sut = RecurrenceRule(pattern: .weekly, frequency: 2, dayOfWeek: .monday)
+
+            #expect(sut.matchingPreset == .biweekly)
+        }
+
+        @Test func whenMonthlyFrequencyOneAndHasDayOfMonth_thenMatchesMonthly() {
+            let sut = RecurrenceRule(pattern: .monthly, frequency: 1, dayOfMonth: 15)
+
+            #expect(sut.matchingPreset == .monthly)
+        }
+
+        @Test func whenRuleDoesNotMatchPreset_thenMatchesCustom() {
+            let sut = RecurrenceRule(pattern: .yearly, frequency: 1)
+
+            #expect(sut.matchingPreset == .custom)
+        }
+
+        @Test func whenWeeklyWithoutDayOfWeek_thenMatchesCustom() {
+            let sut = RecurrenceRule(pattern: .weekly, frequency: 1, dayOfWeek: nil)
+
+            #expect(sut.matchingPreset == .custom)
+        }
+    }
 }
 
 // MARK: - makeSUT & Factories

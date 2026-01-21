@@ -360,6 +360,9 @@
     "Currency" : {
 
     },
+    "Custom" : {
+      "comment" : "Repeat menu option: shows advanced recurrence configuration"
+    },
     "Daily Digest" : {
 
     },
@@ -454,7 +457,7 @@
 
     },
     "Every" : {
-
+      "comment" : "Repeat interval picker: prefix for frequency"
     },
     "Every %lld months" : {
       "comment" : "Recurrence description: every N months"
@@ -487,6 +490,15 @@
     "Every %lld years" : {
       "comment" : "Recurrence description: every N years"
     },
+    "Every 2 Weeks" : {
+      "comment" : "Repeat menu option: repeats every 2 weeks"
+    },
+    "Every Month" : {
+      "comment" : "Repeat menu option: repeats every month"
+    },
+    "Every Week" : {
+      "comment" : "Repeat menu option: repeats every week"
+    },
     "Everything in one place — no scattered notes" : {
       "comment" : "Paywall: benefit row"
     },
@@ -513,9 +525,6 @@
 
     },
     "Get a daily summary of upcoming bills" : {
-
-    },
-    "Has End Date" : {
 
     },
     "Housing" : {
@@ -631,7 +640,7 @@
 
     },
     "Never" : {
-
+      "comment" : "Repeat menu option: does not repeat"
     },
     "Never miss a due date" : {
       "comment" : "Marketing onboarding: page title"
@@ -828,7 +837,7 @@
 
     },
     "Repeat" : {
-
+      "comment" : "Repeat menu label"
     },
     "Repeat Type" : {
 

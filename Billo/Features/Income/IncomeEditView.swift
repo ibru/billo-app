@@ -19,14 +19,14 @@ struct IncomeEditView: View {
     @State private var name: String = ""
     @State private var amount: Decimal = 0
     @State private var startDate: Date = Date()
-    @State private var hasEndDate: Bool = false
-    @State private var endDate: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
 
-    @State private var isRepeating: Bool = true
+    @State private var selectedRecurrencePreset: RecurrencePreset = .monthly
     @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
     @State private var draftFrequency: Int = 1
     @State private var draftDayOfWeek: Weekday = .monday
     @State private var draftDayOfMonth: Int = 1
+    @State private var draftSelectedEndConditionType: EndConditionType = .never
+    @State private var draftEndDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
 
     init(mode: Mode) {
         self.mode = mode
@@ -35,15 +35,15 @@ struct IncomeEditView: View {
             _name = State(initialValue: income.name)
             _amount = State(initialValue: income.amount)
             _startDate = State(initialValue: income.startDate)
-            _hasEndDate = State(initialValue: income.endDate != nil)
-            _endDate = State(initialValue: income.endDate ?? Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date())
-            _isRepeating = State(initialValue: income.recurrenceRule != nil)
+            _selectedRecurrencePreset = State(initialValue: income.recurrenceRule?.matchingPreset ?? .none)
 
             if let rule = income.recurrenceRule {
                 _draftSelectedIntervalType = State(initialValue: rule.pattern)
                 _draftFrequency = State(initialValue: rule.frequency)
                 _draftDayOfWeek = State(initialValue: rule.dayOfWeek ?? .monday)
                 _draftDayOfMonth = State(initialValue: rule.dayOfMonth ?? 1)
+                _draftSelectedEndConditionType = State(initialValue: rule.endConditionType)
+                _draftEndDate = State(initialValue: rule.endDate ?? Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date())
             }
         }
     }
@@ -52,79 +52,63 @@ struct IncomeEditView: View {
         appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
-	    var body: some View {
-	        NavigationStack {
-	            Form {
-	                Section("Basic Information") {
-	                    TextField("Name", text: $name)
-	
-	                    LabeledContent("Amount") {
-	                        TextField("Amount", value: $amount, format: .number)
-	                            .multilineTextAlignment(.trailing)
-	                            .platformDecimalKeyboard()
-	                    }
-	
-	                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
-	                }
-	
-	                Section("Recurrence") {
-	                    Toggle("Repeat", isOn: $isRepeating)
-	                        .onChange(of: isRepeating) { _, newValue in
-	                            if newValue {
-	                                anchorRepeatFieldsToStartDate()
-	                            }
-	                        }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Basic Information") {
+                    TextField("Name", text: $name)
 
-                    if isRepeating {
-                        RepeatIntervalPicker(
-                            selectedIntervalType: $draftSelectedIntervalType,
-                            frequency: $draftFrequency,
-                            dayOfWeek: $draftDayOfWeek,
-                            dayOfMonth: $draftDayOfMonth,
-                            dueDate: startDate
-                        )
+                    LabeledContent("Amount") {
+                        TextField("Amount", value: $amount, format: .number)
+                            .multilineTextAlignment(.trailing)
+                            .platformDecimalKeyboard()
+                    }
+
+                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                }
+
+                Section(String(localized: "Repeat")) {
+                    RecurrencePresetPicker(
+                        selectedPreset: $selectedRecurrencePreset,
+                        intervalType: $draftSelectedIntervalType,
+                        frequency: $draftFrequency,
+                        dayOfWeek: $draftDayOfWeek,
+                        dayOfMonth: $draftDayOfMonth,
+                        anchorDate: startDate
+                    )
+
+                    if selectedRecurrencePreset != .none {
+                        Picker("End Condition", selection: $draftSelectedEndConditionType) {
+                            Text("Never").tag(EndConditionType.never)
+                            Text("On Date").tag(EndConditionType.endDate)
+                        }
+
+                        if draftSelectedEndConditionType == .endDate {
+                            DatePicker("End Date", selection: $draftEndDate, in: startDate..., displayedComponents: .date)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(mode.title)
+            .platformInlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
                     }
                 }
 
-	                Section("End Date") {
-	                    Toggle("Has End Date", isOn: $hasEndDate)
-	
-	                    if hasEndDate {
-	                        DatePicker("End Date", selection: $endDate, in: startDate..., displayedComponents: .date)
-	                    }
-	                }
-	            }
-            .navigationTitle(mode.title)
-            .platformInlineNavigationTitle()
-	            .toolbar {
-	                ToolbarItem(placement: .cancellationAction) {
-	                    Button("Cancel") {
-	                        dismiss()
-	                    }
-	                }
-	
-	                ToolbarItem(placement: .confirmationAction) {
-	                    Button("Save") {
-	                        save()
-	                    }
-	                    .disabled(name.isEmpty || amount <= 0)
-	                }
-	            }
-            .onChange(of: startDate) { _, _ in
-                if isRepeating {
-                    anchorRepeatFieldsToStartDate()
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        save()
+                    }
+                    .disabled(name.isEmpty || amount <= 0)
                 }
-            }
-            .onChange(of: draftSelectedIntervalType) { _, _ in
-                anchorRepeatFieldsToStartDate()
             }
         }
     }
 
     private func save() {
-        let recurrenceRule: RecurrenceRule? = isRepeating ? buildRecurrenceRule() : nil
-        let effectiveEndDate: Date? = hasEndDate ? endDate : nil
-
         switch mode {
         case .adding:
             do {
@@ -133,8 +117,7 @@ struct IncomeEditView: View {
                     amount: amount,
                     currencyCode: globalCurrencyCode,
                     startDate: startDate,
-                    endDate: effectiveEndDate,
-                    recurrenceRule: recurrenceRule
+                    recurrenceRule: buildRecurrenceRule()
                 )
 
                 modelContext.insert(income)
@@ -149,8 +132,7 @@ struct IncomeEditView: View {
             income.name = name.trimmingCharacters(in: .whitespaces)
             income.amount = amount
             income.startDate = startDate
-            income.endDate = effectiveEndDate
-            income.recurrenceRule = recurrenceRule
+            income.recurrenceRule = buildRecurrenceRule()
             income.lastUpdatedDate = Date()
 
             Task {
@@ -160,26 +142,15 @@ struct IncomeEditView: View {
         }
     }
 
-    private func buildRecurrenceRule() -> RecurrenceRule {
-        RecurrenceRule(
-            pattern: draftSelectedIntervalType,
+    private func buildRecurrenceRule() -> RecurrenceRule? {
+        selectedRecurrencePreset.buildRecurrenceRule(
+            intervalType: draftSelectedIntervalType,
             frequency: draftFrequency,
-            dayOfWeek: draftSelectedIntervalType == .weekly ? draftDayOfWeek : nil,
-            dayOfMonth: draftSelectedIntervalType == .monthly ? draftDayOfMonth : nil
+            dayOfWeek: draftDayOfWeek,
+            dayOfMonth: draftDayOfMonth,
+            endConditionType: draftSelectedEndConditionType,
+            endDate: draftEndDate
         )
-    }
-
-    private func anchorRepeatFieldsToStartDate() {
-        let calendar = Calendar.current
-        switch draftSelectedIntervalType {
-        case .weekly:
-            let weekday = calendar.component(.weekday, from: startDate)
-            draftDayOfWeek = Weekday.fromCalendarWeekday(weekday) ?? .monday
-        case .monthly:
-            draftDayOfMonth = calendar.component(.day, from: startDate)
-        case .yearly:
-            break
-        }
     }
 }
 

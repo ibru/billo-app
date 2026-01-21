@@ -92,6 +92,23 @@ extension RecurrenceRule {
     }
 }
 
+// MARK: - Preset Detection
+
+extension RecurrenceRule {
+    var matchingPreset: RecurrencePreset {
+        switch (pattern, frequency) {
+        case (.weekly, 1) where dayOfWeek != nil:
+            return .weekly
+        case (.weekly, 2) where dayOfWeek != nil:
+            return .biweekly
+        case (.monthly, 1) where dayOfMonth != nil:
+            return .monthly
+        default:
+            return .custom
+        }
+    }
+}
+
 // MARK: - Supporting Types
 
 enum RepeatIntervalType: String, Codable, CaseIterable {

@@ -30,7 +30,6 @@ final class Income {
     var amount: Decimal
     var currencyCode: String
     var startDate: Date
-    var endDate: Date?
     @Relationship(deleteRule: .cascade)
     var recurrenceRule: RecurrenceRule?
     var createdDate: Date
@@ -41,14 +40,12 @@ final class Income {
         amount: Decimal,
         currencyCode: String = Locale.current.currency?.identifier ?? "USD",
         startDate: Date,
-        endDate: Date? = nil,
         recurrenceRule: RecurrenceRule? = nil
     ) {
         self.name = name
         self.amount = amount
         self.currencyCode = currencyCode
         self.startDate = startDate
-        self.endDate = endDate
         self.recurrenceRule = recurrenceRule
         self.createdDate = Date()
         self.lastUpdatedDate = Date()
@@ -66,7 +63,6 @@ extension Income {
         amount: Decimal,
         currencyCode: String,
         startDate: Date,
-        endDate: Date? = nil,
         recurrenceRule: RecurrenceRule? = nil
     ) throws -> Income {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
@@ -77,7 +73,12 @@ extension Income {
         guard amount > 0 else {
             throw IncomeValidationError.nonPositiveAmount
         }
-        if let endDate, endDate < startDate {
+        if
+            let recurrenceRule,
+            recurrenceRule.endConditionType == .endDate,
+            let endDate = recurrenceRule.endDate,
+            endDate < startDate
+        {
             throw IncomeValidationError.endDateBeforeStartDate
         }
 
@@ -86,7 +87,6 @@ extension Income {
             amount: amount,
             currencyCode: currencyCode,
             startDate: startDate,
-            endDate: endDate,
             recurrenceRule: recurrenceRule
         )
     }
@@ -103,24 +103,16 @@ extension Income {
         until rangeEnd: Date,
         calendar: Calendar
     ) -> [Date] {
-        // Determine effective end date (respect endDate if set)
-        let effectiveEnd = endDate.map { min($0, rangeEnd) } ?? rangeEnd
-
-        // Don't generate if income has ended before range starts
-        if let end = endDate, end < rangeStart {
-            return []
-        }
-
         guard let rule = recurrenceRule else {
             // One-time income: return startDate if within range
-            return (startDate >= rangeStart && startDate <= effectiveEnd) ? [startDate] : []
+            return (startDate >= rangeStart && startDate <= rangeEnd) ? [startDate] : []
         }
 
         // IMPORTANT: Generate from startDate (anchor), then filter to window.
         // This preserves correct weekly/monthly alignment (e.g., salary on the 1st stays on the 1st).
         let allOccurrences = rule.generateOccurrences(
             from: startDate,
-            until: effectiveEnd,
+            until: rangeEnd,
             calendar: calendar
         )
 

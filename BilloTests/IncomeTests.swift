@@ -62,10 +62,14 @@ struct IncomeTests {
         }
 
         @Test func whenEndDateSet_thenStopsGeneratingAfterEndDate() {
-            let rule = RecurrenceRule(pattern: .monthly, frequency: 1)
+            let rule = RecurrenceRule(
+                pattern: .monthly,
+                frequency: 1,
+                endConditionType: .endDate,
+                endDate: makeDate(month: 2, day: 15)
+            )
             let income = makeIncome(
                 startDate: makeDate(month: 1, day: 1),
-                endDate: makeDate(month: 2, day: 15),
                 recurrenceRule: rule
             )
             let rangeStart = makeDate(month: 1, day: 1)
@@ -81,10 +85,14 @@ struct IncomeTests {
         }
 
         @Test func whenEndDateBeforeRangeStart_thenReturnsEmpty() {
-            let rule = RecurrenceRule(pattern: .monthly, frequency: 1)
+            let rule = RecurrenceRule(
+                pattern: .monthly,
+                frequency: 1,
+                endConditionType: .endDate,
+                endDate: makeDate(month: 2, day: 1)
+            )
             let income = makeIncome(
                 startDate: makeDate(month: 1, day: 1),
-                endDate: makeDate(month: 2, day: 1),
                 recurrenceRule: rule
             )
             let rangeStart = makeDate(month: 3, day: 1)
@@ -222,7 +230,12 @@ struct IncomeTests {
 
         @Test func whenEndDateBeforeStartDate_thenThrowsEndDateError() {
             let startDate = makeDate(month: 6, day: 1)
-            let endDate = makeDate(month: 5, day: 1)
+            let recurrenceRule = RecurrenceRule(
+                pattern: .monthly,
+                frequency: 1,
+                endConditionType: .endDate,
+                endDate: makeDate(month: 5, day: 1)
+            )
 
             #expect(throws: IncomeValidationError.endDateBeforeStartDate) {
                 try Income.create(
@@ -230,7 +243,7 @@ struct IncomeTests {
                     amount: 1000,
                     currencyCode: "USD",
                     startDate: startDate,
-                    endDate: endDate
+                    recurrenceRule: recurrenceRule
                 )
             }
         }
@@ -250,16 +263,22 @@ struct IncomeTests {
 
         @Test func whenEndDateEqualsStartDate_thenSucceeds() throws {
             let date = makeDate(month: 6, day: 1)
+            let recurrenceRule = RecurrenceRule(
+                pattern: .monthly,
+                frequency: 1,
+                endConditionType: .endDate,
+                endDate: date
+            )
 
             let income = try Income.create(
                 name: "Bonus",
                 amount: 500,
                 currencyCode: "USD",
                 startDate: date,
-                endDate: date
+                recurrenceRule: recurrenceRule
             )
 
-            #expect(income.endDate == income.startDate)
+            #expect(income.recurrenceRule?.endDate == income.startDate)
         }
     }
 }
@@ -271,7 +290,6 @@ private func makeIncome(
     amount: Decimal = 1000,
     currencyCode: String = "USD",
     startDate: Date = Date(),
-    endDate: Date? = nil,
     recurrenceRule: RecurrenceRule? = nil
 ) -> Income {
     Income(
@@ -279,7 +297,6 @@ private func makeIncome(
         amount: amount,
         currencyCode: currencyCode,
         startDate: startDate,
-        endDate: endDate,
         recurrenceRule: recurrenceRule
     )
 }

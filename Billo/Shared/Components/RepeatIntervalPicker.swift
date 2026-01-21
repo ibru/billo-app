@@ -7,7 +7,6 @@ struct RepeatIntervalPicker: View {
     @Binding var frequency: Int
     @Binding var dayOfWeek: Weekday
     @Binding var dayOfMonth: Int
-    let dueDate: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -27,7 +26,10 @@ struct RepeatIntervalPicker: View {
         switch selectedIntervalType {
         case .weekly:
             HStack {
-                Text("Every")
+                Text(String(
+                    localized: "Every",
+                    comment: "Repeat interval picker: prefix for frequency"
+                ))
 
                 Picker("Frequency", selection: $frequency) {
                     ForEach(1...12, id: \.self) { num in
@@ -58,7 +60,10 @@ struct RepeatIntervalPicker: View {
 
         case .monthly:
             HStack {
-                Text("Every")
+                Text(String(
+                    localized: "Every",
+                    comment: "Repeat interval picker: prefix for frequency"
+                ))
 
                 Picker("Frequency", selection: $frequency) {
                     ForEach(1...12, id: \.self) { num in
