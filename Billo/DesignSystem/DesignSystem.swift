@@ -33,6 +33,14 @@ enum DesignSystem {
         // Income color for calendar dots and UI elements (cyan to distinguish from green payment dots)
         static let income = SwiftUI.Color.cyan
 
+        // MARK: - Chart Colors
+        enum Chart {
+            static let income = SwiftUI.Color.cyan
+            static let bills = SwiftUI.Color.red.opacity(0.8)
+            static let net = SwiftUI.Color.green
+            static let netNegative = SwiftUI.Color.red
+        }
+
         static func statusColor(for status: BillStatus) -> SwiftUI.Color {
             switch status {
             case .overdue: return overdueStatus
@@ -94,6 +102,24 @@ enum DesignSystem {
             default: return categoryOther
             }
         }
+    }
+
+    enum CornerRadius {
+        static let small: CGFloat = 8
+        static let medium: CGFloat = 12
+        static let large: CGFloat = 16
+    }
+}
+
+// MARK: - View Modifiers
+
+extension View {
+    /// Applies standard chart card styling with padding, background, and rounded corners
+    func chartCardStyle() -> some View {
+        self
+            .padding()
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium))
     }
 }
 

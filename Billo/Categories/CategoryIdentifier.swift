@@ -84,4 +84,31 @@ enum CategoryIdentifier: Hashable, Codable, Sendable, Identifiable {
             return "custom"
         }
     }
+
+    var displayName: String {
+        switch self {
+        case .predefined(let defaultCategory):
+            return defaultCategory.displayName
+        case .custom(let name):
+            return name
+        }
+    }
+
+    var colorToken: String {
+        switch self {
+        case .predefined(let defaultCategory):
+            return defaultCategory.colorToken
+        case .custom:
+            return "other"
+        }
+    }
+
+    var sortOrder: Int {
+        switch self {
+        case .predefined(let defaultCategory):
+            return defaultCategory.sortOrder
+        case .custom:
+            return 100  // Custom categories sort after predefined ones
+        }
+    }
 }
