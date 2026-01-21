@@ -41,11 +41,13 @@ struct NotificationCoordinatorTests {
                 occurrences: [outsideWindow],
                 referenceDate: referenceDate
             )
+            center.pendingNotifications = [makeDigestRequest()]
 
             try await sut.refreshAllNotifications(for: [outsideWindow.bill])
 
             let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
             #expect(digestScheduled == false)
+            #expect(center.allRemovedIdentifiers.contains(NotificationIdentifier.digestIdentifier))
         }
 
         @Test
@@ -259,6 +261,104 @@ struct NotificationCoordinatorTests {
             let reminderCount = center.addedRequests.filter { $0.identifier.hasPrefix("billo.r.") }.count
             #expect(reminderCount == 2)
         }
+
+        @Test
+        func whenDigestHasSingleBillAndReminderWouldFire_thenDoesNotScheduleDigest() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 3))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [0],
+                digestEnabled: true,
+                digestLookaheadDays: 5,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+            center.pendingNotifications = [makeDigestRequest()]
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digestScheduled == false)
+            #expect(center.allRemovedIdentifiers.contains(NotificationIdentifier.digestIdentifier))
+        }
+
+        @Test
+        func whenDigestHasSingleBillAndRemindersDisabled_thenSchedulesDigest() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 3))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: false,
+                digestEnabled: true,
+                digestLookaheadDays: 5,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digestScheduled)
+        }
+
+        @Test
+        func whenDigestHasSingleBillAndOffsetsEmpty_thenSchedulesDigest() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 3))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [],
+                digestEnabled: true,
+                digestLookaheadDays: 5,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digestScheduled)
+        }
+
+        @Test
+        func whenDigestHasSingleBillAndReminderTimeAlreadyPassed_thenSchedulesDigest() async throws {
+            let referenceDate = makeDateTime(2025, 12, 1, hour: 10, minute: 0)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [1],
+                reminderTime: DateComponents(hour: 9, minute: 0),
+                digestEnabled: true,
+                digestLookaheadDays: 5,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digestScheduled)
+        }
+
+        @Test
+        func whenDigestHasMultipleBillsAndSingleWouldHaveReminder_thenSchedulesDigest() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let firstOccurrence = makeOccurrence(dueDate: makeDate(2025, 12, 3))
+            let secondOccurrence = makeOccurrence(dueDate: makeDate(2025, 12, 4))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [0],
+                digestEnabled: true,
+                digestLookaheadDays: 5,
+                occurrences: [firstOccurrence, secondOccurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [firstOccurrence.bill, secondOccurrence.bill])
+
+            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            #expect(digestScheduled)
+        }
     }
 
     @Suite("cancellation")
@@ -368,6 +468,7 @@ private func makeSUT(
     authorizationStatus: UNAuthorizationStatus = .authorized,
     remindersEnabled: Bool = true,
     reminderOffsets: [Int] = [0, 3],
+    reminderTime: DateComponents = DateComponents(hour: 9, minute: 0),
     digestEnabled: Bool = false,
     digestLookaheadDays: Int = 5,
     badgeMode: BadgeMode = .daysBefore(3),
@@ -380,6 +481,7 @@ private func makeSUT(
     let prefs = NotificationPreferencesStub()
     prefs.remindersEnabled = remindersEnabled
     prefs.reminderOffsets = reminderOffsets
+    prefs.reminderTime = reminderTime
     prefs.digestEnabled = digestEnabled
     prefs.digestLookaheadDays = digestLookaheadDays
     prefs.badgeMode = badgeMode
@@ -411,6 +513,11 @@ private let testCalendar: Calendar = {
 
 private func makeDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
     let components = DateComponents(year: year, month: month, day: day, hour: 0, minute: 0)
+    return testCalendar.date(from: components)!
+}
+
+private func makeDateTime(_ year: Int, _ month: Int, _ day: Int, hour: Int, minute: Int) -> Date {
+    let components = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
     return testCalendar.date(from: components)!
 }
 

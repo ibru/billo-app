@@ -6,7 +6,6 @@ import SwiftData
 struct BillEditView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettingsModel
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
@@ -25,6 +24,8 @@ struct BillEditView: View {
     @State private var notes: String = ""
     @State private var accountIdentifier: String = ""
     @State private var providerURL: String = ""
+    @State private var isSaving: Bool = false
+    @State private var saveErrorMessage: String?
 
     @State private var isRepeating: Bool = false
     @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
@@ -141,7 +142,7 @@ struct BillEditView: View {
                     Button("Save") {
                         save()
                     }
-                    .disabled(name.isEmpty || amount <= 0)
+                    .disabled(name.isEmpty || amount <= 0 || isSaving)
                 }
             }
             .onChange(of: dueDate) { _, _ in
@@ -152,57 +153,68 @@ struct BillEditView: View {
             .onChange(of: draftSelectedIntervalType) { _, _ in
                 anchorRepeatFieldsToDueDate()
             }
+            .alert("Error", isPresented: .constant(saveErrorMessage != nil)) {
+                Button("OK") {
+                    saveErrorMessage = nil
+                }
+            } message: {
+                if let saveErrorMessage {
+                    Text(saveErrorMessage)
+                }
+            }
         }
     }
 
     private func save() {
-        switch mode {
-        case .adding:
-            let bill = Bill(
-                name: name,
-                amount: amount,
-                currencyCode: globalCurrencyCode,
-                dueDate: dueDate,
-                notes: notes.isEmpty ? nil : notes,
-                accountIdentifier: accountIdentifier.isEmpty ? nil : accountIdentifier,
-                providerURL: providerURL.isEmpty ? nil : providerURL,
-                categoryIdentifier: selectedCategoryIdentifier
-            )
+        guard isSaving == false else { return }
+        isSaving = true
+        saveErrorMessage = nil
+        Task {
+            defer { isSaving = false }
+            do {
+                switch mode {
+                case .adding:
+                    let bill = Bill(
+                        name: name,
+                        amount: amount,
+                        currencyCode: globalCurrencyCode,
+                        dueDate: dueDate,
+                        notes: notes.isEmpty ? nil : notes,
+                        accountIdentifier: accountIdentifier.isEmpty ? nil : accountIdentifier,
+                        providerURL: providerURL.isEmpty ? nil : providerURL,
+                        categoryIdentifier: selectedCategoryIdentifier
+                    )
 
-            if isRepeating {
-                bill.recurrenceRule = buildRecurrenceRule()
+                    if isRepeating {
+                        bill.recurrenceRule = buildRecurrenceRule()
+                    }
+
+                    try await billsModel.addBill(bill)
+
+                case .editing(let bill):
+                    bill.name = name
+                    bill.amount = amount
+                    bill.dueDate = dueDate
+                    bill.notes = notes.isEmpty ? nil : notes
+                    bill.accountIdentifier = accountIdentifier.isEmpty ? nil : accountIdentifier
+                    bill.providerURL = providerURL.isEmpty ? nil : providerURL
+                    bill.categoryIdentifier = selectedCategoryIdentifier
+                    bill.lastUpdatedDate = Date()
+
+                    if isRepeating {
+                        bill.recurrenceRule = buildRecurrenceRule()
+                    } else {
+                        bill.recurrenceRule = nil
+                    }
+
+                    try await billsModel.updateBill(bill)
+                }
+
+                dismiss()
+            } catch {
+                saveErrorMessage = error.localizedDescription
+                print("Failed to save bill: \(error)")
             }
-
-            modelContext.insert(bill)
-
-        case .editing(let bill):
-            bill.name = name
-            bill.amount = amount
-            bill.dueDate = dueDate
-            bill.notes = notes.isEmpty ? nil : notes
-            bill.accountIdentifier = accountIdentifier.isEmpty ? nil : accountIdentifier
-            bill.providerURL = providerURL.isEmpty ? nil : providerURL
-            bill.categoryIdentifier = selectedCategoryIdentifier
-            bill.lastUpdatedDate = Date()
-
-            if isRepeating {
-                bill.recurrenceRule = buildRecurrenceRule()
-            } else {
-                bill.recurrenceRule = nil
-            }
-
-            // Notify model so notifications get rescheduled when due date changes
-            Task {
-                try? await billsModel.updateBill(bill)
-            }
-        }
-
-        do {
-            try modelContext.save()
-            try billsModel.refresh()
-            dismiss()
-        } catch {
-            print("Failed to save bill: \(error)")
         }
     }
 

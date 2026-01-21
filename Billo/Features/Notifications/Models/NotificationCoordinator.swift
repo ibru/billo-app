@@ -16,6 +16,16 @@ final class NotificationCoordinator: NotificationCoordinating {
         let dueDate: Date
     }
 
+    private struct ScheduledReminderKey: Hashable, Sendable {
+        let billIDString: String
+        let occurrenceTimestamp: Int
+    }
+
+    private struct ReminderSchedulingResult: Sendable {
+        let scheduledCount: Int
+        let scheduledOccurrences: Set<ScheduledReminderKey>
+    }
+
     // MARK: - Dependencies (all injected)
 
     private let notificationCenter: UNNotificationCenterProtocol
@@ -92,6 +102,7 @@ final class NotificationCoordinator: NotificationCoordinating {
         // 3. Handle bill reminders (independent of digest)
         await cancelAllBillReminders()
 
+        var scheduledReminderKeys = Set<ScheduledReminderKey>()
         if preferences.remindersEnabled {
             // Calculate effective horizon (shrink if cap would be exceeded)
             let effectiveHorizon = calculateEffectiveHorizon(
@@ -110,10 +121,12 @@ final class NotificationCoordinator: NotificationCoordinating {
             }
 
             // Schedule within cap
-            let scheduled = try await scheduleRemindersInternal(
+            let schedulingResult = try await scheduleRemindersInternal(
                 for: schedulingOccurrences,
                 referenceDate: referenceDate
             )
+            let scheduled = schedulingResult.scheduledCount
+            scheduledReminderKeys = schedulingResult.scheduledOccurrences
 
             // Log horizon adjustment or cap status
             if effectiveHorizon < baseHorizonDays {
@@ -129,11 +142,12 @@ final class NotificationCoordinator: NotificationCoordinating {
             }
         }
 
-        // 4. Handle daily digest (independent of reminders)
+        // 4. Handle daily digest (suppressed when a single bill would also get its own reminder)
         if preferences.digestEnabled {
             try await scheduleDigestIfNeeded(
                 occurrences: allOccurrences,
-                referenceDate: referenceDate
+                referenceDate: referenceDate,
+                scheduledReminders: scheduledReminderKeys
             )
         } else {
             await cancelDigest()
@@ -187,7 +201,8 @@ final class NotificationCoordinator: NotificationCoordinating {
     /// Schedules digest, handling mixed currencies gracefully
     private func scheduleDigestIfNeeded(
         occurrences: [BillOccurrence],
-        referenceDate: Date
+        referenceDate: Date,
+        scheduledReminders: Set<ScheduledReminderKey>
     ) async throws {
         let dueWithinLookahead = dateCalculator.occurrencesWithinLookahead(
             occurrences,
@@ -197,7 +212,18 @@ final class NotificationCoordinator: NotificationCoordinating {
         )
         .sorted { $0.dueDate < $1.dueDate }
 
-        guard !dueWithinLookahead.isEmpty else { return }
+        guard !dueWithinLookahead.isEmpty else {
+            await cancelDigest()
+            return
+        }
+
+        if shouldSuppressDigest(
+            dueWithinLookahead: dueWithinLookahead,
+            scheduledReminders: scheduledReminders
+        ) {
+            await cancelDigest()
+            return
+        }
 
         let items = dueWithinLookahead.map { NotificationContentBuilder.NotificationDigestItem($0) }
         try await scheduleDigest(
@@ -206,12 +232,28 @@ final class NotificationCoordinator: NotificationCoordinating {
         )
     }
 
+    private func shouldSuppressDigest(
+        dueWithinLookahead: [BillOccurrence],
+        scheduledReminders: Set<ScheduledReminderKey>
+    ) -> Bool {
+        guard dueWithinLookahead.count == 1 else { return false }
+        guard preferences.remindersEnabled else { return false }
+        let occurrence = dueWithinLookahead[0]
+
+        let key = ScheduledReminderKey(
+            billIDString: String(describing: occurrence.bill.persistentModelID),
+            occurrenceTimestamp: Int(occurrence.dueDate.timeIntervalSinceReferenceDate)
+        )
+
+        return scheduledReminders.contains(key)
+    }
+
     // MARK: - Internal Scheduling
 
     private func scheduleRemindersInternal(
         for occurrences: [BillOccurrence],
         referenceDate: Date
-    ) async throws -> Int {
+    ) async throws -> ReminderSchedulingResult {
         let availableSlots = maxNotifications - reservedSlots
         let offsets = preferences.reminderOffsets
         let reminderTime = preferences.reminderTime
@@ -263,7 +305,19 @@ final class NotificationCoordinator: NotificationCoordinating {
             try await notificationCenter.add(request)
         }
 
-        return plan.count
+        let scheduledKeys = Set(
+            plan.map {
+                ScheduledReminderKey(
+                    billIDString: $0.0.billIDString,
+                    occurrenceTimestamp: Int($0.0.dueDate.timeIntervalSinceReferenceDate)
+                )
+            }
+        )
+
+        return ReminderSchedulingResult(
+            scheduledCount: plan.count,
+            scheduledOccurrences: scheduledKeys
+        )
     }
 
     private func createNotificationRequest(

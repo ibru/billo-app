@@ -75,6 +75,15 @@ final class BillsModel {
         )
 
         try refresh()
+        await refreshNotifications()
+    }
+
+    func addBill(_ bill: Bill) async throws {
+        Logger.log("Adding bill: \(bill.name)", level: .info)
+        modelContext.insert(bill)
+        try modelContext.save()
+        try refresh()
+        await refreshNotifications()
     }
 
     func markUnpaid(_ occurrence: BillOccurrence) async throws {
@@ -94,46 +103,21 @@ final class BillsModel {
         await notificationCoordinator.updateBadge(unpaidCount: unpaidCount)
 
         try refresh()
+        await refreshNotifications()
     }
 
     func deleteBill(_ bill: Bill) async throws {
         Logger.log("Deleting bill: \(bill.name)", level: .info)
-        // Cancel notifications BEFORE deleting
-        let billID = String(describing: bill.persistentModelID)
-        await notificationCoordinator.cancelAllReminders(forBillID: billID)
-
         modelContext.delete(bill)
         try modelContext.save()
         try refresh()
-
-        let unpaidCount = calculateUnpaidCount()
-        await notificationCoordinator.updateBadge(unpaidCount: unpaidCount)
+        await refreshNotifications()
     }
 
     func updateBill(_ bill: Bill) async throws {
         try modelContext.save()
         try refresh()
-
-        // Reschedule notifications for this bill
-        guard let horizonEnd = calendar.date(byAdding: .day, value: 90, to: currentDate()) else {
-            return
-        }
-
-        // Use unpaidOccurrences(aroundDate:) which includes appropriate lookback window
-        // Then filter to the horizon to avoid scheduling far-future occurrences
-        let unpaidDates = bill.unpaidOccurrences(
-            aroundDate: currentDate(),
-            calendar: calendar
-        )
-        .filter { $0 <= horizonEnd }  // Keep occurrences within horizon (includes overdue)
-
-        let newOccurrences = unpaidDates.map { BillOccurrence(bill: bill, dueDate: $0) }
-
-        let billID = String(describing: bill.persistentModelID)
-        try? await notificationCoordinator.rescheduleReminders(
-            forBillID: billID,
-            newOccurrences: newOccurrences
-        )
+        await refreshNotifications()
     }
 
     // MARK: - Income Management
@@ -165,6 +149,15 @@ final class BillsModel {
             badgeMode: notificationPreferences.badgeMode,
             referenceDate: currentDate()
         )
+    }
+
+    private func refreshNotifications() async {
+        // Notification failures should not block data changes.
+        do {
+            try await notificationCoordinator.refreshAllNotifications(for: bills)
+        } catch {
+            Logger.log("Failed to refresh notifications: \(error)", level: .error)
+        }
     }
 }
 

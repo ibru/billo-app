@@ -137,6 +137,7 @@ struct BillsModelTests {
 
             #expect(coordinator.cancelRemindersCalls.contains(where: { $0.contains(occurrence.id) }))
             #expect(coordinator.updateBadgeCalls.last == 0)
+            #expect(coordinator.refreshAllNotificationsCalls.count == 1)
         }
     }
 
@@ -189,11 +190,13 @@ struct BillsModelTests {
 
             let occurrence = makeOccurrence(for: bills[0])
             try await sut.markPaid(occurrence) // create payment first
+            let initialRefreshCount = coordinator.refreshAllNotificationsCalls.count
 
             try await sut.markUnpaid(occurrence)
 
             #expect(coordinator.scheduleRemindersCalls.last?.contains(where: { $0.id == occurrence.id }) == true)
             #expect(coordinator.updateBadgeCalls.last == 1)
+            #expect(coordinator.refreshAllNotificationsCalls.count == initialRefreshCount + 1)
         }
     }
 
@@ -222,21 +225,37 @@ struct BillsModelTests {
             #expect(sut.bills[0].name == "Bill 2")
         }
 
-        @Test func whenDeletingBill_thenCancelsAllRemindersAndUpdatesBadge() async throws {
+        @Test func whenDeletingBill_thenRefreshesNotifications() async throws {
             let (sut, bills, _, coordinator, _) = try makeSUT(billCount: 2)
             try sut.refresh()
 
             try await sut.deleteBill(bills[0])
 
-            #expect(coordinator.cancelAllRemindersCalls.contains(where: { $0.contains(String(describing: bills[0].persistentModelID)) }))
-            #expect(coordinator.updateBadgeCalls.last == 1) // one bill remains
+            #expect(coordinator.refreshAllNotificationsCalls.count == 1)
+        }
+    }
+
+    @MainActor
+    @Suite("addBill")
+    struct AddBill {
+        @Test func whenAddingBill_thenInsertsAndRefreshesNotifications() async throws {
+            let (sut, _, modelContext, coordinator, _) = try makeSUT(billCount: 0)
+
+            let dueDate = makeDate(year: 2025, month: 1, day: 20)
+            let newBill = Bill(name: "New Bill", amount: Decimal(50), dueDate: dueDate)
+
+            try await sut.addBill(newBill)
+
+            let bills = try modelContext.fetch(FetchDescriptor<Bill>())
+            #expect(bills.count == 1 && bills.first?.name == "New Bill")
+            #expect(coordinator.refreshAllNotificationsCalls.count == 1)
         }
     }
 
     @MainActor
     @Suite("updateBill")
     struct UpdateBill {
-        @Test func whenUpdatingBill_thenReschedulesReminders() async throws {
+        @Test func whenUpdatingBill_thenRefreshesNotifications() async throws {
             let (sut, bills, _, coordinator, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
@@ -245,9 +264,7 @@ struct BillsModelTests {
 
             try await sut.updateBill(bill)
 
-            #expect(coordinator.rescheduleRemindersCalls.count == 1)
-            #expect(coordinator.rescheduleRemindersCalls.first?.billID == String(describing: bill.persistentModelID))
-            #expect(coordinator.rescheduleRemindersCalls.first?.occurrences.isEmpty == false)
+            #expect(coordinator.refreshAllNotificationsCalls.count == 1)
         }
     }
 }
@@ -275,16 +292,21 @@ private func makeSUT(
     let container = try ModelContainer(for: Bill.self, Payment.self, configurations: config)
     let modelContext = ModelContext(container)
 
-    let bills = (1...billCount).map { index in
-        let dueDate = calendar.date(byAdding: .day, value: index, to: referenceDate)!
+    let bills: [Bill]
+    if billCount > 0 {
+        bills = (1...billCount).map { index in
+            let dueDate = calendar.date(byAdding: .day, value: index, to: referenceDate)!
 
-        let bill = Bill(
-            name: "Bill \(index)",
-            amount: Decimal(100),
-            dueDate: dueDate
-        )
-        modelContext.insert(bill)
-        return bill
+            let bill = Bill(
+                name: "Bill \(index)",
+                amount: Decimal(100),
+                dueDate: dueDate
+            )
+            modelContext.insert(bill)
+            return bill
+        }
+    } else {
+        bills = []
     }
 
     try modelContext.save()
