@@ -88,7 +88,7 @@ final class BillsModel {
 
     func markUnpaid(_ occurrence: BillOccurrence) async throws {
         Logger.log("Marking unpaid: \(occurrence.name), occurrence: \(occurrence.dueDate)", level: .info)
-        let payments = occurrence.bill.payments.filter { payment in
+        let payments = occurrence.bill.safePayments.filter { payment in
             calendar.isDate(payment.occurrenceDate, inSameDayAs: occurrence.dueDate)
         }
 

@@ -5,12 +5,16 @@ import Foundation
 
 @Model
 final class RecurrenceRule {
-    var pattern: RepeatIntervalType
-    var frequency: Int
+    var pattern: RepeatIntervalType = RepeatIntervalType.monthly
+    var frequency: Int = 1
     var dayOfWeek: Weekday?
     var dayOfMonth: Int?
-    var endConditionType: EndConditionType
+    var endConditionType: EndConditionType = EndConditionType.never
     var endDate: Date?
+
+    // CloudKit requires all relationships to be optional with explicit inverses
+    var bill: Bill?
+    var income: Income?
 
     init(
         pattern: RepeatIntervalType,
@@ -112,9 +116,9 @@ extension RecurrenceRule {
 // MARK: - Supporting Types
 
 enum RepeatIntervalType: String, Codable, CaseIterable {
-    case weekly
-    case monthly
-    case yearly
+    case weekly = "weekly"
+    case monthly = "monthly"
+    case yearly = "yearly"
 
     var displayName: String {
         switch self {
@@ -148,6 +152,6 @@ enum Weekday: Int, Codable, CaseIterable {
 }
 
 enum EndConditionType: String, Codable, CaseIterable {
-    case never
-    case endDate
+    case never = "never"
+    case endDate = "endDate"
 }

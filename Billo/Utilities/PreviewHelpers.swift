@@ -89,7 +89,7 @@ struct BilloPreviewContainer {
                 confirmationNumber: "PREVIEW-1234",
                 bill: paidBill
             )
-            paidBill.payments.append(payment)
+            paidBill.payments?.append(payment)
             context.insert(payment)
         }
 

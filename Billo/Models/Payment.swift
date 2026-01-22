@@ -5,12 +5,12 @@ import Foundation
 
 @Model
 final class Payment {
-    var amount: Decimal
-    var datePaid: Date
-    var occurrenceDate: Date
+    var amount: Decimal = 0
+    var datePaid: Date = Date()
+    var occurrenceDate: Date = Date()
     var confirmationNumber: String?
     var notes: String?
-    var createdDate: Date
+    var createdDate: Date = Date()
 
     var bill: Bill?
 

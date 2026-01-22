@@ -211,7 +211,7 @@ struct BillOccurrenceProvider: BillOccurrenceProviding {
             // Extract fully paid occurrence dates upfront (SwiftData relationship access is @MainActor).
             // We store start-of-day time intervals for quick lookup on background threads.
             var paymentsByOccurrenceStartOfDay: [TimeInterval: Decimal] = [:]
-            for payment in bill.payments {
+            for payment in bill.safePayments {
                 let occurrenceDay = calendar.startOfDay(for: payment.occurrenceDate)
                 let key = occurrenceDay.timeIntervalSinceReferenceDate
                 paymentsByOccurrenceStartOfDay[key, default: 0] += payment.amount

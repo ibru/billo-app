@@ -26,14 +26,14 @@ enum IncomeValidationError: Error, LocalizedError, Equatable {
 
 @Model
 final class Income {
-    var name: String
-    var amount: Decimal
-    var currencyCode: String
-    var startDate: Date
-    @Relationship(deleteRule: .cascade)
+    var name: String = ""
+    var amount: Decimal = 0
+    var currencyCode: String = "USD"
+    var startDate: Date = Date()
+    @Relationship(deleteRule: .cascade, inverse: \RecurrenceRule.income)
     var recurrenceRule: RecurrenceRule?
-    var createdDate: Date
-    var lastUpdatedDate: Date
+    var createdDate: Date = Date()
+    var lastUpdatedDate: Date = Date()
 
     init(
         name: String,

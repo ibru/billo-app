@@ -182,7 +182,7 @@ struct BillsCalendarView: View {
             print("Failed to refresh bills: \(error)")
         }
 
-        let payments = billsModel.bills.flatMap(\.payments)
+        let payments = billsModel.bills.flatMap(\.safePayments)
         let earliest = CalendarNavigationBounds.earliestMonth(
             bills: billsModel.bills,
             payments: payments,

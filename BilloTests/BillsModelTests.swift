@@ -73,8 +73,8 @@ struct BillsModelTests {
 
             try await sut.markPaid(occurrence)
 
-            #expect(bills[0].payments.count == 1)
-            #expect(bills[0].payments[0].amount == bills[0].amount)
+            #expect(bills[0].payments?.count == 1)
+            #expect(bills[0].payments?[0].amount == bills[0].amount)
         }
 
         @Test func whenMarkingPaidWithCustomAmount_thenUsesCustomAmount() async throws {
@@ -86,7 +86,7 @@ struct BillsModelTests {
 
             try await sut.markPaid(occurrence, amount: customAmount)
 
-            #expect(bills[0].payments[0].amount == customAmount)
+            #expect(bills[0].payments?[0].amount == customAmount)
         }
 
         @Test func whenMarkingPaidWithConfirmation_thenStoresConfirmationNumber() async throws {
@@ -97,7 +97,7 @@ struct BillsModelTests {
 
             try await sut.markPaid(occurrence, confirmationNumber: "CONF123")
 
-            #expect(bills[0].payments[0].confirmationNumber == "CONF123")
+            #expect(bills[0].payments?[0].confirmationNumber == "CONF123")
         }
 
         @Test func whenMarkingPaid_thenRefreshesSections() async throws {
@@ -153,7 +153,7 @@ struct BillsModelTests {
 
             try await sut.markUnpaid(occurrence)
 
-            #expect(bills[0].payments.isEmpty)
+            #expect(bills[0].payments?.isEmpty == true)
         }
 
         @Test func whenMarkingUnpaid_thenRefreshesSections() async throws {

@@ -5,14 +5,14 @@ import Foundation
 
 @Model
 final class CustomCategory {
-    @Attribute(.unique) var id: String
-    var name: String
-    var iconToken: String
-    var colorToken: String
-    var isArchived: Bool
+    var id: String = UUID().uuidString
+    var name: String = ""
+    var iconToken: String = "tag"
+    var colorToken: String = "gray"
+    var isArchived: Bool = false
     var archivedAt: Date?
     var replacementIdentifier: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     init(
         id: String = UUID().uuidString,

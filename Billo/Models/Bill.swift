@@ -6,11 +6,11 @@ import Foundation
 // MARK: - Supporting Types
 
 enum BillStatus: String, Codable, CaseIterable {
-    case upcoming
-    case dueToday
-    case overdue
-    case partiallyPaid
-    case paid
+    case upcoming = "upcoming"
+    case dueToday = "dueToday"
+    case overdue = "overdue"
+    case partiallyPaid = "partiallyPaid"
+    case paid = "paid"
 }
 
 struct OccurrenceDetector {
@@ -87,19 +87,23 @@ struct OccurrenceDetector {
 
 @Model
 final class Bill {
-    var name: String
-    var amount: Decimal
-    var currencyCode: String
-    var dueDate: Date
+    var name: String = ""
+    var amount: Decimal = 0
+    var currencyCode: String = "USD"
+    var dueDate: Date = Date()
     var notes: String?
     var accountIdentifier: String?
     var providerURL: String?
-    var createdDate: Date
-    var lastUpdatedDate: Date
+    var createdDate: Date = Date()
+    var lastUpdatedDate: Date = Date()
 
     var categoryIdentifierRawValue: String?
+
+    @Relationship(deleteRule: .cascade, inverse: \RecurrenceRule.bill)
     var recurrenceRule: RecurrenceRule?
-    var payments: [Payment] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \Payment.bill)
+    var payments: [Payment]? = []
 
     init(
         name: String,
@@ -131,6 +135,12 @@ extension Bill {
         get { categoryIdentifierRawValue.flatMap(CategoryIdentifier.init(rawValue:)) }
         set { categoryIdentifierRawValue = newValue?.rawValue }
     }
+
+    /// Safe accessor for payments that handles CloudKit's optional relationship requirement.
+    /// Use this for reading; for mutations use `payments` directly.
+    var safePayments: [Payment] {
+        payments ?? []
+    }
 }
 
 // MARK: - Business Logic Helpers
@@ -158,7 +168,7 @@ extension Bill {
 
     @MainActor
     func hasPayment(for occurrenceDate: Date, calendar: Calendar) -> Bool {
-        payments.contains { payment in
+        safePayments.contains { payment in
             calendar.isDate(payment.occurrenceDate, inSameDayAs: occurrenceDate)
         }
     }
@@ -190,10 +200,8 @@ extension Bill {
     /// Returns sum of all payments for occurrence
     @MainActor
     func totalPaid(for occurrenceDate: Date, calendar: Calendar) -> Decimal {
-        payments
-            .filter { payment in
-                calendar.isDate(payment.occurrenceDate, inSameDayAs: occurrenceDate)
-            }
+        safePayments
+            .filter { calendar.isDate($0.occurrenceDate, inSameDayAs: occurrenceDate) }
             .reduce(0) { $0 + $1.amount }
     }
 

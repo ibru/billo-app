@@ -85,7 +85,7 @@ final class BillModel {
     }
 
     var paymentsSortedDescending: [Payment] {
-        bill.payments.sorted { $0.datePaid > $1.datePaid }
+        bill.safePayments.sorted { $0.datePaid > $1.datePaid }
     }
 
     var recurrenceDescription: String? {
