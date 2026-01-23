@@ -26,28 +26,28 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: [occurrence.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestCount = center.addedRequests.filter { NotificationIdentifier.isDigestIdentifier($0.identifier) }.count
             let reminderCount = center.addedRequests.filter { $0.identifier.hasPrefix("billo.r.") }.count
-            #expect(digestScheduled && reminderCount == 0)
+            #expect(digestCount > 0 && reminderCount == 0)
         }
 
         @Test
         func whenDigestEnabledButNoBillsDueWithinLookahead_thenDoesNotScheduleDigest() async throws {
             let referenceDate = makeDate(2025, 12, 1)
-            let outsideWindow = makeOccurrence(dueDate: makeDate(2025, 12, 20))
+            let outsideWindow = makeOccurrence(dueDate: makeDate(2025, 12, 30))
             let (sut, center, _) = makeSUT(
-                remindersEnabled: false,
+                remindersEnabled: true,
                 digestEnabled: true,
                 occurrences: [outsideWindow],
                 referenceDate: referenceDate
             )
-            center.pendingNotifications = [makeDigestRequest()]
+            center.pendingNotifications = [makeDigestRequest(for: referenceDate)]
 
             try await sut.refreshAllNotifications(for: [outsideWindow.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
             #expect(digestScheduled == false)
-            #expect(center.allRemovedIdentifiers.contains(NotificationIdentifier.digestIdentifier))
+            #expect(center.allRemovedIdentifiers.contains(where: NotificationIdentifier.isDigestIdentifier))
         }
 
         @Test
@@ -71,7 +71,8 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: occurrences.map(\.bill))
 
-            let digest = center.addedRequests.first { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestID = NotificationIdentifier.digestIdentifier(for: referenceDate, calendar: testCalendar)
+            let digest = center.addedRequests.first { $0.identifier == digestID }
             #expect(digest?.content.title == "7 bills due in next 7 days")
             #expect(digest?.content.body == """
             Bill 1 — $1.00 — Dec 2
@@ -101,7 +102,7 @@ struct NotificationCoordinatorTests {
         }
 
         @Test
-        func whenManyOccurrencesExceedCap_thenSchedulesMaximum60Reminders() async throws {
+        func whenManyOccurrencesExceedCap_thenSchedulesMaximum64Reminders() async throws {
             let referenceDate = makeDate(2025, 12, 1)
             let occurrences = makeOccurrences(count: 20, dueDate: makeDate(2025, 12, 15))
             let (sut, center, _) = makeSUT(
@@ -113,7 +114,7 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: occurrences.map(\.bill))
 
-            #expect(center.totalAddedCount == 60)
+            #expect(center.totalAddedCount == 64)
         }
 
         @Test
@@ -185,7 +186,7 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: [occurrence.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
             #expect(digestScheduled)
         }
 
@@ -219,7 +220,8 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: [usdBill.bill, eurBill.bill])
 
-            let digest = center.addedRequests.first { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestID = NotificationIdentifier.digestIdentifier(for: referenceDate, calendar: testCalendar)
+            let digest = center.addedRequests.first { $0.identifier == digestID }
             #expect(digest != nil)
             #expect(digest?.content.title == "2 bills due in next 5 days")
             #expect(digest?.content.body == """
@@ -227,6 +229,25 @@ struct NotificationCoordinatorTests {
             Gym — €20.00 — Dec 3
             """)
             #expect(digest?.content.body.contains("USD") == false)
+        }
+
+        @Test
+        func whenOnlyOverdue_thenDigestUsesOverdueTitle() async throws {
+            let referenceDate = makeDate(2025, 12, 5)
+            let overdue = makeOccurrence(dueDate: makeDate(2025, 12, 1), name: "Rent", amount: 10)
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: false,
+                digestEnabled: true,
+                occurrences: [overdue],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [overdue.bill])
+
+            let digestID = NotificationIdentifier.digestIdentifier(for: referenceDate, calendar: testCalendar)
+            let digest = center.addedRequests.first { $0.identifier == digestID }
+            #expect(digest?.content.title == "1 bill is overdue")
+            #expect(digest?.content.body == "Rent — $10.00 — Dec 1")
         }
 
         @Test
@@ -274,13 +295,33 @@ struct NotificationCoordinatorTests {
                 occurrences: [occurrence],
                 referenceDate: referenceDate
             )
-            center.pendingNotifications = [makeDigestRequest()]
+            center.pendingNotifications = [makeDigestRequest(for: referenceDate)]
 
             try await sut.refreshAllNotifications(for: [occurrence.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
             #expect(digestScheduled == false)
-            #expect(center.allRemovedIdentifiers.contains(NotificationIdentifier.digestIdentifier))
+            #expect(center.allRemovedIdentifiers.contains(where: NotificationIdentifier.isDigestIdentifier))
+        }
+
+        @Test
+        func whenSingleUpcomingAndOverdue_thenSchedulesDigestEvenIfReminderExists() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let upcoming = makeOccurrence(dueDate: makeDate(2025, 12, 3))
+            let overdue = makeOccurrence(dueDate: makeDate(2025, 11, 29))
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: true,
+                reminderOffsets: [0],
+                digestEnabled: true,
+                digestLookaheadDays: 5,
+                occurrences: [upcoming, overdue],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [upcoming.bill, overdue.bill])
+
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
+            #expect(digestScheduled)
         }
 
         @Test
@@ -297,7 +338,7 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: [occurrence.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
             #expect(digestScheduled)
         }
 
@@ -316,7 +357,7 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: [occurrence.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
             #expect(digestScheduled)
         }
 
@@ -336,7 +377,7 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: [occurrence.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
             #expect(digestScheduled)
         }
 
@@ -356,7 +397,7 @@ struct NotificationCoordinatorTests {
 
             try await sut.refreshAllNotifications(for: [firstOccurrence.bill, secondOccurrence.bill])
 
-            let digestScheduled = center.addedRequests.contains { $0.identifier == NotificationIdentifier.digestIdentifier }
+            let digestScheduled = center.addedRequests.contains { NotificationIdentifier.isDigestIdentifier($0.identifier) }
             #expect(digestScheduled)
         }
     }
@@ -369,7 +410,7 @@ struct NotificationCoordinatorTests {
         func whenPermissionDenied_thenCancelAllBillRemindersRemovesExistingReminderRequests() async throws {
             let reminderOccurrence = makeOccurrence(dueDate: makeDate(2025, 12, 1))
             let reminderRequest = makeReminderRequest(for: reminderOccurrence, offsetDays: 0)
-            let digestRequest = makeDigestRequest()
+            let digestRequest = makeDigestRequest(for: makeDate(2025, 12, 1))
             let (sut, center, _) = makeSUT(authorizationStatus: .denied)
             center.pendingNotifications = [reminderRequest, digestRequest]
 
@@ -569,9 +610,9 @@ private func makeReminderRequest(for occurrence: BillOccurrence, offsetDays: Int
 }
 
 @MainActor
-private func makeDigestRequest() -> UNNotificationRequest {
+private func makeDigestRequest(for date: Date) -> UNNotificationRequest {
     UNNotificationRequest(
-        identifier: NotificationIdentifier.digestIdentifier,
+        identifier: NotificationIdentifier.digestIdentifier(for: date, calendar: testCalendar),
         content: UNMutableNotificationContent(),
         trigger: nil
     )

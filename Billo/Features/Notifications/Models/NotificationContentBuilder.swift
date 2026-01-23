@@ -59,54 +59,83 @@ struct NotificationContentBuilder: Sendable {
         }
     }
 
-    /// Builds digest title showing how many bills are due in the configured window.
+    /// Builds digest title for upcoming bills or overdue-only state.
     @MainActor
     func digestTitle(
-        billCount: Int,
-        lookaheadDays: Int
+        upcomingCount: Int,
+        lookaheadDays: Int,
+        overdueCount: Int
     ) -> String {
-        switch (billCount == 1, lookaheadDays == 1) {
-        case (true, true):
-            return String(
-                localized: "\(billCount) bill due in next \(lookaheadDays) day",
-                comment: "Notification digest title (singular bill, singular day)"
-            )
-        case (true, false):
-            return String(
-                localized: "\(billCount) bill due in next \(lookaheadDays) days",
-                comment: "Notification digest title (singular bill, plural days)"
-            )
-        case (false, true):
-            return String(
-                localized: "\(billCount) bills due in next \(lookaheadDays) day",
-                comment: "Notification digest title (plural bills, singular day)"
-            )
-        case (false, false):
-            return String(
-                localized: "\(billCount) bills due in next \(lookaheadDays) days",
-                comment: "Notification digest title (plural bills, plural days)"
-            )
+        guard upcomingCount == 0 else {
+            switch (upcomingCount == 1, lookaheadDays == 1) {
+            case (true, true):
+                return String(
+                    localized: "\(upcomingCount) bill due in next \(lookaheadDays) day",
+                    comment: "Notification digest title (singular bill, singular day)"
+                )
+            case (true, false):
+                return String(
+                    localized: "\(upcomingCount) bill due in next \(lookaheadDays) days",
+                    comment: "Notification digest title (singular bill, plural days)"
+                )
+            case (false, true):
+                return String(
+                    localized: "\(upcomingCount) bills due in next \(lookaheadDays) day",
+                    comment: "Notification digest title (plural bills, singular day)"
+                )
+            case (false, false):
+                return String(
+                    localized: "\(upcomingCount) bills due in next \(lookaheadDays) days",
+                    comment: "Notification digest title (plural bills, plural days)"
+                )
+            }
+        }
+
+        switch overdueCount == 1 {
+        case true:
+            return String(localized: "\(overdueCount) bill is overdue")
+        case false:
+            return String(localized: "\(overdueCount) bills are overdue")
         }
     }
 
-    /// Builds digest body listing first N bills (name, amount, due date), then truncates.
+    /// Builds digest body, prioritizing upcoming bills and summarizing overdue if needed.
     @MainActor
     func digestBody(
-        items: [NotificationDigestItem],
+        upcomingItems: [NotificationDigestItem],
+        overdueItems: [NotificationDigestItem],
         maxLines: Int = 5
     ) -> String {
-        guard !items.isEmpty else { return "" }
+        guard upcomingItems.isEmpty == false || overdueItems.isEmpty == false else { return "" }
 
-        let shownItems = Array(items.prefix(maxLines))
-        let lines = shownItems.map { item in
-            let amountString = formatAmount(amount: item.amount, currencyCode: item.currencyCode)
-            let dueDateString = formatDueDate(item.dueDate)
-            return "\(item.name) — \(amountString) — \(dueDateString)"
+        var lines: [String] = []
+
+        if upcomingItems.isEmpty == false {
+            let shownUpcoming = Array(upcomingItems.prefix(maxLines))
+            lines.append(contentsOf: shownUpcoming.map(formatItem))
+
+            let remainingUpcoming = upcomingItems.count - shownUpcoming.count
+            if remainingUpcoming > 0 {
+                lines.append(String(localized: "…and \(remainingUpcoming) more"))
+            }
+
+            if overdueItems.isEmpty == false {
+                lines.append(formatItem(overdueItems[0]))
+                let remainingOverdue = overdueItems.count - 1
+                if remainingOverdue > 0 {
+                    lines.append(overdueSummaryLine(count: remainingOverdue))
+                }
+            }
+
+            return lines.joined(separator: "\n")
         }
 
-        let remainingCount = items.count - shownItems.count
-        if remainingCount > 0 {
-            return (lines + [String(localized: "…and \(remainingCount) more")]).joined(separator: "\n")
+        let shownOverdue = Array(overdueItems.prefix(3))
+        lines.append(contentsOf: shownOverdue.map(formatItem))
+
+        let remainingOverdue = overdueItems.count - shownOverdue.count
+        if remainingOverdue > 0 {
+            lines.append(overdueSummaryLine(count: remainingOverdue))
         }
 
         return lines.joined(separator: "\n")
@@ -130,5 +159,20 @@ struct NotificationContentBuilder: Sendable {
         formatter.timeZone = timeZone
         formatter.setLocalizedDateFormatFromTemplate("MMM d")
         return formatter.string(from: dueDate)
+    }
+
+    @MainActor
+    private func formatItem(_ item: NotificationDigestItem) -> String {
+        let amountString = formatAmount(amount: item.amount, currencyCode: item.currencyCode)
+        let dueDateString = formatDueDate(item.dueDate)
+        return "\(item.name) — \(amountString) — \(dueDateString)"
+    }
+
+    @MainActor
+    private func overdueSummaryLine(count: Int) -> String {
+        if count == 1 {
+            return String(localized: "plus \(count) more bill is overdue")
+        }
+        return String(localized: "plus \(count) more bills are overdue")
     }
 }

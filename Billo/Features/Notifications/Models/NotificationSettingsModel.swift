@@ -11,6 +11,7 @@ final class NotificationSettingsModel {
     @ObservationIgnored private let preferences: NotificationPreferencesProviding
     @ObservationIgnored private let coordinator: NotificationCoordinating
     @ObservationIgnored private let openSettingsHandler: () -> Void
+    @ObservationIgnored private let refreshScheduler: NotificationRefreshScheduling
     /// Injectable runner to control how async work is scheduled; tests can override to run immediately without blocking.
     @ObservationIgnored private let taskRunner: (@escaping @Sendable () async -> Void) -> Void
 
@@ -24,6 +25,7 @@ final class NotificationSettingsModel {
         preferences: NotificationPreferencesProviding,
         coordinator: NotificationCoordinating,
         openSettingsHandler: @escaping () -> Void,
+        refreshScheduler: NotificationRefreshScheduling = NoopNotificationRefreshScheduler(),
         taskRunner: @escaping (@escaping @Sendable () async -> Void) -> Void = { task in
             Task { await task() }
         }
@@ -31,6 +33,7 @@ final class NotificationSettingsModel {
         self.preferences = preferences
         self.coordinator = coordinator
         self.openSettingsHandler = openSettingsHandler
+        self.refreshScheduler = refreshScheduler
         self.taskRunner = taskRunner
     }
 
@@ -86,17 +89,24 @@ final class NotificationSettingsModel {
 
     /// Async variant used for testing to avoid scheduling onto another Task.
     func toggleRemindersAsync(to newValue: Bool) async {
+        let wasEnabled = preferences.remindersEnabled
+
         if newValue {
             await handleEnableRemindersTask()
         } else {
             preferences.setRemindersEnabled(false)
-            notifyChange()
+        }
+
+        notifyChange()
+        if preferences.remindersEnabled != wasEnabled {
+            refreshScheduler.scheduleRefresh()
         }
     }
 
     func setReminderOffsets(_ offsets: [Int]) {
         preferences.setReminderOffsets(offsets)
         notifyChange()
+        refreshScheduler.scheduleRefresh()
     }
 
     /// Toggles the given offset on/off. Does not allow removing the last remaining offset.
@@ -113,31 +123,37 @@ final class NotificationSettingsModel {
 
         preferences.setReminderOffsets(current)
         notifyChange()
+        refreshScheduler.scheduleRefresh()
     }
 
     func setReminderTime(_ time: DateComponents) {
         preferences.setReminderTime(time)
         notifyChange()
+        refreshScheduler.scheduleRefresh()
     }
 
     func setDigestEnabled(_ enabled: Bool) {
         preferences.setDigestEnabled(enabled)
         notifyChange()
+        refreshScheduler.scheduleRefresh()
     }
 
     func setDigestLookaheadDays(_ days: Int) {
         preferences.setDigestLookaheadDays(days)
         notifyChange()
+        refreshScheduler.scheduleRefresh()
     }
 
     func setDigestTime(_ time: DateComponents) {
         preferences.setDigestTime(time)
         notifyChange()
+        refreshScheduler.scheduleRefresh()
     }
 
     func setBadgeMode(_ mode: BadgeMode) {
         preferences.setBadgeMode(mode)
         notifyChange()
+        refreshScheduler.scheduleRefresh()
     }
 
     func openSettings() {

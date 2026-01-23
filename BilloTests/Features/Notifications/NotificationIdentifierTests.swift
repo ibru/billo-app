@@ -171,6 +171,7 @@ struct NotificationIdentifierTests {
     }
 
     @Suite("Equatable")
+    @MainActor
     struct EquatableTests {
         @Test
         func whenIdentical_thenEqual() {
@@ -215,10 +216,25 @@ struct NotificationIdentifierTests {
     }
 
     @Suite("Constants")
+    @MainActor
     struct Constants {
         @Test
-        func whenDigestIdentifier_thenHasCorrectValue() {
-            #expect(NotificationIdentifier.digestIdentifier == "billo.digest")
+        func whenDigestIdentifierForDate_thenUsesPrefix() {
+            let calendar = Calendar(identifier: .gregorian)
+            let date = Date(timeIntervalSinceReferenceDate: 0)
+            let identifier = NotificationIdentifier.digestIdentifier(for: date, calendar: calendar)
+
+            #expect(identifier.hasPrefix(NotificationIdentifier.digestPrefix))
+        }
+
+        @Test
+        func whenIsDigestIdentifier_thenMatchesLegacyAndNew() {
+            let calendar = Calendar(identifier: .gregorian)
+            let date = Date(timeIntervalSinceReferenceDate: 0)
+            let newIdentifier = NotificationIdentifier.digestIdentifier(for: date, calendar: calendar)
+
+            #expect(NotificationIdentifier.isDigestIdentifier(NotificationIdentifier.legacyDigestIdentifier))
+            #expect(NotificationIdentifier.isDigestIdentifier(newIdentifier))
         }
     }
 }

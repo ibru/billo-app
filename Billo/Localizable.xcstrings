@@ -210,6 +210,50 @@
         }
       }
     },
+    "%lld bill is overdue" : {
+      "comment" : "Notification digest title (singular overdue bill)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld bill is overdue"
+          }
+        }
+      }
+    },
+    "%lld bills are overdue" : {
+      "comment" : "Notification digest title (plural overdue bills)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld bills are overdue"
+          }
+        }
+      }
+    },
+    "plus %lld more bill is overdue" : {
+      "comment" : "Notification digest body summary when exactly one overdue bill remains",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "plus %1$lld more bill is overdue"
+          }
+        }
+      }
+    },
+    "plus %lld more bills are overdue" : {
+      "comment" : "Notification digest body summary when multiple overdue bills remain",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "plus %1$lld more bills are overdue"
+          }
+        }
+      }
+    },
     "%lld day" : {
 
     },

@@ -37,8 +37,11 @@ protocol NotificationCoordinating: Sendable {
 
     /// Schedules daily digest notification
     func scheduleDigest(
-        items: [NotificationContentBuilder.NotificationDigestItem],
-        lookaheadDays: Int
+        upcomingItems: [NotificationContentBuilder.NotificationDigestItem],
+        overdueItems: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int,
+        notificationDate: Date,
+        identifier: String
     ) async throws
 
     func cancelDigest() async

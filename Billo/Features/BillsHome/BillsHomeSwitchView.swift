@@ -81,7 +81,17 @@ struct BillsHomeSwitchView: View {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
                                 UIApplication.shared.open(url)
                             }
-                        }
+                        },
+                        refreshScheduler: NotificationRefreshDebouncer(
+                            refresh: { [weak billsModel, weak notificationCoordinator] in
+                                guard let billsModel, let notificationCoordinator else { return }
+                                await AppNotificationRefresher().refreshAndReschedule(
+                                    billsModel: billsModel,
+                                    coordinator: notificationCoordinator,
+                                    refreshBills: false
+                                )
+                            }
+                        )
                     )
                 )
                 .toolbar {

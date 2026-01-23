@@ -21,9 +21,15 @@ final class NotificationCoordinator: NotificationCoordinating {
         let occurrenceTimestamp: Int
     }
 
-    private struct ReminderSchedulingResult: Sendable {
-        let scheduledCount: Int
+    private struct ReminderPlan: Sendable {
+        let plan: [(NotificationOccurrenceSnapshot, Int, Date)]
         let scheduledOccurrences: Set<ScheduledReminderKey>
+    }
+
+    private struct DigestCandidate {
+        let notificationDate: Date
+        let upcomingOccurrences: [BillOccurrence]
+        let overdueOccurrences: [BillOccurrence]
     }
 
     // MARK: - Dependencies (all injected)
@@ -40,9 +46,9 @@ final class NotificationCoordinator: NotificationCoordinating {
     // MARK: - Configuration
 
     private let maxNotifications = 64
-    private let reservedSlots = 4  // 1 digest + 3 buffer
     private let baseHorizonDays = 90
     private let minHorizonDays = 14  // Never shrink below 2 weeks
+    private let digestWindowDaysWithReminders = 14
 
     // MARK: - Init
 
@@ -99,58 +105,44 @@ final class NotificationCoordinator: NotificationCoordinating {
             calendar: calendar
         )
 
-        // 3. Handle bill reminders (independent of digest)
+        // 3. Cancel all pending reminders/digests before rescheduling
         await cancelAllBillReminders()
+        await cancelDigest()
 
-        var scheduledReminderKeys = Set<ScheduledReminderKey>()
+        // 4. Plan reminders and rolling digest together (suppression avoids duplicates)
+        let digestCandidates = makeDigestCandidates(
+            occurrences: allOccurrences,
+            referenceDate: referenceDate
+        )
+
+        let plans = await computeNotificationPlans(
+            occurrences: allOccurrences,
+            referenceDate: referenceDate,
+            digestCandidates: digestCandidates
+        )
+
         if preferences.remindersEnabled {
-            // Calculate effective horizon (shrink if cap would be exceeded)
-            let effectiveHorizon = calculateEffectiveHorizon(
-                allOccurrences: allOccurrences,
-                referenceDate: referenceDate
-            )
-            Logger.log("Effective horizon: \(effectiveHorizon) days", level: .debug)
-
-            // Filter locally instead of re-querying SwiftData models.
-            // Note: allOccurrences already includes overdue occurrences within lookback window.
-            let schedulingOccurrences: [BillOccurrence]
-            if let horizonDate = calendar.date(byAdding: .day, value: effectiveHorizon, to: referenceDate) {
-                schedulingOccurrences = allOccurrences.filter { $0.dueDate <= horizonDate }
-            } else {
-                schedulingOccurrences = allOccurrences
-            }
-
-            // Schedule within cap
-            let schedulingResult = try await scheduleRemindersInternal(
-                for: schedulingOccurrences,
-                referenceDate: referenceDate
-            )
-            let scheduled = schedulingResult.scheduledCount
-            scheduledReminderKeys = schedulingResult.scheduledOccurrences
-
-            // Log horizon adjustment or cap status
-            if effectiveHorizon < baseHorizonDays {
-                print("[Notifications] Horizon reduced to \(effectiveHorizon) days to fit cap")
-            }
-            let (_, skipped) = dateCalculator.schedulingPlan(
-                occurrences: schedulingOccurrences,
-                offsets: preferences.reminderOffsets,
-                maxSlots: maxNotifications - reservedSlots
-            )
-            if skipped > 0 {
-                print("[Notifications] Cap reached: scheduled \(scheduled), skipped \(skipped)")
-            }
+            try await scheduleReminderPlan(plans.reminderPlan)
         }
 
-        // 4. Handle daily digest (suppressed when a single bill would also get its own reminder)
         if preferences.digestEnabled {
-            try await scheduleDigestIfNeeded(
-                occurrences: allOccurrences,
-                referenceDate: referenceDate,
-                scheduledReminders: scheduledReminderKeys
-            )
-        } else {
-            await cancelDigest()
+            for candidate in plans.digestPlan {
+                let upcomingItems = candidate.upcomingOccurrences
+                    .map { NotificationContentBuilder.NotificationDigestItem($0) }
+                let overdueItems = candidate.overdueOccurrences
+                    .map { NotificationContentBuilder.NotificationDigestItem($0) }
+                let identifier = NotificationIdentifier.digestIdentifier(
+                    for: candidate.notificationDate,
+                    calendar: calendar
+                )
+                try await scheduleDigest(
+                    upcomingItems: upcomingItems,
+                    overdueItems: overdueItems,
+                    lookaheadDays: preferences.digestLookaheadDays,
+                    notificationDate: candidate.notificationDate,
+                    identifier: identifier
+                )
+            }
         }
 
         // 5. Update badge using user-selected badge window (independent of reminders/digest)
@@ -171,9 +163,9 @@ final class NotificationCoordinator: NotificationCoordinating {
     /// Shrinks from baseHorizonDays down to minHorizonDays if needed
     private func calculateEffectiveHorizon(
         allOccurrences: [BillOccurrence],
-        referenceDate: Date
+        referenceDate: Date,
+        availableSlots: Int
     ) -> Int {
-        let availableSlots = maxNotifications - reservedSlots
         let offsetCount = preferences.reminderOffsets.count
 
         if offsetCount == 0 {
@@ -198,47 +190,107 @@ final class NotificationCoordinator: NotificationCoordinating {
         return minHorizonDays
     }
 
-    /// Schedules digest, handling mixed currencies gracefully
-    private func scheduleDigestIfNeeded(
+    private func makeDigestCandidates(
+        occurrences: [BillOccurrence],
+        referenceDate: Date
+    ) -> [DigestCandidate] {
+        guard preferences.digestEnabled else { return [] }
+
+        let startOfReference = calendar.startOfDay(for: referenceDate)
+        let windowDays = preferences.remindersEnabled ? digestWindowDaysWithReminders : maxNotifications
+        let digestTime = preferences.digestTime
+
+        return (0..<windowDays).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startOfReference) else {
+                return nil
+            }
+
+            var components = calendar.dateComponents([.year, .month, .day], from: day)
+            components.hour = digestTime.hour ?? 9
+            components.minute = digestTime.minute ?? 0
+
+            guard let notificationDate = calendar.date(from: components) else {
+                return nil
+            }
+
+            guard notificationDate > referenceDate else {
+                return nil
+            }
+
+            let upcoming = dateCalculator.occurrencesWithinLookahead(
+                occurrences,
+                lookaheadDays: preferences.digestLookaheadDays,
+                referenceDate: day,
+                calendar: calendar
+            )
+            .sorted { $0.dueDate < $1.dueDate }
+
+            let overdue = occurrences
+                .filter { $0.dueDate < day }
+                .sorted { $0.dueDate > $1.dueDate }
+
+            guard upcoming.isEmpty == false || overdue.isEmpty == false else {
+                return nil
+            }
+
+            return DigestCandidate(
+                notificationDate: notificationDate,
+                upcomingOccurrences: upcoming,
+                overdueOccurrences: overdue
+            )
+        }
+    }
+
+    private func computeNotificationPlans(
         occurrences: [BillOccurrence],
         referenceDate: Date,
-        scheduledReminders: Set<ScheduledReminderKey>
-    ) async throws {
-        let dueWithinLookahead = dateCalculator.occurrencesWithinLookahead(
-            occurrences,
-            lookaheadDays: preferences.digestLookaheadDays,
-            referenceDate: referenceDate,
-            calendar: calendar
-        )
-        .sorted { $0.dueDate < $1.dueDate }
-
-        guard !dueWithinLookahead.isEmpty else {
-            await cancelDigest()
-            return
+        digestCandidates: [DigestCandidate]
+    ) async -> (reminderPlan: [(NotificationOccurrenceSnapshot, Int, Date)], digestPlan: [DigestCandidate]) {
+        let digestCandidates = preferences.digestEnabled ? digestCandidates : []
+        guard preferences.remindersEnabled else {
+            let digestPlan = digestCandidates
+            return (reminderPlan: [], digestPlan: digestPlan)
         }
 
-        if shouldSuppressDigest(
-            dueWithinLookahead: dueWithinLookahead,
-            scheduledReminders: scheduledReminders
-        ) {
-            await cancelDigest()
-            return
+        var digestPlan = digestCandidates
+        var digestCount = digestPlan.count
+        var previousDigestCount = -1
+        var reminderPlan: [(NotificationOccurrenceSnapshot, Int, Date)] = []
+        var scheduledReminders = Set<ScheduledReminderKey>()
+
+        let maxIterations = max(1, digestCandidates.count + 1)
+        var iterations = 0
+
+        while digestCount != previousDigestCount && iterations < maxIterations {
+            previousDigestCount = digestCount
+
+            let availableSlots = max(0, maxNotifications - digestCount)
+            let plan = await planReminders(
+                occurrences: occurrences,
+                referenceDate: referenceDate,
+                availableSlots: availableSlots
+            )
+            reminderPlan = plan.plan
+            scheduledReminders = plan.scheduledOccurrences
+
+            digestPlan = digestCandidates.filter {
+                shouldSuppressDigest(candidate: $0, scheduledReminders: scheduledReminders) == false
+            }
+            digestCount = digestPlan.count
+            iterations += 1
         }
 
-        let items = dueWithinLookahead.map { NotificationContentBuilder.NotificationDigestItem($0) }
-        try await scheduleDigest(
-            items: items,
-            lookaheadDays: preferences.digestLookaheadDays
-        )
+        return (reminderPlan: reminderPlan, digestPlan: digestPlan)
     }
 
     private func shouldSuppressDigest(
-        dueWithinLookahead: [BillOccurrence],
+        candidate: DigestCandidate,
         scheduledReminders: Set<ScheduledReminderKey>
     ) -> Bool {
-        guard dueWithinLookahead.count == 1 else { return false }
+        guard candidate.overdueOccurrences.isEmpty else { return false }
+        guard candidate.upcomingOccurrences.count == 1 else { return false }
         guard preferences.remindersEnabled else { return false }
-        let occurrence = dueWithinLookahead[0]
+        let occurrence = candidate.upcomingOccurrences[0]
 
         let key = ScheduledReminderKey(
             billIDString: String(describing: occurrence.bill.persistentModelID),
@@ -250,17 +302,42 @@ final class NotificationCoordinator: NotificationCoordinating {
 
     // MARK: - Internal Scheduling
 
-    private func scheduleRemindersInternal(
-        for occurrences: [BillOccurrence],
-        referenceDate: Date
-    ) async throws -> ReminderSchedulingResult {
-        let availableSlots = maxNotifications - reservedSlots
+    private func planReminders(
+        occurrences: [BillOccurrence],
+        referenceDate: Date,
+        availableSlots: Int
+    ) async -> ReminderPlan {
+        guard availableSlots > 0 else {
+            return ReminderPlan(plan: [], scheduledOccurrences: [])
+        }
+
         let offsets = preferences.reminderOffsets
+        guard offsets.isEmpty == false else {
+            return ReminderPlan(plan: [], scheduledOccurrences: [])
+        }
+
+        // Calculate effective horizon (shrink if cap would be exceeded)
+        let effectiveHorizon = calculateEffectiveHorizon(
+            allOccurrences: occurrences,
+            referenceDate: referenceDate,
+            availableSlots: availableSlots
+        )
+        Logger.log("Effective horizon: \(effectiveHorizon) days", level: .debug)
+
+        // Filter locally instead of re-querying SwiftData models.
+        // Note: occurrences already includes overdue occurrences within lookback window.
+        let schedulingOccurrences: [BillOccurrence]
+        if let horizonDate = calendar.date(byAdding: .day, value: effectiveHorizon, to: referenceDate) {
+            schedulingOccurrences = occurrences.filter { $0.dueDate <= horizonDate }
+        } else {
+            schedulingOccurrences = occurrences
+        }
+
         let reminderTime = preferences.reminderTime
         let calendar = calendar
         let dateCalculator = dateCalculator
 
-        let snapshots: [NotificationOccurrenceSnapshot] = occurrences.map {
+        let snapshots: [NotificationOccurrenceSnapshot] = schedulingOccurrences.map {
             NotificationOccurrenceSnapshot(
                 billIDString: String(describing: $0.bill.persistentModelID),
                 name: $0.name,
@@ -296,15 +373,6 @@ final class NotificationCoordinator: NotificationCoordinating {
         // Log notification schedule
         logNotificationSchedule(plan: plan, availableSlots: availableSlots)
 
-        for (snapshot, offset, notificationDate) in plan {
-            let request = createNotificationRequest(
-                snapshot: snapshot,
-                notificationDate: notificationDate,
-                offsetDays: offset
-            )
-            try await notificationCenter.add(request)
-        }
-
         let scheduledKeys = Set(
             plan.map {
                 ScheduledReminderKey(
@@ -314,10 +382,36 @@ final class NotificationCoordinator: NotificationCoordinating {
             }
         )
 
-        return ReminderSchedulingResult(
-            scheduledCount: plan.count,
+        // Log horizon adjustment or cap status
+        if effectiveHorizon < baseHorizonDays {
+            print("[Notifications] Horizon reduced to \(effectiveHorizon) days to fit cap")
+        }
+        let (_, skipped) = dateCalculator.schedulingPlan(
+            occurrences: schedulingOccurrences,
+            offsets: offsets,
+            maxSlots: availableSlots
+        )
+        if skipped > 0 {
+            print("[Notifications] Cap reached: scheduled \(plan.count), skipped \(skipped)")
+        }
+
+        return ReminderPlan(
+            plan: plan,
             scheduledOccurrences: scheduledKeys
         )
+    }
+
+    private func scheduleReminderPlan(
+        _ plan: [(NotificationOccurrenceSnapshot, Int, Date)]
+    ) async throws {
+        for (snapshot, offset, notificationDate) in plan {
+            let request = createNotificationRequest(
+                snapshot: snapshot,
+                notificationDate: notificationDate,
+                offsetDays: offset
+            )
+            try await notificationCenter.add(request)
+        }
     }
 
     private func createNotificationRequest(
@@ -424,41 +518,47 @@ final class NotificationCoordinator: NotificationCoordinating {
 
         guard preferences.remindersEnabled else { return }
 
-        _ = try await scheduleRemindersInternal(
-            for: newOccurrences,
-            referenceDate: currentDate()
+        let plan = await planReminders(
+            occurrences: newOccurrences,
+            referenceDate: currentDate(),
+            availableSlots: maxNotifications
         )
+        try await scheduleReminderPlan(plan.plan)
     }
 
     // MARK: - Digest
 
     func scheduleDigest(
-        items: [NotificationContentBuilder.NotificationDigestItem],
-        lookaheadDays: Int
+        upcomingItems: [NotificationContentBuilder.NotificationDigestItem],
+        overdueItems: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int,
+        notificationDate: Date,
+        identifier: String
     ) async throws {
-        await cancelDigest()
-
         let content = UNMutableNotificationContent()
         content.title = contentBuilder.digestTitle(
-            billCount: items.count,
-            lookaheadDays: lookaheadDays
+            upcomingCount: upcomingItems.count,
+            lookaheadDays: lookaheadDays,
+            overdueCount: overdueItems.count
         )
-        content.body = contentBuilder.digestBody(items: items, maxLines: 5)
+        content.body = contentBuilder.digestBody(
+            upcomingItems: upcomingItems,
+            overdueItems: overdueItems,
+            maxLines: 5
+        )
         content.sound = .default
         content.categoryIdentifier = NotificationCategory.dailyDigest
 
-        let digestTime = preferences.digestTime
-        var components = DateComponents()
-        components.hour = digestTime.hour ?? 9
-        components.minute = digestTime.minute ?? 0
-
         let trigger = UNCalendarNotificationTrigger(
-            dateMatching: components,
-            repeats: true
+            dateMatching: calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: notificationDate
+            ),
+            repeats: false
         )
 
         let request = UNNotificationRequest(
-            identifier: NotificationIdentifier.digestIdentifier,
+            identifier: identifier,
             content: content,
             trigger: trigger
         )
@@ -467,9 +567,14 @@ final class NotificationCoordinator: NotificationCoordinating {
     }
 
     func cancelDigest() async {
-        notificationCenter.removePendingNotificationRequests(
-            withIdentifiers: [NotificationIdentifier.digestIdentifier]
-        )
+        let pending = await notificationCenter.pendingNotificationRequests()
+        let digestIDs = pending
+            .map(\.identifier)
+            .filter { NotificationIdentifier.isDigestIdentifier($0) }
+
+        if digestIDs.isEmpty == false {
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: digestIDs)
+        }
     }
 
     // MARK: - Badge
@@ -491,7 +596,12 @@ final class NotificationCoordinator: NotificationCoordinating {
 
     func scheduleReminders(for occurrences: [BillOccurrence]) async throws {
         guard preferences.remindersEnabled else { return }
-        _ = try await scheduleRemindersInternal(for: occurrences, referenceDate: currentDate())
+        let plan = await planReminders(
+            occurrences: occurrences,
+            referenceDate: currentDate(),
+            availableSlots: maxNotifications
+        )
+        try await scheduleReminderPlan(plan.plan)
     }
 
     // MARK: - Logging

@@ -51,5 +51,16 @@ struct NotificationIdentifier: Equatable, Sendable {
 // MARK: - Constants
 
 extension NotificationIdentifier {
-    static let digestIdentifier = "billo.digest"
+    static let legacyDigestIdentifier = "billo.digest"
+    static let digestPrefix = "billo.digest."
+
+    static func digestIdentifier(for date: Date, calendar: Calendar) -> String {
+        let dayStart = calendar.startOfDay(for: date)
+        let timestamp = Int(dayStart.timeIntervalSinceReferenceDate)
+        return "\(digestPrefix)\(timestamp)"
+    }
+
+    static func isDigestIdentifier(_ identifier: String) -> Bool {
+        identifier == legacyDigestIdentifier || identifier.hasPrefix(digestPrefix)
+    }
 }

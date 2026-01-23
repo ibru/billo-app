@@ -77,25 +77,37 @@ struct NotificationContentBuilderTests {
         @Test
         func whenOneBill_thenUsesSingularForm() {
             #expect(makeSUT().digestTitle(
-                billCount: 1,
-                lookaheadDays: 3
+                upcomingCount: 1,
+                lookaheadDays: 3,
+                overdueCount: 0
             ) == "1 bill due in next 3 days")
         }
 
         @Test
         func whenLookaheadIsOneDay_thenUsesSingularDay() {
             #expect(makeSUT().digestTitle(
-                billCount: 2,
-                lookaheadDays: 1
+                upcomingCount: 2,
+                lookaheadDays: 1,
+                overdueCount: 0
             ) == "2 bills due in next 1 day")
         }
 
         @Test
         func whenMultipleBills_thenUsesPluralForm() {
             #expect(makeSUT().digestTitle(
-                billCount: 5,
-                lookaheadDays: 7
+                upcomingCount: 5,
+                lookaheadDays: 7,
+                overdueCount: 0
             ) == "5 bills due in next 7 days")
+        }
+
+        @Test
+        func whenOnlyOverdue_thenUsesOverdueTitle() {
+            #expect(makeSUT().digestTitle(
+                upcomingCount: 0,
+                lookaheadDays: 5,
+                overdueCount: 2
+            ) == "2 bills are overdue")
         }
 
         // MARK: - Helpers
@@ -114,7 +126,7 @@ struct NotificationContentBuilderTests {
 
         @Test
         func whenItemsAreEmpty_thenReturnsEmptyString() {
-            #expect(makeSUT().digestBody(items: []) == "")
+            #expect(makeSUT().digestBody(upcomingItems: [], overdueItems: []) == "")
         }
 
         @Test
@@ -122,7 +134,7 @@ struct NotificationContentBuilderTests {
             let rent = makeItem(name: "Rent", amount: 10, currencyCode: "USD", dueDate: makeDate(2025, 12, 2))
             let gym = makeItem(name: "Gym", amount: 20, currencyCode: "EUR", dueDate: makeDate(2025, 12, 3))
 
-            #expect(makeSUT().digestBody(items: [rent, gym]) == """
+            #expect(makeSUT().digestBody(upcomingItems: [rent, gym], overdueItems: []) == """
             Rent — $10.00 — Dec 2
             Gym — €20.00 — Dec 3
             """)
@@ -139,13 +151,51 @@ struct NotificationContentBuilderTests {
                 )
             }
 
-            #expect(makeSUT().digestBody(items: items, maxLines: 5) == """
+            #expect(makeSUT().digestBody(upcomingItems: items, overdueItems: [], maxLines: 5) == """
             Bill 1 — $1.00 — Dec 1
             Bill 2 — $2.00 — Dec 2
             Bill 3 — $3.00 — Dec 3
             Bill 4 — $4.00 — Dec 4
             Bill 5 — $5.00 — Dec 5
             …and 2 more
+            """)
+        }
+
+        @Test
+        func whenUpcomingAndOverdue_thenAppendsOverdueSummary() {
+            let upcoming = [
+                makeItem(name: "Rent", amount: 10, currencyCode: "USD", dueDate: makeDate(2025, 12, 2)),
+                makeItem(name: "Gym", amount: 20, currencyCode: "USD", dueDate: makeDate(2025, 12, 3))
+            ]
+            let overdue = [
+                makeItem(name: "Water", amount: 5, currencyCode: "USD", dueDate: makeDate(2025, 11, 20)),
+                makeItem(name: "Phone", amount: 7, currencyCode: "USD", dueDate: makeDate(2025, 11, 10))
+            ]
+
+            #expect(makeSUT().digestBody(upcomingItems: upcoming, overdueItems: overdue) == """
+            Rent — $10.00 — Dec 2
+            Gym — $20.00 — Dec 3
+            Water — $5.00 — Nov 20
+            plus 1 more bill is overdue
+            """)
+        }
+
+        @Test
+        func whenOnlyOverdue_thenListsUpToThreeAndSummarizes() {
+            let overdue = (1...4).map { idx in
+                makeItem(
+                    name: "Overdue \(idx)",
+                    amount: Decimal(idx),
+                    currencyCode: "USD",
+                    dueDate: makeDate(2025, 11, 10 + idx)
+                )
+            }
+
+            #expect(makeSUT().digestBody(upcomingItems: [], overdueItems: overdue) == """
+            Overdue 1 — $1.00 — Nov 11
+            Overdue 2 — $2.00 — Nov 12
+            Overdue 3 — $3.00 — Nov 13
+            plus 1 more bill is overdue
             """)
         }
 

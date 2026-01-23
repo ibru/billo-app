@@ -14,7 +14,13 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
     private(set) var updateBadgeCalls: [Int] = []
     private(set) var clearBadgeCalls: Int = 0
     private(set) var refreshAllNotificationsCalls: [[Bill]] = []
-    private(set) var scheduleDigestCalls: [(items: [NotificationContentBuilder.NotificationDigestItem], lookaheadDays: Int)] = []
+    private(set) var scheduleDigestCalls: [(
+        upcomingItems: [NotificationContentBuilder.NotificationDigestItem],
+        overdueItems: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int,
+        notificationDate: Date,
+        identifier: String
+    )] = []
     private(set) var cancelDigestCalls: Int = 0
     private(set) var currentStatusCallCount: Int = 0
     private(set) var requestAuthorizationCallCount: Int = 0
@@ -61,10 +67,19 @@ final class NotificationCoordinatorSpy: NotificationCoordinating, @unchecked Sen
     }
 
     func scheduleDigest(
-        items: [NotificationContentBuilder.NotificationDigestItem],
-        lookaheadDays: Int
+        upcomingItems: [NotificationContentBuilder.NotificationDigestItem],
+        overdueItems: [NotificationContentBuilder.NotificationDigestItem],
+        lookaheadDays: Int,
+        notificationDate: Date,
+        identifier: String
     ) async throws {
-        scheduleDigestCalls.append((items: items, lookaheadDays: lookaheadDays))
+        scheduleDigestCalls.append((
+            upcomingItems: upcomingItems,
+            overdueItems: overdueItems,
+            lookaheadDays: lookaheadDays,
+            notificationDate: notificationDate,
+            identifier: identifier
+        ))
     }
 
     func cancelDigest() async {
