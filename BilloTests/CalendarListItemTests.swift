@@ -87,7 +87,7 @@ struct CalendarListItemTests {
 
 @MainActor
 private func makeContext() throws -> ModelContext {
-    let schema = Schema([Bill.self, Payment.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     return ModelContext(container)
@@ -111,15 +111,12 @@ private func makeDate(year: Int, month: Int, day: Int, calendar: Calendar) -> Da
 
 @MainActor
 @discardableResult
-private func makePayment(amount: Decimal, paid date: Date, occurrence: Date, bill: Bill, in context: ModelContext) -> Payment {
-    let payment = Payment(
+private func makePayment(amount: Decimal, paid date: Date, occurrence: Date, bill: Bill, in context: ModelContext) -> PaymentEntry {
+    makePaymentEntry(
         amount: amount,
         datePaid: date,
         occurrenceDate: occurrence,
-        confirmationNumber: nil,
-        notes: nil,
-        bill: bill
+        bill: bill,
+        in: context
     )
-    context.insert(payment)
-    return payment
 }

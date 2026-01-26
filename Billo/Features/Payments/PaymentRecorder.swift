@@ -12,21 +12,41 @@ struct PaymentRecorder: Sendable {
         amount: Decimal,
         datePaid: Date,
         confirmationNumber: String?,
+        calendar: Calendar = .current,
         context: ModelContext,
         notificationCoordinator: NotificationCoordinating,
         badgeCalculator: BadgeCalculating,
         badgeMode: BadgeMode,
         allBills: [Bill],
         currentDate: () -> Date
-    ) async throws -> Payment {
+    ) async throws -> PaymentEntry {
         Logger.log("Recording payment: \(amount) for \(bill.name)", level: .debug)
-        // 1. Create and persist payment
-        let payment = Payment(
+        let issuedOccurrence: IssuedOccurrence
+        if let existingIssued = bill.issuedOccurrence(for: occurrenceDate, calendar: calendar) {
+            issuedOccurrence = existingIssued
+        } else {
+            let key = bill.occurrenceKey(for: occurrenceDate, calendar: calendar)
+            let issued = IssuedOccurrence(
+                occurrenceKey: key,
+                dueDate: occurrenceDate,
+                billName: bill.name,
+                billAmount: bill.amount,
+                billCurrencyCode: bill.currencyCode,
+                billAccountIdentifier: bill.accountIdentifier,
+                billNotes: bill.notes,
+                billCategoryRawValue: bill.categoryIdentifier?.rawValue,
+                bill: bill
+            )
+            context.insert(issued)
+            issuedOccurrence = issued
+        }
+
+        // 1. Create and persist payment entry
+        let payment = PaymentEntry(
             amount: amount,
             datePaid: datePaid,
-            occurrenceDate: occurrenceDate,
             confirmationNumber: confirmationNumber,
-            bill: bill
+            issuedOccurrence: issuedOccurrence
         )
         context.insert(payment)
         try context.save()
@@ -34,7 +54,7 @@ struct PaymentRecorder: Sendable {
 
         // 2. Cancel reminders for this occurrence
         let occurrenceID = BillOccurrence.OccurrenceID(
-            billID: bill.persistentModelID,
+            billID: bill.stableID,
             dueDate: occurrenceDate
         )
         await notificationCoordinator.cancelReminders(for: [occurrenceID])

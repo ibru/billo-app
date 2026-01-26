@@ -37,8 +37,14 @@ struct DotIndicatorGenerationTests {
         let bill = makeBill(name: "Phone", amount: 30, dueDate: date, in: context)
 
         let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
-        let payment = Payment(amount: 10, datePaid: date, occurrenceDate: date, bill: bill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 10,
+            datePaid: date,
+            occurrenceDate: date,
+            bill: bill,
+            calendar: calendar,
+            in: context
+        )
 
         let dayData = CalendarDayData(
             date: date,
@@ -79,8 +85,14 @@ struct DotIndicatorGenerationTests {
 
         let bill = makeBill(name: "Loan", amount: 100, dueDate: date, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
-        let payment = Payment(amount: 100, datePaid: date, occurrenceDate: date, bill: bill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 100,
+            datePaid: date,
+            occurrenceDate: date,
+            bill: bill,
+            calendar: calendar,
+            in: context
+        )
 
         let dayData = CalendarDayData(
             date: date,
@@ -171,8 +183,14 @@ struct DotIndicatorGenerationTests {
         // Paid bill with payment
         let paidBill = makeBill(name: "Phone", amount: 30, dueDate: date, in: context)
         let paidOccurrence = BillOccurrence(bill: paidBill, dueDate: date)
-        let payment = Payment(amount: 30, datePaid: date, occurrenceDate: date, bill: paidBill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 30,
+            datePaid: date,
+            occurrenceDate: date,
+            bill: paidBill,
+            calendar: calendar,
+            in: context
+        )
 
         // Income
         let income = makeIncome(name: "Bonus", amount: 500, startDate: date, in: context)
@@ -192,7 +210,7 @@ struct DotIndicatorGenerationTests {
         // Should have: 1 income dot, 1 payment dot, 1 past-occurrence dot, 1 future-occurrence dot
         #expect(dots.count == 4)
         #expect(dots.filter { $0.color == .income }.count == 1)
-        #expect(dots.filter { $0.color == .green }.count == 2) // Payment + paid past occurrence
+        #expect(dots.filter { $0.color == .green }.count == 2) // PaymentEntry + paid past occurrence
         #expect(dots.filter { $0.color == .orange }.count == 1) // Unpaid bill due tomorrow
     }
 
@@ -218,8 +236,14 @@ struct DotIndicatorGenerationTests {
         let date = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
         let bill = makeBill(name: "Partial", amount: 100, dueDate: date, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: date)
-        let payment = Payment(amount: 10, datePaid: date, occurrenceDate: date, bill: bill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 10,
+            datePaid: date,
+            occurrenceDate: date,
+            bill: bill,
+            calendar: calendar,
+            in: context
+        )
 
         let dayData = CalendarDayData(date: date, pastOccurrences: [PastBillDisplay(occurrence: occurrence, payments: [payment])])
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date, calendar: calendar)
@@ -236,8 +260,14 @@ struct DotIndicatorGenerationTests {
         let dueDate = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
         let bill = makeBill(name: "Prepaid", amount: 100, dueDate: dueDate, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
-        let payment = Payment(amount: 50, datePaid: today, occurrenceDate: dueDate, bill: bill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 50,
+            datePaid: today,
+            occurrenceDate: dueDate,
+            bill: bill,
+            calendar: calendar,
+            in: context
+        )
 
         let dayData = CalendarDayData(
             date: dueDate,
@@ -260,8 +290,14 @@ struct DotIndicatorGenerationTests {
 
         let bill = makeBill(name: "Bill", amount: 100, dueDate: date, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: date)
-        let payment = Payment(amount: 10, datePaid: date, occurrenceDate: date, bill: bill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 10,
+            datePaid: date,
+            occurrenceDate: date,
+            bill: bill,
+            calendar: calendar,
+            in: context
+        )
 
         let dayData = CalendarDayData(
             date: date,
@@ -280,7 +316,7 @@ struct DotIndicatorGenerationTests {
 
 @MainActor
 private func makeContext() throws -> ModelContext {
-    let schema = Schema([Bill.self, Payment.self, Income.self, RecurrenceRule.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, Income.self, RecurrenceRule.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     return ModelContext(container)

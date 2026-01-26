@@ -4,17 +4,17 @@ import SwiftData
 import SwiftUI
 
 struct PaymentHistoryView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(BillsModel.self) private var billsModel
 
-    @Query(sort: \Payment.datePaid, order: .reverse)
-    private var allPayments: [Payment]
+    @Query(sort: \PaymentEntry.datePaid, order: .reverse)
+    private var allPayments: [PaymentEntry]
 
     @Query(sort: \CustomCategory.name)
     private var customCategories: [CustomCategory]
 
     @State private var displayLimit: Int = 200
 
-    private var displayedPayments: [Payment] {
+    private var displayedPayments: [PaymentEntry] {
         Array(allPayments.prefix(displayLimit))
     }
 
@@ -60,8 +60,14 @@ struct PaymentHistoryView: View {
         .navigationTitle("Payment History")
     }
 
-    private func deletePayment(_ payment: Payment) {
-        modelContext.delete(payment)
+    private func deletePayment(_ payment: PaymentEntry) {
+        Task {
+            do {
+                try await billsModel.deletePaymentEntry(payment)
+            } catch {
+                Logger.log("Failed to delete payment: \(error)", level: .error)
+            }
+        }
     }
 }
 

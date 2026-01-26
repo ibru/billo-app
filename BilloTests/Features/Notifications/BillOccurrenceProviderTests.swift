@@ -229,13 +229,14 @@ struct BillOccurrenceProviderTests {
         let referenceDate = makeDate(day: 10)
         let (bill, context) = try makeBillWithContext(dueDate: dueDate, recurrence: .monthly)
 
-        let payment = Payment(
+        _ = makePaymentEntry(
             amount: 100,
             datePaid: referenceDate,
             occurrenceDate: dueDate,
-            bill: bill
+            bill: bill,
+            calendar: calendar,
+            in: context
         )
-        context.insert(payment)
         try context.save()
 
         let sut = BillOccurrenceProvider()
@@ -257,13 +258,14 @@ struct BillOccurrenceProviderTests {
         let referenceDate = makeDate(day: 10)
         let (bill, context) = try makeBillWithContext(dueDate: dueDate, recurrence: .monthly)
 
-        let payment = Payment(
+        _ = makePaymentEntry(
             amount: 50,
             datePaid: referenceDate,
             occurrenceDate: dueDate,
-            bill: bill
+            bill: bill,
+            calendar: calendar,
+            in: context
         )
-        context.insert(payment)
         try context.save()
 
         let sut = BillOccurrenceProvider()
@@ -284,20 +286,22 @@ struct BillOccurrenceProviderTests {
         let referenceDate = makeDate(day: 10)
         let (bill, context) = try makeBillWithContext(dueDate: dueDate, recurrence: .monthly)
 
-        let payment1 = Payment(
+        _ = makePaymentEntry(
             amount: 60,
             datePaid: referenceDate,
             occurrenceDate: dueDate,
-            bill: bill
+            bill: bill,
+            calendar: calendar,
+            in: context
         )
-        let payment2 = Payment(
+        _ = makePaymentEntry(
             amount: 40,
             datePaid: referenceDate,
             occurrenceDate: dueDate,
-            bill: bill
+            bill: bill,
+            calendar: calendar,
+            in: context
         )
-        context.insert(payment1)
-        context.insert(payment2)
         try context.save()
 
         let sut = BillOccurrenceProvider()
@@ -394,7 +398,7 @@ struct BillOccurrenceProviderTests {
         dueDate: Date,
         recurrence: RepeatIntervalType?
     ) throws -> Bill {
-        let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+        let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, RecurrenceRule.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = ModelContext(container)
@@ -417,7 +421,7 @@ struct BillOccurrenceProviderTests {
         dueDate: Date,
         recurrence: RepeatIntervalType?
     ) throws -> (bill: Bill, context: ModelContext) {
-        let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+        let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, RecurrenceRule.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = ModelContext(container)
@@ -441,7 +445,7 @@ struct BillOccurrenceProviderTests {
         recurrence: RepeatIntervalType?,
         endDate: Date
     ) throws -> (bill: Bill, context: ModelContext) {
-        let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+        let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, RecurrenceRule.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = ModelContext(container)

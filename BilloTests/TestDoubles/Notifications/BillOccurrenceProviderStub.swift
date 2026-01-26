@@ -30,13 +30,13 @@ final class BillOccurrenceProviderStub: BillOccurrenceProviding, @unchecked Send
             )
         )
 
-        let allowedBillIDs = Set(bills.map { String(describing: $0.persistentModelID) })
+        let allowedBillIDs = Set(bills.map(\.stableID))
         guard let horizonEnd = calendar.date(byAdding: .day, value: horizonDays, to: referenceDate) else {
             return []
         }
 
         return stubbedOccurrences.filter { occurrence in
-            allowedBillIDs.contains(String(describing: occurrence.bill.persistentModelID)) && occurrence.dueDate <= horizonEnd
+            allowedBillIDs.contains(occurrence.bill.stableID) && occurrence.dueDate <= horizonEnd
         }
     }
 

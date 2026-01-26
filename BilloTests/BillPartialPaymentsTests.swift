@@ -12,13 +12,13 @@ struct BillPartialPaymentsTests {
         let (bill, context) = try makeSUT(amount: 100)
         let occurrence = bill.dueDate
 
-        let payment = Payment(
+        _ = makePaymentEntry(
             amount: 50,
             datePaid: Date(),
             occurrenceDate: occurrence,
-            bill: bill
+            bill: bill,
+            in: context
         )
-        context.insert(payment)
         try context.save()
 
         #expect(bill.hasPayment(for: occurrence, calendar: .current))
@@ -31,10 +31,8 @@ struct BillPartialPaymentsTests {
         let (bill, context) = try makeSUT(amount: 100)
         let occurrence = bill.dueDate
 
-        let payment1 = Payment(amount: 60, datePaid: Date(), occurrenceDate: occurrence, bill: bill)
-        let payment2 = Payment(amount: 40, datePaid: Date(), occurrenceDate: occurrence, bill: bill)
-        context.insert(payment1)
-        context.insert(payment2)
+        _ = makePaymentEntry(amount: 60, datePaid: Date(), occurrenceDate: occurrence, bill: bill, in: context)
+        _ = makePaymentEntry(amount: 40, datePaid: Date(), occurrenceDate: occurrence, bill: bill, in: context)
         try context.save()
 
         #expect(bill.hasPayment(for: occurrence, calendar: .current))
@@ -47,8 +45,13 @@ struct BillPartialPaymentsTests {
         let (bill, context) = try makeSUT(amount: 100)
         let occurrence = bill.dueDate
 
-        let payment = Payment(amount: 150, datePaid: Date(), occurrenceDate: occurrence, bill: bill)
-        context.insert(payment)
+        _ = makePaymentEntry(
+            amount: 150,
+            datePaid: Date(),
+            occurrenceDate: occurrence,
+            bill: bill,
+            in: context
+        )
         try context.save()
 
         #expect(bill.hasPayment(for: occurrence, calendar: .current))
@@ -61,8 +64,13 @@ struct BillPartialPaymentsTests {
         let (bill, context) = try makeSUT(amount: 100)
         let occurrence = bill.dueDate
 
-        let payment = Payment(amount: 40, datePaid: Date(), occurrenceDate: occurrence, bill: bill)
-        context.insert(payment)
+        _ = makePaymentEntry(
+            amount: 40,
+            datePaid: Date(),
+            occurrenceDate: occurrence,
+            bill: bill,
+            in: context
+        )
         try context.save()
 
         let unpaid = bill.unpaidOccurrences(aroundDate: Date(), calendar: .current)
@@ -74,8 +82,13 @@ struct BillPartialPaymentsTests {
         let (bill, context) = try makeSUT(amount: 100)
         let occurrence = bill.dueDate
 
-        let payment = Payment(amount: 40, datePaid: Date(), occurrenceDate: occurrence, bill: bill)
-        context.insert(payment)
+        _ = makePaymentEntry(
+            amount: 40,
+            datePaid: Date(),
+            occurrenceDate: occurrence,
+            bill: bill,
+            in: context
+        )
         try context.save()
 
         let status = BillOccurrence(bill: bill, dueDate: occurrence)
@@ -88,8 +101,13 @@ struct BillPartialPaymentsTests {
         let (bill, context) = try makeSUT(amount: 100)
         let occurrence = bill.dueDate
 
-        let payment = Payment(amount: 100, datePaid: Date(), occurrenceDate: occurrence, bill: bill)
-        context.insert(payment)
+        _ = makePaymentEntry(
+            amount: 100,
+            datePaid: Date(),
+            occurrenceDate: occurrence,
+            bill: bill,
+            in: context
+        )
         try context.save()
 
         let unpaid = bill.unpaidOccurrences(aroundDate: Date(), calendar: .current)
@@ -101,7 +119,7 @@ struct BillPartialPaymentsTests {
 // MARK: - makeSUT & Factories
 
 private func makeSUT(amount: Decimal = 100) throws -> (Bill, ModelContext) {
-    let schema = Schema([Bill.self, Payment.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self])
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)

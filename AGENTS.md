@@ -71,6 +71,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - Do not mutate files outside the workspace root without explicit approval
 - Avoid destructive git operations unless the user requests them directly
 - When unsure or need to make a significant decision ASK the user for guidance
+- Early development phase: data migrations/backfills are not required; it's acceptable to delete the app and start with freshly created data. Still warn when a change would require migration/legacy handling in a production or beta scenario.
 
 ---
 

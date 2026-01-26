@@ -117,13 +117,14 @@ struct DotIndicatorTests {
         let calendar = utcCalendar()
         let context = try makeContext()
         let bill = makeBill(name: "Loan", amount: 100, dueDate: makeDate(year: 2025, month: 3, day: 1, calendar: calendar), in: context)
-        let payment = Payment(
+        let payment = makePaymentEntry(
             amount: 100,
             datePaid: bill.dueDate,
             occurrenceDate: bill.dueDate,
-            bill: bill
+            bill: bill,
+            calendar: calendar,
+            in: context
         )
-        context.insert(payment)
         let dayData = CalendarDayData(date: bill.dueDate, payments: [payment])
 
         let dots = DotIndicatorGenerator.dots(
@@ -141,7 +142,7 @@ struct DotIndicatorTests {
 
 @MainActor
 private func makeContext() throws -> ModelContext {
-    let schema = Schema([Bill.self, Payment.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     return ModelContext(container)

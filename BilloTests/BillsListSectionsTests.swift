@@ -70,11 +70,17 @@ struct BillsListSectionsTests {
             let referenceDate = makeDate(year: 2025, month: 1, day: 10)
 
             let bill = Bill(name: "Bill 1", amount: 100, dueDate: makeDate(year: 2025, month: 1, day: 1))
-            let payment = Payment(amount: 40, datePaid: referenceDate, occurrenceDate: bill.dueDate, bill: bill)
-            let container = try ModelContainer(for: Schema([Bill.self, Payment.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+            let container = try ModelContainer(for: Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
             let context = ModelContext(container)
             context.insert(bill)
-            context.insert(payment)
+            _ = makePaymentEntry(
+                amount: 40,
+                datePaid: referenceDate,
+                occurrenceDate: bill.dueDate,
+                bill: bill,
+                calendar: calendar,
+                in: context
+            )
             try context.save()
 
             let sections = BillsListSections.build(from: [bill], referenceDate: referenceDate, calendar: calendar)
@@ -179,12 +185,18 @@ struct BillsListSectionsTests {
             let referenceDate = makeDate(year: 2025, month: 1, day: 15)
 
             let bill = Bill(name: "Bill 1", amount: 100, dueDate: makeDate(year: 2025, month: 1, day: 10))
-            let payment = Payment(amount: 40, datePaid: referenceDate, occurrenceDate: bill.dueDate, bill: bill)
 
-            let container = try ModelContainer(for: Schema([Bill.self, Payment.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+            let container = try ModelContainer(for: Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
             let context = ModelContext(container)
             context.insert(bill)
-            context.insert(payment)
+            _ = makePaymentEntry(
+                amount: 40,
+                datePaid: referenceDate,
+                occurrenceDate: bill.dueDate,
+                bill: bill,
+                calendar: calendar,
+                in: context
+            )
             try context.save()
 
             let sections = BillsListSections.build(from: [bill], referenceDate: referenceDate, calendar: calendar)
@@ -548,6 +560,7 @@ private func makeBills(
     return (bills, referenceDate, calendar)
 }
 
+@MainActor
 private func makeBillsWithPayment(
     dueDays: [Int],
     amounts: [Decimal]? = nil,
@@ -555,7 +568,7 @@ private func makeBillsWithPayment(
     referenceDay: Int = 15
 ) throws -> ([Bill], Date, Calendar, ModelContext) {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(for: Bill.self, Payment.self, configurations: config)
+    let container = try ModelContainer(for: Bill.self, PaymentEntry.self, IssuedOccurrence.self, configurations: config)
     let modelContext = ModelContext(container)
 
     let calendar = Calendar.current
@@ -572,13 +585,14 @@ private func makeBillsWithPayment(
         modelContext.insert(bill)
 
         if paidIndices.contains(index) {
-            let payment = Payment(
+            _ = makePaymentEntry(
                 amount: bill.amount,
                 datePaid: referenceDate,
                 occurrenceDate: dueDate,
-                bill: bill
+                bill: bill,
+                calendar: calendar,
+                in: modelContext
             )
-            modelContext.insert(payment)
         }
 
         return bill

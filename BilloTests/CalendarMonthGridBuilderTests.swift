@@ -227,7 +227,7 @@ private func makeDate(year: Int, month: Int, day: Int, calendar: Calendar) -> Da
 
 private func makeContext() throws -> ModelContext {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(for: Bill.self, Payment.self, configurations: config)
+    let container = try ModelContainer(for: Bill.self, PaymentEntry.self, IssuedOccurrence.self, configurations: config)
     return ModelContext(container)
 }
 
@@ -248,16 +248,14 @@ private func makeBill(name: String, dueDate: Date, in context: ModelContext) -> 
     return bill
 }
 
+@MainActor
 @discardableResult
-private func makePayment(amount: Decimal, paid date: Date, occurrence: Date, bill: Bill, in context: ModelContext) -> Payment {
-    let payment = Payment(
+private func makePayment(amount: Decimal, paid date: Date, occurrence: Date, bill: Bill, in context: ModelContext) -> PaymentEntry {
+    makePaymentEntry(
         amount: amount,
         datePaid: date,
         occurrenceDate: occurrence,
-        confirmationNumber: nil,
-        notes: nil,
-        bill: bill
+        bill: bill,
+        in: context
     )
-    context.insert(payment)
-    return payment
 }

@@ -97,7 +97,7 @@ struct BillEditView: View {
                         frequency: $draftFrequency,
                         dayOfWeek: $draftDayOfWeek,
                         dayOfMonth: $draftDayOfMonth,
-                        anchorDate: dueDate
+                        anchorDate: $dueDate
                     )
 
                     if selectedRecurrencePreset != .none {
@@ -175,6 +175,7 @@ struct BillEditView: View {
                     try await billsModel.addBill(bill)
 
                 case .editing(let bill):
+                    let preEditSnapshot = BillSnapshot(bill: bill)
                     bill.name = name
                     bill.amount = amount
                     bill.dueDate = dueDate
@@ -186,13 +187,13 @@ struct BillEditView: View {
 
                     bill.recurrenceRule = buildRecurrenceRule()
 
-                    try await billsModel.updateBill(bill)
+                    try await billsModel.updateBill(bill, preEditSnapshot: preEditSnapshot)
                 }
 
                 dismiss()
             } catch {
                 saveErrorMessage = error.localizedDescription
-                print("Failed to save bill: \(error)")
+                Logger.log("Failed to save bill: \(error)", level: .error)
             }
         }
     }

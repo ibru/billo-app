@@ -21,9 +21,11 @@ enum NotificationActionError: LocalizedError {
 }
 
 struct NotificationActionHandler: Sendable {
+    private let calendar: Calendar
     private let badgeCalculator: BadgeCalculator
 
     init(calendar: Calendar = .current) {
+        self.calendar = calendar
         self.badgeCalculator = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
     }
 
@@ -38,7 +40,7 @@ struct NotificationActionHandler: Sendable {
         // 1. Parse identifier
         guard let parsed = NotificationIdentifier.parse(notificationIdentifier) else {
             // Stale or invalid notification - ignore silently
-            print("[Notifications] Invalid identifier, ignoring: \(notificationIdentifier)")
+            Logger.log("Invalid identifier, ignoring: \(notificationIdentifier)", level: .warning)
             return
         }
 
@@ -47,15 +49,14 @@ struct NotificationActionHandler: Sendable {
         let descriptor = FetchDescriptor<Bill>()
 
         guard let bills = try? context.fetch(descriptor) else {
-            print("[Notifications] Failed to fetch bills")
+            Logger.log("Failed to fetch bills", level: .error)
             return
         }
 
         let billIDHash = parsed.billIDHash
         var foundBill: Bill?
         for b in bills {
-            // Create hash from PersistentIdentifier string representation
-            let hash = NotificationIdentifier.shortHash(of: String(describing: b.persistentModelID))
+            let hash = NotificationIdentifier.shortHash(of: b.stableID)
             if hash == billIDHash {
                 foundBill = b
                 break
@@ -64,12 +65,13 @@ struct NotificationActionHandler: Sendable {
 
         guard let bill = foundBill else {
             // Bill was deleted - graceful no-op
-            print("[Notifications] Bill not found (may have been deleted), ignoring")
+            Logger.log("Bill not found (may have been deleted), ignoring", level: .info)
             return
         }
 
         // 3. Record payment
         let occurrenceDate = Date(timeIntervalSinceReferenceDate: TimeInterval(parsed.occurrenceTimestamp))
+        let expectedAmount = bill.expectedAmount(for: occurrenceDate, calendar: calendar)
 
         let recorder = PaymentRecorder()
 
@@ -77,9 +79,10 @@ struct NotificationActionHandler: Sendable {
             _ = try await recorder.recordPayment(
                 for: bill,
                 occurrenceDate: occurrenceDate,
-                amount: bill.amount,
+                amount: expectedAmount,
                 datePaid: Date(),
                 confirmationNumber: nil,
+                calendar: calendar,
                 context: context,
                 notificationCoordinator: notificationCoordinator,
                 badgeCalculator: badgeCalculator,
@@ -88,7 +91,7 @@ struct NotificationActionHandler: Sendable {
                 currentDate: { Date() }
             )
         } catch {
-            print("[Notifications] Failed to record payment: \(error)")
+            Logger.log("Failed to record payment: \(error)", level: .error)
             return
         }
     }

@@ -16,7 +16,8 @@ struct BilloApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Bill.self,
-            Payment.self,
+            PaymentEntry.self,
+            IssuedOccurrence.self,
             RecurrenceRule.self,
             Income.self,
             CustomCategory.self,
@@ -41,6 +42,7 @@ struct BilloApp: App {
     @State private var appSettingsModel: AppSettingsModel?
     @State private var appFlowModel: AppFlowModel?
     @State private var storeKitManager: StoreKitManager?
+    @State private var didInitialNotificationRefresh = false
     private let notificationDelegate = NotificationDelegate()
     private let appNotificationRefresher = AppNotificationRefresher()
 
@@ -136,20 +138,19 @@ struct BilloApp: App {
                         appSettingsModel = settings
                         appFlowModel = flow
                         storeKitManager = storeKit
-
-                        Task { @MainActor in
-                            await Task.yield()
-                            await appNotificationRefresher.refreshAndReschedule(
-                                billsModel: bills,
-                                coordinator: coordinator,
-                                // Bills were just refreshed above; avoid an immediate second fetch.
-                                refreshBills: false
-                            )
-                        }
                     }
             }
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: billsModel != nil) { _, isReady in
+            // Initial notification refresh when app state becomes ready.
+            // Bills already refreshed in setup task, so skip redundant refresh.
+            guard isReady, !didInitialNotificationRefresh else { return }
+            didInitialNotificationRefresh = true
+            Task { @MainActor in
+                await refreshNotificationsIfReady(refreshBills: false)
+            }
+        }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .active {
                 handleAppBecameActive()
@@ -161,12 +162,21 @@ struct BilloApp: App {
         Logger.log("App became active, refreshing notifications", level: .debug)
         guard let billsModel, let notificationCoordinator else { return }
 
+        // Skip initial launch - onChange(of: billsModel) handles it
+        guard didInitialNotificationRefresh else { return }
+
         Task { @MainActor in
-            await appNotificationRefresher.refreshAndReschedule(
-                billsModel: billsModel,
-                coordinator: notificationCoordinator
-            )
+            await refreshNotificationsIfReady()
         }
+    }
+
+    private func refreshNotificationsIfReady(refreshBills: Bool = true) async {
+        guard let billsModel, let notificationCoordinator else { return }
+        await appNotificationRefresher.refreshAndReschedule(
+            billsModel: billsModel,
+            coordinator: notificationCoordinator,
+            refreshBills: refreshBills
+        )
     }
 
     private func registerNotificationCategories() {

@@ -84,8 +84,8 @@ final class BillModel {
         }
     }
 
-    var paymentsSortedDescending: [Payment] {
-        bill.safePayments.sorted { $0.datePaid > $1.datePaid }
+    var paymentsSortedDescending: [PaymentEntry] {
+        bill.allPaymentEntries.sorted { $0.datePaid > $1.datePaid }
     }
 
     var recurrenceDescription: String? {
@@ -193,11 +193,6 @@ final class BillModel {
 
     func deleteBill() throws {
         modelContext.delete(bill)
-        try modelContext.save()
-    }
-
-    func deletePayment(_ payment: Payment) throws {
-        modelContext.delete(payment)
         try modelContext.save()
     }
 

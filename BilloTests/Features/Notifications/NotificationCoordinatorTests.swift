@@ -449,7 +449,7 @@ struct NotificationCoordinatorTests {
             let (sut, center, _) = makeSUT()
             center.pendingNotifications = [targetReminderEarly, targetReminderLate, unrelatedReminder]
 
-            await sut.cancelAllReminders(forBillID: String(describing: targetOccurrence.bill.persistentModelID))
+            await sut.cancelAllReminders(forBillID: targetOccurrence.bill.stableID)
 
             #expect(Set(center.allRemovedIdentifiers) == Set([targetReminderEarly.identifier, targetReminderLate.identifier]))
             #expect(center.pendingNotifications.map(\.identifier) == [unrelatedReminder.identifier])
@@ -466,7 +466,7 @@ struct NotificationCoordinatorTests {
             center.pendingNotifications = [existingReminder]
 
             try await sut.rescheduleReminders(
-                forBillID: String(describing: existingOccurrence.bill.persistentModelID),
+                forBillID: existingOccurrence.bill.stableID,
                 newOccurrences: [newOccurrence]
             )
 
@@ -475,7 +475,7 @@ struct NotificationCoordinatorTests {
             let scheduledReminders = center.addedRequests.filter { $0.identifier.hasPrefix("billo.r.") }
             let expectedPrefix = NotificationIdentifier.prefix(
                 forBillIDHash: NotificationIdentifier.shortHash(
-                    of: String(describing: newOccurrence.bill.persistentModelID)
+                    of: newOccurrence.bill.stableID
                 )
             )
 
@@ -492,7 +492,7 @@ struct NotificationCoordinatorTests {
             center.pendingNotifications = [existingReminder]
 
             try await sut.rescheduleReminders(
-                forBillID: String(describing: occurrence.bill.persistentModelID),
+                forBillID: occurrence.bill.stableID,
                 newOccurrences: [occurrence]
             )
 
@@ -569,13 +569,19 @@ private func makeOccurrence(
     currency: String = "USD",
     amount: Decimal = 100
 ) -> BillOccurrence {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Bill.self, PaymentEntry.self, IssuedOccurrence.self, configurations: config)
+    let context = ModelContext(container)
+
     let bill = Bill(
         name: name,
         amount: amount,
         currencyCode: currency,
         dueDate: dueDate
     )
-    return BillOccurrence(bill: bill, dueDate: dueDate)
+    context.insert(bill)
+    try? context.save()
+    return BillOccurrence(bill: bill, dueDate: dueDate, calendar: testCalendar)
 }
 
 @MainActor
@@ -595,7 +601,7 @@ private func makeOccurrences(count: Int, dueDate: Date) -> [BillOccurrence] {
 
 @MainActor
 private func makeReminderRequest(for occurrence: BillOccurrence, offsetDays: Int) -> UNNotificationRequest {
-    let billIDString = String(describing: occurrence.bill.persistentModelID)
+    let billIDString = occurrence.bill.stableID
     let identifier = NotificationIdentifier(
         billIDHash: NotificationIdentifier.shortHash(of: billIDString),
         occurrenceTimestamp: Int(occurrence.dueDate.timeIntervalSinceReferenceDate),

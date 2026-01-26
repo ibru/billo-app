@@ -8,19 +8,19 @@ struct PaymentRowView: View {
         case checkmark
     }
 
-    let payment: Payment
+    let payment: PaymentEntry
     let customCategories: [CustomCategory]
     var leadingIconStyle: LeadingIconStyle = .category
     var accentColor: Color? = nil
     var showsChevron: Bool = false
 
     private var categoryInfo: CategoryDisplayInfo? {
-        guard let bill = payment.bill else { return nil }
-        return CategoryCatalog.displayInfo(for: bill.categoryIdentifier, customCategories: customCategories)
+        guard let categoryIdentifier = payment.snapshotCategoryIdentifier else { return nil }
+        return CategoryCatalog.displayInfo(for: categoryIdentifier, customCategories: customCategories)
     }
 
     private var currencyCode: String {
-        payment.bill?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+        payment.snapshotCurrencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
     private var amountColor: Color {
@@ -36,7 +36,7 @@ struct PaymentRowView: View {
 	            leadingIcon
 	
 	            VStack(alignment: .leading, spacing: 2) {
-	                if let billName = payment.bill?.name {
+	                if let billName = payment.snapshotName {
 	                    Text(billName)
 	                        .font(.subheadline.weight(accentColor == nil ? .regular : .semibold))
 	                        .foregroundStyle(nameColor)
@@ -93,7 +93,7 @@ struct PaymentRowView: View {
     }
 
     private var accessibilityLabel: String {
-        let name = payment.bill?.name ?? String(localized: "Payment")
+        let name = payment.snapshotName ?? String(localized: "Payment")
         let dateString = payment.datePaid.formatted(.dateTime.month().day().year())
         return String(
             localized: "\(name), paid on \(dateString)",

@@ -5,10 +5,10 @@ import SwiftData
 
 struct BillOccurrence: Identifiable, Hashable {
     struct OccurrenceID: Hashable {
-        let billID: PersistentIdentifier
+        let billID: String
         let dueTime: TimeInterval
 
-        init(billID: PersistentIdentifier, dueDate: Date) {
+        init(billID: String, dueDate: Date) {
             self.billID = billID
             self.dueTime = dueDate.timeIntervalSinceReferenceDate
         }
@@ -17,11 +17,27 @@ struct BillOccurrence: Identifiable, Hashable {
     let id: OccurrenceID
     let bill: Bill
     let dueDate: Date
+    private let calendar: Calendar
 
-    var amount: Decimal { bill.amount }
-    var name: String { bill.name }
-    var categoryIdentifier: CategoryIdentifier? { bill.categoryIdentifier }
-    var currencyCode: String { bill.currencyCode }
+    @MainActor
+    var amount: Decimal {
+        bill.snapshot(for: dueDate, calendar: calendar)?.amount ?? bill.amount
+    }
+
+    @MainActor
+    var name: String {
+        bill.snapshot(for: dueDate, calendar: calendar)?.name ?? bill.name
+    }
+
+    @MainActor
+    var categoryIdentifier: CategoryIdentifier? {
+        bill.snapshot(for: dueDate, calendar: calendar)?.categoryIdentifier ?? bill.categoryIdentifier
+    }
+
+    @MainActor
+    var currencyCode: String {
+        bill.snapshot(for: dueDate, calendar: calendar)?.currencyCode ?? bill.currencyCode
+    }
 
     enum CountdownUnit: Equatable {
         case days
@@ -56,16 +72,17 @@ struct BillOccurrence: Identifiable, Hashable {
         }
     }
 
-    init(bill: Bill, dueDate: Date) {
+    init(bill: Bill, dueDate: Date, calendar: Calendar = .current) {
         self.bill = bill
         self.dueDate = dueDate
-        self.id = OccurrenceID(billID: bill.persistentModelID, dueDate: dueDate)
+        self.calendar = calendar
+        self.id = OccurrenceID(billID: bill.stableID, dueDate: dueDate)
     }
 
     @MainActor
     func status(relativeTo date: Date, calendar: Calendar) -> BillStatus {
         let total = bill.totalPaid(for: dueDate, calendar: calendar)
-        if total >= bill.amount { return .paid }
+        if total >= bill.expectedAmount(for: dueDate, calendar: calendar) { return .paid }
 
         let hasPartial = total > 0
         let comparisonResult = calendar.compare(dueDate, to: date, toGranularity: .day)

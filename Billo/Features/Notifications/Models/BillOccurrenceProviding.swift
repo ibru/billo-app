@@ -167,12 +167,12 @@ struct BillOccurrenceProvider: BillOccurrenceProviding {
 
         return await MainActor.run {
             let billsByID = Dictionary(
-                uniqueKeysWithValues: bills.map { (String(describing: $0.persistentModelID), $0) }
+                uniqueKeysWithValues: bills.map { ($0.stableID, $0) }
             )
 
             return seeds.compactMap { seed in
                 guard let bill = billsByID[seed.billIDString] else { return nil }
-                return BillOccurrence(bill: bill, dueDate: seed.dueDate)
+                return BillOccurrence(bill: bill, dueDate: seed.dueDate, calendar: calendar)
             }
         }
     }
@@ -191,7 +191,7 @@ struct BillOccurrenceProvider: BillOccurrenceProviding {
 
         @MainActor
         init(from bill: Bill, calendar: Calendar) {
-            self.billIDString = String(describing: bill.persistentModelID)
+            self.billIDString = bill.stableID
             self.dueDate = bill.dueDate
 
             if let rule = bill.recurrenceRule {
@@ -211,15 +211,21 @@ struct BillOccurrenceProvider: BillOccurrenceProviding {
             // Extract fully paid occurrence dates upfront (SwiftData relationship access is @MainActor).
             // We store start-of-day time intervals for quick lookup on background threads.
             var paymentsByOccurrenceStartOfDay: [TimeInterval: Decimal] = [:]
-            for payment in bill.safePayments {
+            var occurrenceDateByDayTime: [TimeInterval: Date] = [:]
+            for payment in bill.allPaymentEntries {
                 let occurrenceDay = calendar.startOfDay(for: payment.occurrenceDate)
                 let key = occurrenceDay.timeIntervalSinceReferenceDate
                 paymentsByOccurrenceStartOfDay[key, default: 0] += payment.amount
+                occurrenceDateByDayTime[key, default: payment.occurrenceDate] = payment.occurrenceDate
             }
 
             var fullyPaid = Set<TimeInterval>()
-            for (dayTime, totalPaid) in paymentsByOccurrenceStartOfDay where totalPaid >= bill.amount {
-                fullyPaid.insert(dayTime)
+            for (dayTime, totalPaid) in paymentsByOccurrenceStartOfDay {
+                let occurrenceDate = occurrenceDateByDayTime[dayTime] ?? Date(timeIntervalSinceReferenceDate: dayTime)
+                let expectedAmount = bill.expectedAmount(for: occurrenceDate, calendar: calendar)
+                if totalPaid >= expectedAmount {
+                    fullyPaid.insert(dayTime)
+                }
             }
             self.fullyPaidOccurrenceStartOfDayTimes = fullyPaid
         }

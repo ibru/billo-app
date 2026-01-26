@@ -515,7 +515,7 @@ private func makeSUT(
 ) throws -> (ChartsModel, ModelContext) {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(
-        for: Bill.self, Income.self, Payment.self, RecurrenceRule.self,
+        for: Bill.self, Income.self, PaymentEntry.self, RecurrenceRule.self,
         configurations: config
     )
     let context = ModelContext(container)

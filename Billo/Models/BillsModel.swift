@@ -66,6 +66,7 @@ final class BillsModel {
             amount: amount ?? occurrence.amount,
             datePaid: date ?? currentDate(),
             confirmationNumber: confirmationNumber,
+            calendar: calendar,
             context: modelContext,
             notificationCoordinator: notificationCoordinator,
             badgeCalculator: badgeCalculator,
@@ -88,20 +89,48 @@ final class BillsModel {
 
     func markUnpaid(_ occurrence: BillOccurrence) async throws {
         Logger.log("Marking unpaid: \(occurrence.name), occurrence: \(occurrence.dueDate)", level: .info)
-        let payments = occurrence.bill.safePayments.filter { payment in
-            calendar.isDate(payment.occurrenceDate, inSameDayAs: occurrence.dueDate)
-        }
+        let issued = occurrence.bill.issuedOccurrence(for: occurrence.dueDate, calendar: calendar)
+        let payments = issued?.safePaymentEntries ?? []
 
         for payment in payments {
             modelContext.delete(payment)
         }
+
+        if let issued, payments.isEmpty == false {
+            let todayStart = calendar.startOfDay(for: currentDate())
+            let dueStart = calendar.startOfDay(for: issued.dueDate)
+            if dueStart > todayStart {
+                modelContext.delete(issued)
+            }
+        }
         try modelContext.save()
 
-        // Reschedule and update badge
-        try? await notificationCoordinator.scheduleReminders(for: [occurrence])
-        let unpaidCount = calculateUnpaidCount()
-        await notificationCoordinator.updateBadge(unpaidCount: unpaidCount)
+        // Refresh data first, then recalculate badge with fresh state
+        try refresh()
+        await refreshNotifications()
+    }
 
+    /// Deletes a payment entry and refreshes notifications/badge.
+    /// Use this centralized method instead of direct modelContext.delete() to ensure
+    /// notifications and badge counts stay in sync.
+    func deletePaymentEntry(_ payment: PaymentEntry) async throws {
+        Logger.log("Deleting payment entry: \(payment.amount) paid on \(payment.datePaid)", level: .info)
+
+        let issued = payment.issuedOccurrence
+        let remainingPayments = issued?.safePaymentEntries.filter { $0 !== payment } ?? []
+
+        modelContext.delete(payment)
+
+        // If no remaining payments and due date is in the future, delete the IssuedOccurrence
+        if let issued, remainingPayments.isEmpty {
+            let todayStart = calendar.startOfDay(for: currentDate())
+            let dueStart = calendar.startOfDay(for: issued.dueDate)
+            if dueStart > todayStart {
+                modelContext.delete(issued)
+            }
+        }
+
+        try modelContext.save()
         try refresh()
         await refreshNotifications()
     }
@@ -114,7 +143,10 @@ final class BillsModel {
         await refreshNotifications()
     }
 
-    func updateBill(_ bill: Bill) async throws {
+    func updateBill(_ bill: Bill, preEditSnapshot: BillSnapshot? = nil) async throws {
+        if let preEditSnapshot {
+            try issuePastDueOccurrencesIfNeeded(for: bill, preEditSnapshot: preEditSnapshot)
+        }
         try modelContext.save()
         try refresh()
         await refreshNotifications()
@@ -157,6 +189,50 @@ final class BillsModel {
             try await notificationCoordinator.refreshAllNotifications(for: bills)
         } catch {
             Logger.log("Failed to refresh notifications: \(error)", level: .error)
+        }
+    }
+
+    private func issuePastDueOccurrencesIfNeeded(
+        for bill: Bill,
+        preEditSnapshot: BillSnapshot
+    ) throws {
+        let todayStart = calendar.startOfDay(for: currentDate())
+        let pastOccurrences = preEditSnapshot.generateOccurrences(until: todayStart, calendar: calendar)
+            .filter { $0 < todayStart }
+
+        guard pastOccurrences.isEmpty == false else { return }
+
+        // Skip already-paid occurrences since issued snapshots hold payment history
+        let fullyPaidDates = Set(
+            bill.safeIssuedOccurrences
+                .filter { bill.isFullyPaid(for: $0.dueDate, calendar: calendar) }
+                .map { calendar.startOfDay(for: $0.dueDate) }
+        )
+
+        let existingKeys = Set(bill.safeIssuedOccurrences.map(\.occurrenceKey))
+        var insertedKeys = Set<String>()
+
+        for dueDate in pastOccurrences {
+            let dayStart = calendar.startOfDay(for: dueDate)
+            // Skip if already fully paid
+            if fullyPaidDates.contains(dayStart) { continue }
+
+            let key = preEditSnapshot.occurrenceKey(for: dueDate, calendar: calendar)
+            if existingKeys.contains(key) || insertedKeys.contains(key) { continue }
+
+            let issued = IssuedOccurrence(
+                occurrenceKey: key,
+                dueDate: dueDate,
+                billName: preEditSnapshot.name,
+                billAmount: preEditSnapshot.amount,
+                billCurrencyCode: preEditSnapshot.currencyCode,
+                billAccountIdentifier: preEditSnapshot.accountIdentifier,
+                billNotes: preEditSnapshot.notes,
+                billCategoryRawValue: preEditSnapshot.categoryIdentifierRawValue,
+                bill: bill
+            )
+            modelContext.insert(issued)
+            insertedKeys.insert(key)
         }
     }
 }

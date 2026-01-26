@@ -243,7 +243,7 @@ private final class TestContext {
     init() throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
-            for: Bill.self, Payment.self, RecurrenceRule.self, Income.self, CustomCategory.self, AppSettings.self,
+            for: Bill.self, PaymentEntry.self, RecurrenceRule.self, Income.self, CustomCategory.self, AppSettings.self,
             configurations: config
         )
         self.modelContext = ModelContext(container)
@@ -300,16 +300,14 @@ private final class TestContext {
         for bill: Bill,
         amount: Decimal = Decimal(Int.random(in: 10...500)),
         datePaid: Date = Date()
-    ) -> Payment {
-        let payment = Payment(
+    ) -> PaymentEntry {
+        let payment = makePaymentEntry(
             amount: amount,
             datePaid: datePaid,
             occurrenceDate: bill.dueDate,
-            confirmationNumber: nil,
-            notes: nil,
-            bill: bill
+            bill: bill,
+            in: modelContext
         )
-        modelContext.insert(payment)
         try? modelContext.save()
         return payment
     }

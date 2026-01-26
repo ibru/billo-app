@@ -43,7 +43,7 @@ struct BillModelRecurrenceDescriptionTests {
 
 @MainActor
 private func makeSUT(recurrenceRule: RecurrenceRule) throws -> BillModel {
-    let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, RecurrenceRule.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     let modelContext = ModelContext(container)

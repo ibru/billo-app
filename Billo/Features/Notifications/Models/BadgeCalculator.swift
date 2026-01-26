@@ -55,7 +55,7 @@ struct BadgeCalculator: Sendable, BadgeCalculating {
             )
             .filter { $0 <= horizonEnd }  // Keep occurrences within horizon (includes overdue)
 
-            allOccurrences.append(contentsOf: unpaidDates.map { BillOccurrence(bill: bill, dueDate: $0) })
+            allOccurrences.append(contentsOf: unpaidDates.map { BillOccurrence(bill: bill, dueDate: $0, calendar: calendar) })
         }
 
         // Filter by badge window

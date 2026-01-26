@@ -97,7 +97,7 @@ struct AppNotificationRefresherTests {
         dueDate: Date,
         recurrence: RepeatIntervalType? = nil
     ) throws -> (bill: Bill, billIDString: String) {
-        let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+        let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, RecurrenceRule.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = ModelContext(container)
@@ -113,7 +113,7 @@ struct AppNotificationRefresherTests {
         context.insert(bill)
         try context.save()
 
-        return (bill, String(describing: bill.persistentModelID))
+        return (bill, bill.stableID)
     }
 
     private func makeDate(year: Int, month: Int, day: Int) -> Date {
@@ -121,7 +121,7 @@ struct AppNotificationRefresherTests {
     }
 
     private func billIDStrings(_ bills: [Bill]) -> [String] {
-        bills.map { String(describing: $0.persistentModelID) }
+        bills.map(\.stableID)
     }
 }
 

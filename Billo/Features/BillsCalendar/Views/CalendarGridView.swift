@@ -436,12 +436,22 @@ private struct CalendarDayCell: View {
             if let fiveDaysAgo = calendar.date(byAdding: .day, value: -5, to: today) {
                 let fiveDaysAgoStart = calendar.startOfDay(for: fiveDaysAgo)
                 if calendar.isDate(fiveDaysAgoStart, equalTo: monthStart, toGranularity: .month) {
-	                    let payment = Payment(
+	                    let issued = IssuedOccurrence(
+	                        occurrenceKey: sampleBill.occurrenceKey(for: fiveDaysAgoStart, calendar: calendar),
+	                        dueDate: fiveDaysAgoStart,
+	                        billName: sampleBill.name,
+	                        billAmount: sampleBill.amount,
+	                        billCurrencyCode: sampleBill.currencyCode,
+	                        billAccountIdentifier: sampleBill.accountIdentifier,
+	                        billNotes: sampleBill.notes,
+	                        billCategoryRawValue: sampleBill.categoryIdentifier?.rawValue,
+	                        bill: sampleBill
+	                    )
+	                    let payment = PaymentEntry(
 	                        amount: 50,
 	                        datePaid: fiveDaysAgoStart,
-	                        occurrenceDate: fiveDaysAgoStart,
 	                        confirmationNumber: nil,
-	                        bill: sampleBill
+	                        issuedOccurrence: issued
 	                    )
 	                    data[fiveDaysAgoStart] = CalendarDayData(
 	                        date: fiveDaysAgoStart,

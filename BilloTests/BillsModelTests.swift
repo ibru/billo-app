@@ -59,7 +59,7 @@ struct BillsModelTests {
 
             try await sut.markPaid(occurrence)
 
-            let payments = try modelContext.fetch(FetchDescriptor<Payment>())
+            let payments = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
             #expect(payments.count == 1)
             #expect(payments.first?.bill?.id == bills[0].id)
             #expect(payments.first?.occurrenceDate == occurrence.dueDate)
@@ -73,8 +73,49 @@ struct BillsModelTests {
 
             try await sut.markPaid(occurrence)
 
-            #expect(bills[0].payments?.count == 1)
-            #expect(bills[0].payments?[0].amount == bills[0].amount)
+            #expect(bills[0].allPaymentEntries.count == 1)
+            #expect(bills[0].allPaymentEntries.first?.amount == bills[0].amount)
+        }
+
+        @Test func whenMarkingOccurrencePaid_thenPaymentSnapshotsBillData() async throws {
+            let (sut, bills, modelContext, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let bill = bills[0]
+            let occurrence = makeOccurrence(for: bill)
+
+            try await sut.markPaid(occurrence)
+
+            let issuedOccurrences = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            let issued = issuedOccurrences.first
+
+            #expect(issued?.billName == bill.name)
+            #expect(issued?.billAmount == bill.amount)
+            #expect(issued?.billCurrencyCode == bill.currencyCode)
+        }
+
+        @Test func whenBillUpdatedAfterPayment_thenOccurrenceUsesPaymentSnapshot() async throws {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+            let (sut, bills, _, _, _) = try makeSUT(
+                billCount: 1,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+            try sut.refresh()
+
+            let bill = bills[0]
+            let occurrence = makeOccurrence(for: bill)
+
+            try await sut.markPaid(occurrence)
+
+            bill.amount = 150
+            try await sut.updateBill(bill)
+
+            let updatedOccurrence = BillOccurrence(bill: bill, dueDate: occurrence.dueDate, calendar: calendar)
+            #expect(updatedOccurrence.amount == 100)
         }
 
         @Test func whenMarkingPaidWithCustomAmount_thenUsesCustomAmount() async throws {
@@ -86,7 +127,7 @@ struct BillsModelTests {
 
             try await sut.markPaid(occurrence, amount: customAmount)
 
-            #expect(bills[0].payments?[0].amount == customAmount)
+            #expect(bills[0].allPaymentEntries.first?.amount == customAmount)
         }
 
         @Test func whenMarkingPaidWithConfirmation_thenStoresConfirmationNumber() async throws {
@@ -97,7 +138,7 @@ struct BillsModelTests {
 
             try await sut.markPaid(occurrence, confirmationNumber: "CONF123")
 
-            #expect(bills[0].payments?[0].confirmationNumber == "CONF123")
+            #expect(bills[0].allPaymentEntries.first?.confirmationNumber == "CONF123")
         }
 
         @Test func whenMarkingPaid_thenRefreshesSections() async throws {
@@ -153,7 +194,20 @@ struct BillsModelTests {
 
             try await sut.markUnpaid(occurrence)
 
-            #expect(bills[0].payments?.isEmpty == true)
+            #expect(bills[0].allPaymentEntries.isEmpty)
+        }
+
+        @Test func whenMarkingFutureOccurrenceUnpaid_thenRemovesIssuedOccurrence() async throws {
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
+            #expect(bills[0].safeIssuedOccurrences.isEmpty == false)
+
+            try await sut.markUnpaid(occurrence)
+
+            #expect(bills[0].safeIssuedOccurrences.isEmpty)
         }
 
         @Test func whenMarkingUnpaid_thenRefreshesSections() async throws {
@@ -184,7 +238,7 @@ struct BillsModelTests {
             #expect(sut.sections.monthlyTotals.remaining == bills[0].amount)
         }
 
-        @Test func whenMarkingUnpaid_thenSchedulesRemindersAndUpdatesBadge() async throws {
+        @Test func whenMarkingUnpaid_thenRefreshesNotifications() async throws {
             let (sut, bills, _, coordinator, _) = try makeSUT(billCount: 1)
             try sut.refresh()
 
@@ -194,8 +248,7 @@ struct BillsModelTests {
 
             try await sut.markUnpaid(occurrence)
 
-            #expect(coordinator.scheduleRemindersCalls.last?.contains(where: { $0.id == occurrence.id }) == true)
-            #expect(coordinator.updateBadgeCalls.last == 1)
+            // markUnpaid now uses full refresh instead of individual schedule/badge calls
             #expect(coordinator.refreshAllNotificationsCalls.count == initialRefreshCount + 1)
         }
     }
@@ -233,6 +286,166 @@ struct BillsModelTests {
 
             #expect(coordinator.refreshAllNotificationsCalls.count == 1)
         }
+
+        @Test func whenDeletingBill_thenNullifiesIssuedOccurrencesBillReferenceButPreservesPaymentHistory() async throws {
+            let (sut, bills, modelContext, _, _) = try makeSUT(billCount: 1)
+            let bill = bills[0]
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+            let datePaid = bill.dueDate
+
+            _ = makePaymentEntry(
+                amount: bill.amount,
+                datePaid: datePaid,
+                occurrenceDate: bill.dueDate,
+                bill: bill,
+                calendar: calendar,
+                in: modelContext
+            )
+            try modelContext.save()
+
+            let issuedBefore = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            let paymentsBefore = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
+            #expect(issuedBefore.count == 1)
+            #expect(paymentsBefore.count == 1)
+
+            try await sut.deleteBill(bill)
+
+            // With .nullify delete rule, IssuedOccurrences and PaymentEntries are preserved for history
+            let issuedAfter = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            let paymentsAfter = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
+            #expect(issuedAfter.count == 1)
+            #expect(paymentsAfter.count == 1)
+            // But the bill reference is nil (orphaned)
+            #expect(issuedAfter.first?.bill == nil)
+        }
+    }
+
+    @MainActor
+    @Suite("deletePaymentEntry")
+    struct DeletePaymentEntry {
+        @Test func whenDeletingPayment_thenRemovesFromModelContext() async throws {
+            let (sut, bills, modelContext, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
+
+            let paymentsBefore = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
+            #expect(paymentsBefore.count == 1)
+
+            let payment = paymentsBefore[0]
+            try await sut.deletePaymentEntry(payment)
+
+            let paymentsAfter = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
+            #expect(paymentsAfter.isEmpty)
+        }
+
+        @Test func whenDeletingPayment_thenRefreshesNotifications() async throws {
+            let (sut, bills, _, coordinator, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
+            let initialRefreshCount = coordinator.refreshAllNotificationsCalls.count
+
+            let payment = bills[0].allPaymentEntries.first!
+            try await sut.deletePaymentEntry(payment)
+
+            #expect(coordinator.refreshAllNotificationsCalls.count == initialRefreshCount + 1)
+        }
+
+        @Test func whenDeletingPaymentForFutureOccurrence_thenRemovesIssuedOccurrence() async throws {
+            let (sut, bills, modelContext, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
+
+            let issuedBefore = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            #expect(issuedBefore.count == 1)
+
+            let payment = bills[0].allPaymentEntries.first!
+            try await sut.deletePaymentEntry(payment)
+
+            let issuedAfter = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            #expect(issuedAfter.isEmpty)
+        }
+
+        @Test func whenDeletingPaymentForPastOccurrence_thenKeepsIssuedOccurrence() async throws {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+            let referenceDate = makeDate(year: 2025, month: 1, day: 20)
+            let (sut, _, modelContext, _, _) = try makeSUT(
+                billCount: 0,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            // Create bill with past due date
+            let pastDueDate = makeDate(year: 2025, month: 1, day: 10)
+            let bill = Bill(name: "Past Bill", amount: 100, dueDate: pastDueDate)
+            modelContext.insert(bill)
+            try modelContext.save()
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bill, dueDate: pastDueDate)
+            try await sut.markPaid(occurrence)
+
+            let issuedBefore = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            #expect(issuedBefore.count == 1)
+
+            let payment = bill.allPaymentEntries.first!
+            try await sut.deletePaymentEntry(payment)
+
+            // Past occurrence should keep IssuedOccurrence for historical snapshot
+            let issuedAfter = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            #expect(issuedAfter.count == 1)
+        }
+
+        @Test func whenDeletingPartialPayment_thenKeepsRemainingPayments() async throws {
+            let (sut, bills, modelContext, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let bill = bills[0]
+            let occurrence = makeOccurrence(for: bill)
+
+            // Make two partial payments
+            try await sut.markPaid(occurrence, amount: 50)
+            try await sut.markPaid(occurrence, amount: 30)
+
+            let paymentsBefore = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
+            #expect(paymentsBefore.count == 2)
+
+            // Delete one payment
+            let paymentToDelete = paymentsBefore[0]
+            try await sut.deletePaymentEntry(paymentToDelete)
+
+            let paymentsAfter = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
+            #expect(paymentsAfter.count == 1)
+
+            let issuedAfter = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            #expect(issuedAfter.count == 1)
+        }
+
+        @Test func whenDeletingPayment_thenRefreshesSections() async throws {
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence)
+
+            // After marking paid, sections should have no occurrences
+            #expect(sut.sections.occurrencesBySection.values.flatMap { $0 }.isEmpty)
+
+            let payment = bills[0].allPaymentEntries.first!
+            try await sut.deletePaymentEntry(payment)
+
+            // After deleting payment, the occurrence should reappear
+            #expect(sut.sections.occurrencesBySection.values.flatMap { $0 }.count == 1)
+        }
     }
 
     @MainActor
@@ -266,6 +479,77 @@ struct BillsModelTests {
 
             #expect(coordinator.refreshAllNotificationsCalls.count == 1)
         }
+
+        @Test func whenEditingPastDueOccurrence_thenIssuesSnapshotFromPreEditValues() async throws {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+            let (sut, _, modelContext, _, _) = try makeSUT(
+                billCount: 0,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            let pastDueDate = makeDate(year: 2025, month: 1, day: 1)
+            let bill = Bill(name: "Original Name", amount: 100, dueDate: pastDueDate)
+            modelContext.insert(bill)
+            try modelContext.save()
+            try sut.refresh()
+
+            let preEditSnapshot = BillSnapshot(bill: bill)
+            bill.name = "Updated Name"
+            bill.amount = 150
+            bill.lastUpdatedDate = referenceDate
+
+            try await sut.updateBill(bill, preEditSnapshot: preEditSnapshot)
+
+            let issued = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            #expect(issued.count == 1)
+            #expect(issued.first?.billName == "Original Name")
+            #expect(issued.first?.billAmount == 100)
+
+            let occurrence = BillOccurrence(bill: bill, dueDate: pastDueDate, calendar: calendar)
+            #expect(occurrence.name == "Original Name")
+            #expect(occurrence.amount == 100)
+        }
+
+        @Test func whenEditingRecurringBillWithMultiplePastOccurrences_thenIssuesEachUnpaidOccurrence() async throws {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+            let referenceDate = makeDate(year: 2025, month: 1, day: 15)
+            let (sut, _, modelContext, _, _) = try makeSUT(
+                billCount: 0,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            let pastDueDate = makeDate(year: 2024, month: 10, day: 1)
+            let bill = Bill(name: "Streaming", amount: 40, dueDate: pastDueDate)
+            let rule = RecurrenceRule(pattern: .monthly, frequency: 1, dayOfMonth: 1)
+            bill.recurrenceRule = rule
+            modelContext.insert(bill)
+            try modelContext.save()
+            try sut.refresh()
+
+            let preEditSnapshot = BillSnapshot(bill: bill)
+            bill.amount = 45
+
+            try await sut.updateBill(bill, preEditSnapshot: preEditSnapshot)
+
+            let issued = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
+            let issuedDays = issued.map { calendar.startOfDay(for: $0.dueDate) }
+            let expectedDays = [
+                makeDate(year: 2024, month: 10, day: 1),
+                makeDate(year: 2024, month: 11, day: 1),
+                makeDate(year: 2024, month: 12, day: 1),
+                makeDate(year: 2025, month: 1, day: 1)
+            ]
+
+            #expect(issued.count == 4)
+            #expect(Set(issuedDays) == Set(expectedDays))
+        }
     }
 }
 
@@ -289,7 +573,13 @@ private func makeSUT(
     NotificationPreferencesStub
 ) {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(for: Bill.self, Payment.self, configurations: config)
+    let container = try ModelContainer(
+        for: Bill.self,
+        PaymentEntry.self,
+        IssuedOccurrence.self,
+        RecurrenceRule.self,
+        configurations: config
+    )
     let modelContext = ModelContext(container)
 
     let bills: [Bill]

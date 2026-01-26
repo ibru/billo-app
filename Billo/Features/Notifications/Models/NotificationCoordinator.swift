@@ -85,6 +85,7 @@ final class NotificationCoordinator: NotificationCoordinating {
 
     func refreshAllNotifications(for bills: [Bill]) async throws {
         Logger.log("Refreshing all notifications", level: .debug)
+        Logger.log("Preferences - reminders: \(preferences.remindersEnabled), digest: \(preferences.digestEnabled), lookahead: \(preferences.digestLookaheadDays)", level: .debug)
         let referenceDate = currentDate()
 
         // 1. Check permission first - if not authorized, clear everything and return
@@ -114,18 +115,21 @@ final class NotificationCoordinator: NotificationCoordinating {
             occurrences: allOccurrences,
             referenceDate: referenceDate
         )
+        Logger.log("Created \(digestCandidates.count) digest candidates", level: .debug)
 
         let plans = await computeNotificationPlans(
             occurrences: allOccurrences,
             referenceDate: referenceDate,
             digestCandidates: digestCandidates
         )
+        Logger.log("After suppression: \(plans.digestPlan.count) digests will be scheduled", level: .debug)
 
         if preferences.remindersEnabled {
             try await scheduleReminderPlan(plans.reminderPlan)
         }
 
         if preferences.digestEnabled {
+            Logger.log("Digest enabled: scheduling \(plans.digestPlan.count) digests", level: .info)
             for candidate in plans.digestPlan {
                 let upcomingItems = candidate.upcomingOccurrences
                     .map { NotificationContentBuilder.NotificationDigestItem($0) }
@@ -194,11 +198,15 @@ final class NotificationCoordinator: NotificationCoordinating {
         occurrences: [BillOccurrence],
         referenceDate: Date
     ) -> [DigestCandidate] {
-        guard preferences.digestEnabled else { return [] }
+        guard preferences.digestEnabled else {
+            Logger.log("Digest disabled in preferences", level: .debug)
+            return []
+        }
 
         let startOfReference = calendar.startOfDay(for: referenceDate)
         let windowDays = preferences.remindersEnabled ? digestWindowDaysWithReminders : maxNotifications
         let digestTime = preferences.digestTime
+        Logger.log("Making digest candidates: windowDays=\(windowDays), lookahead=\(preferences.digestLookaheadDays)", level: .debug)
 
         return (0..<windowDays).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: startOfReference) else {
@@ -233,11 +241,15 @@ final class NotificationCoordinator: NotificationCoordinating {
                 return nil
             }
 
-            return DigestCandidate(
+            let candidate = DigestCandidate(
                 notificationDate: notificationDate,
                 upcomingOccurrences: upcoming,
                 overdueOccurrences: overdue
             )
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH:mm"
+            Logger.log("Digest candidate: \(formatter.string(from: notificationDate)) - \(upcoming.count) upcoming, \(overdue.count) overdue", level: .debug)
+            return candidate
         }
     }
 
@@ -287,17 +299,24 @@ final class NotificationCoordinator: NotificationCoordinating {
         candidate: DigestCandidate,
         scheduledReminders: Set<ScheduledReminderKey>
     ) -> Bool {
-        guard candidate.overdueOccurrences.isEmpty else { return false }
-        guard candidate.upcomingOccurrences.count == 1 else { return false }
         guard preferences.remindersEnabled else { return false }
-        let occurrence = candidate.upcomingOccurrences[0]
+        let totalOccurrences = candidate.upcomingOccurrences + candidate.overdueOccurrences
+        guard totalOccurrences.count == 1 else {
+            Logger.log("Digest with \(totalOccurrences.count) occurrences NOT suppressed", level: .debug)
+            return false
+        }
+        let occurrence = totalOccurrences[0]
 
         let key = ScheduledReminderKey(
-            billIDString: String(describing: occurrence.bill.persistentModelID),
+            billIDString: occurrence.bill.stableID,
             occurrenceTimestamp: Int(occurrence.dueDate.timeIntervalSinceReferenceDate)
         )
 
-        return scheduledReminders.contains(key)
+        let suppressed = scheduledReminders.contains(key)
+        if suppressed {
+            Logger.log("Digest for '\(occurrence.name)' suppressed (has reminder)", level: .debug)
+        }
+        return suppressed
     }
 
     // MARK: - Internal Scheduling
@@ -339,7 +358,7 @@ final class NotificationCoordinator: NotificationCoordinating {
 
         let snapshots: [NotificationOccurrenceSnapshot] = schedulingOccurrences.map {
             NotificationOccurrenceSnapshot(
-                billIDString: String(describing: $0.bill.persistentModelID),
+                billIDString: $0.bill.stableID,
                 name: $0.name,
                 amount: $0.amount,
                 currencyCode: $0.currencyCode,
@@ -384,7 +403,7 @@ final class NotificationCoordinator: NotificationCoordinating {
 
         // Log horizon adjustment or cap status
         if effectiveHorizon < baseHorizonDays {
-            print("[Notifications] Horizon reduced to \(effectiveHorizon) days to fit cap")
+            Logger.log("Horizon reduced to \(effectiveHorizon) days to fit cap", level: .info)
         }
         let (_, skipped) = dateCalculator.schedulingPlan(
             occurrences: schedulingOccurrences,
@@ -392,7 +411,7 @@ final class NotificationCoordinator: NotificationCoordinating {
             maxSlots: availableSlots
         )
         if skipped > 0 {
-            print("[Notifications] Cap reached: scheduled \(plan.count), skipped \(skipped)")
+            Logger.log("Cap reached: scheduled \(plan.count), skipped \(skipped)", level: .info)
         }
 
         return ReminderPlan(
@@ -481,7 +500,7 @@ final class NotificationCoordinator: NotificationCoordinating {
 
             for occurrenceID in occurrenceIDs {
                 let billIDHash = NotificationIdentifier.shortHash(
-                    of: String(describing: occurrenceID.billID)
+                    of: occurrenceID.billID
                 )
                 let occurrenceTimestamp = Int(occurrenceID.dueTime)
 
@@ -535,6 +554,10 @@ final class NotificationCoordinator: NotificationCoordinating {
         notificationDate: Date,
         identifier: String
     ) async throws {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        Logger.log("Scheduling digest: \(formatter.string(from: notificationDate)) - \(upcomingItems.count) upcoming, \(overdueItems.count) overdue", level: .info)
+
         let content = UNMutableNotificationContent()
         content.title = contentBuilder.digestTitle(
             upcomingCount: upcomingItems.count,

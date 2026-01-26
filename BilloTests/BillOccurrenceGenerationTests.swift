@@ -122,7 +122,7 @@ private func makeSUT(
     dueDate: Date,
     pattern: RepeatIntervalType
 ) throws -> (Bill, ModelContext) {
-    let schema = Schema([Bill.self, Payment.self, RecurrenceRule.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, RecurrenceRule.self])
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)

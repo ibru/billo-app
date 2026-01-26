@@ -36,63 +36,23 @@ final class RecurrenceRule {
 // MARK: - Occurrence Generation
 
 extension RecurrenceRule {
+    @MainActor
     func generateOccurrences(
         from startDate: Date,
         until maxDate: Date,
         calendar: Calendar
     ) -> [Date] {
-        var occurrences: [Date] = []
-        var currentDate = startDate
-
-        let effectiveEndDate: Date
-        if endConditionType == .endDate, let end = endDate {
-            effectiveEndDate = min(end, maxDate)
-        } else {
-            effectiveEndDate = maxDate
-        }
-
-        while currentDate <= effectiveEndDate {
-            occurrences.append(currentDate)
-
-            guard let nextDate = calculateNextOccurrence(after: currentDate, calendar: calendar) else {
-                break
-            }
-
-            if nextDate > effectiveEndDate {
-                break
-            }
-
-            currentDate = nextDate
-        }
-
-        return occurrences
-    }
-
-    private func calculateNextOccurrence(after date: Date, calendar: Calendar) -> Date? {
-        switch pattern {
-        case .weekly:
-            return calendar.date(byAdding: .weekOfYear, value: frequency, to: date)
-
-        case .monthly:
-            guard let targetDay = dayOfMonth else {
-                return calendar.date(byAdding: .month, value: frequency, to: date)
-            }
-
-            guard let nextMonth = calendar.date(byAdding: .month, value: frequency, to: date) else {
-                return nil
-            }
-
-            let daysInNextMonth = calendar.range(of: .day, in: .month, for: nextMonth)?.count ?? 31
-            let adjustedDay = min(targetDay, daysInNextMonth)
-
-            var components = calendar.dateComponents([.year, .month], from: nextMonth)
-            components.day = adjustedDay
-
-            return calendar.date(from: components)
-
-        case .yearly:
-            return calendar.date(byAdding: .year, value: frequency, to: date)
-        }
+        RecurrenceRuleGenerator.generateOccurrences(
+            pattern: pattern,
+            frequency: frequency,
+            dayOfWeek: dayOfWeek,
+            dayOfMonth: dayOfMonth,
+            endConditionType: endConditionType,
+            endDate: endDate,
+            from: startDate,
+            until: maxDate,
+            calendar: calendar
+        )
     }
 }
 

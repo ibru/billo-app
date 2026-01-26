@@ -74,7 +74,7 @@ struct IncomeEditView: View {
                         frequency: $draftFrequency,
                         dayOfWeek: $draftDayOfWeek,
                         dayOfMonth: $draftDayOfMonth,
-                        anchorDate: startDate
+                        anchorDate: $startDate
                     )
 
                     if selectedRecurrencePreset != .none {
@@ -125,7 +125,7 @@ struct IncomeEditView: View {
                 try billsModel.refresh()
                 dismiss()
             } catch {
-                print("Failed to save income: \(error)")
+                Logger.log("Failed to save income: \(error)", level: .error)
             }
 
         case .editing(let income):

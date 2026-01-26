@@ -45,7 +45,7 @@ struct BillsListView: View {
             do {
                 try billsModel.refresh()
             } catch {
-                print("Failed to refresh bills: \(error)")
+                Logger.log("Failed to refresh bills: \(error)", level: .error)
             }
         }
     }
@@ -101,7 +101,7 @@ struct BillsListView: View {
             do {
                 try await billsModel.markPaid(occurrence)
             } catch {
-                print("Failed to mark bill as paid: \(error)")
+                Logger.log("Failed to mark bill as paid: \(error)", level: .error)
             }
         }
     }

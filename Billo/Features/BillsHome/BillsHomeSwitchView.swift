@@ -238,7 +238,7 @@ struct BillsHomeSwitchView: View {
             PaymentHistoryView()
 
         case .payment(let paymentID):
-            if let payment = modelContext.model(for: paymentID) as? Payment {
+            if let payment = modelContext.model(for: paymentID) as? PaymentEntry {
                 PaymentDetailView(payment: payment)
             } else {
                 ContentUnavailableView(

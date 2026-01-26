@@ -28,7 +28,7 @@ struct BillsCalendarView: View {
     @State private var pageIndex: Int = 0
     @State private var hasInitialScroll = false
     @State private var allOccurrences: [BillOccurrence] = []
-    @State private var allPayments: [Payment] = []
+    @State private var allPayments: [PaymentEntry] = []
     @State private var allIncomeOccurrences: [IncomeOccurrence] = []
     @State private var referenceDate: Date = Date()
 
@@ -179,10 +179,10 @@ struct BillsCalendarView: View {
         do {
             try billsModel.refresh()
         } catch {
-            print("Failed to refresh bills: \(error)")
+            Logger.log("Failed to refresh bills: \(error)", level: .error)
         }
 
-        let payments = billsModel.bills.flatMap(\.safePayments)
+        let payments = billsModel.bills.flatMap(\.allPaymentEntries)
         let earliest = CalendarNavigationBounds.earliestMonth(
             bills: billsModel.bills,
             payments: payments,
@@ -254,7 +254,7 @@ struct BillsCalendarView: View {
             )
 
             let filtered = generatedDates.filter { $0 >= startDate && $0 <= endDate }
-            occurrences.append(contentsOf: filtered.map { BillOccurrence(bill: bill, dueDate: $0) })
+            occurrences.append(contentsOf: filtered.map { BillOccurrence(bill: bill, dueDate: $0, calendar: calendar) })
         }
 
         return occurrences.sorted { $0.dueDate < $1.dueDate }
@@ -338,7 +338,7 @@ struct BillsCalendarView: View {
         do {
             try await billsModel.markPaid(occurrence)
         } catch {
-            print("Failed to mark paid: \(error)")
+            Logger.log("Failed to mark paid: \(error)", level: .error)
         }
     }
 

@@ -121,7 +121,7 @@ struct BillsListSections {
                 calendar: calendar
             )
             return occurrenceDates.map { date in
-                BillOccurrence(bill: bill, dueDate: date)
+                BillOccurrence(bill: bill, dueDate: date, calendar: calendar)
             }
         }
     }
@@ -204,7 +204,7 @@ struct BillsListSections {
 
             let occurrencesInMonth = occurrenceDates
                 .filter { $0 >= monthStart && $0 < monthEnd }
-                .map { BillOccurrence(bill: bill, dueDate: $0) }
+                .map { BillOccurrence(bill: bill, dueDate: $0, calendar: calendar) }
 
             allMonthOccurrences.append(contentsOf: occurrencesInMonth)
         }

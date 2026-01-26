@@ -9,7 +9,7 @@ enum CalendarMonthGridBuilder {
         month components: DateComponents,
         calendar: Calendar,
         occurrences: [BillOccurrence],
-        payments: [Payment],
+        payments: [PaymentEntry],
         incomeOccurrences: [IncomeOccurrence] = [],
         referenceDate: Date
     ) -> CalendarMonthGridData {
@@ -22,7 +22,7 @@ enum CalendarMonthGridBuilder {
 
         let startOfToday = calendar.startOfDay(for: referenceDate)
 
-        var paymentsByOccurrence: [CalendarPaymentKey: [Payment]] = [:]
+        var paymentsByOccurrence: [CalendarPaymentKey: [PaymentEntry]] = [:]
         paymentsByOccurrence.reserveCapacity(payments.count)
         for payment in payments {
             guard let billID = payment.bill?.persistentModelID else { continue }

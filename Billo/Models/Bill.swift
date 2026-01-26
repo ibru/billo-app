@@ -29,7 +29,7 @@ struct OccurrenceDetector {
         Logger.log("Detecting occurrence for payment on \(paymentDate), candidates: \(unpaidOccurrences.count)", level: .debug)
 
         guard !unpaidOccurrences.isEmpty else {
-            Logger.log("No unpaid occurrences found", level: .warning)
+            Logger.log("No unpaid occurrences found", level: .info)
             return .noneUnpaid
         }
 
@@ -83,10 +83,103 @@ struct OccurrenceDetector {
     }
 }
 
+struct BillSnapshot {
+    let stableID: String
+    let name: String
+    let amount: Decimal
+    let currencyCode: String
+    let dueDate: Date
+    let notes: String?
+    let accountIdentifier: String?
+    let categoryIdentifierRawValue: String?
+    let recurrenceRule: RecurrenceRuleSnapshot?
+
+    init(bill: Bill) {
+        // Use only the stable ID; persistentModelID changes after CloudKit sync
+        // and would cause occurrence key mismatches across devices
+        assert(!bill.stableID.isEmpty, "BillSnapshot requires Bill.stableID to be set")
+        self.stableID = bill.stableID
+        self.name = bill.name
+        self.amount = bill.amount
+        self.currencyCode = bill.currencyCode
+        self.dueDate = bill.dueDate
+        self.notes = bill.notes
+        self.accountIdentifier = bill.accountIdentifier
+        self.categoryIdentifierRawValue = bill.categoryIdentifierRawValue
+        self.recurrenceRule = bill.recurrenceRule.map { RecurrenceRuleSnapshot(rule: $0) }
+    }
+
+    /// Generates all occurrences from the snapshot's original dueDate through endDate.
+    /// Always anchored at dueDate to preserve the occurrence alignment from when the
+    /// snapshot was captured. Use this for historical reporting of past-due bills.
+    ///
+    /// - Parameter endDate: The upper bound for generated occurrences
+    /// - Parameter calendar: Calendar for date calculations
+    /// - Returns: Array of occurrence dates, always starting from dueDate
+    func generateOccurrences(
+        until endDate: Date,
+        calendar: Calendar
+    ) -> [Date] {
+        guard let rule = recurrenceRule else {
+            return (dueDate <= endDate) ? [dueDate] : []
+        }
+
+        return rule.generateOccurrences(from: dueDate, until: endDate, calendar: calendar)
+    }
+
+    func occurrenceKey(for occurrenceDate: Date, calendar: Calendar) -> String {
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let components = utcCalendar.dateComponents([.year, .month, .day], from: occurrenceDate)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        let dateKey = String(format: "%04d-%02d-%02d", year, month, day)
+        return "\(stableID):\(dateKey)"
+    }
+}
+
+struct RecurrenceRuleSnapshot {
+    let pattern: RepeatIntervalType
+    let frequency: Int
+    let dayOfWeek: Weekday?
+    let dayOfMonth: Int?
+    let endConditionType: EndConditionType
+    let endDate: Date?
+
+    init(rule: RecurrenceRule) {
+        self.pattern = rule.pattern
+        self.frequency = rule.frequency
+        self.dayOfWeek = rule.dayOfWeek
+        self.dayOfMonth = rule.dayOfMonth
+        self.endConditionType = rule.endConditionType
+        self.endDate = rule.endDate
+    }
+
+    func generateOccurrences(
+        from startDate: Date,
+        until maxDate: Date,
+        calendar: Calendar
+    ) -> [Date] {
+        RecurrenceRuleGenerator.generateOccurrences(
+            pattern: pattern,
+            frequency: frequency,
+            dayOfWeek: dayOfWeek,
+            dayOfMonth: dayOfMonth,
+            endConditionType: endConditionType,
+            endDate: endDate,
+            from: startDate,
+            until: maxDate,
+            calendar: calendar
+        )
+    }
+}
+
 // MARK: - Bill Model
 
 @Model
 final class Bill {
+    var stableID: String = UUID().uuidString
     var name: String = ""
     var amount: Decimal = 0
     var currencyCode: String = "USD"
@@ -102,8 +195,8 @@ final class Bill {
     @Relationship(deleteRule: .cascade, inverse: \RecurrenceRule.bill)
     var recurrenceRule: RecurrenceRule?
 
-    @Relationship(deleteRule: .cascade, inverse: \Payment.bill)
-    var payments: [Payment]? = []
+    @Relationship(deleteRule: .nullify, inverse: \IssuedOccurrence.bill)
+    var issuedOccurrences: [IssuedOccurrence]? = []
 
     init(
         name: String,
@@ -114,8 +207,10 @@ final class Bill {
         accountIdentifier: String? = nil,
         providerURL: String? = nil,
         categoryIdentifier: CategoryIdentifier? = nil,
-        recurrenceRule: RecurrenceRule? = nil
+        recurrenceRule: RecurrenceRule? = nil,
+        stableID: String? = nil
     ) {
+        self.stableID = stableID ?? UUID().uuidString
         self.name = name
         self.amount = amount
         self.currencyCode = currencyCode
@@ -136,20 +231,73 @@ extension Bill {
         set { categoryIdentifierRawValue = newValue?.rawValue }
     }
 
-    /// Safe accessor for payments that handles CloudKit's optional relationship requirement.
-    /// Use this for reading; for mutations use `payments` directly.
-    var safePayments: [Payment] {
-        payments ?? []
+    var safeIssuedOccurrences: [IssuedOccurrence] {
+        issuedOccurrences ?? []
+    }
+
+    var allPaymentEntries: [PaymentEntry] {
+        safeIssuedOccurrences.flatMap(\.safePaymentEntries)
     }
 }
 
 // MARK: - Business Logic Helpers
 
 extension Bill {
+    struct OccurrenceSnapshot {
+        let name: String
+        let amount: Decimal
+        let currencyCode: String
+        let accountIdentifier: String?
+        let notes: String?
+        let categoryIdentifier: CategoryIdentifier?
+    }
+
+    func occurrenceKey(for occurrenceDate: Date, calendar: Calendar) -> String {
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let components = utcCalendar.dateComponents([.year, .month, .day], from: occurrenceDate)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        let dateKey = String(format: "%04d-%02d-%02d", year, month, day)
+        return "\(stableID):\(dateKey)"
+    }
+
+    func issuedOccurrence(for occurrenceDate: Date, calendar: Calendar) -> IssuedOccurrence? {
+        let key = occurrenceKey(for: occurrenceDate, calendar: calendar)
+        return safeIssuedOccurrences.first { $0.occurrenceKey == key }
+    }
+
+    @MainActor
+    func paymentEntries(for occurrenceDate: Date, calendar: Calendar) -> [PaymentEntry] {
+        guard let issued = issuedOccurrence(for: occurrenceDate, calendar: calendar) else { return [] }
+        return issued.safePaymentEntries
+    }
+
+    func snapshot(for occurrenceDate: Date, calendar: Calendar) -> OccurrenceSnapshot? {
+        if let issued = issuedOccurrence(for: occurrenceDate, calendar: calendar) {
+            return OccurrenceSnapshot(
+                name: issued.billName,
+                amount: issued.billAmount,
+                currencyCode: issued.billCurrencyCode,
+                accountIdentifier: issued.billAccountIdentifier,
+                notes: issued.billNotes,
+                categoryIdentifier: issued.billCategoryIdentifier
+            )
+        }
+
+        return nil
+    }
+
+    func expectedAmount(for occurrenceDate: Date, calendar: Calendar) -> Decimal {
+        snapshot(for: occurrenceDate, calendar: calendar)?.amount ?? amount
+    }
+
     @MainActor
     func status(relativeTo date: Date, calendar: Calendar) -> BillStatus {
+        let expectedAmount = expectedAmount(for: dueDate, calendar: calendar)
         let total = totalPaid(for: dueDate, calendar: calendar)
-        if total >= amount {
+        if total >= expectedAmount {
             return .paid
         }
 
@@ -168,11 +316,10 @@ extension Bill {
 
     @MainActor
     func hasPayment(for occurrenceDate: Date, calendar: Calendar) -> Bool {
-        safePayments.contains { payment in
-            calendar.isDate(payment.occurrenceDate, inSameDayAs: occurrenceDate)
-        }
+        paymentEntries(for: occurrenceDate, calendar: calendar).isEmpty == false
     }
 
+    @MainActor
     func generateOccurrences(
         from startDate: Date,
         until endDate: Date,
@@ -200,21 +347,20 @@ extension Bill {
     /// Returns sum of all payments for occurrence
     @MainActor
     func totalPaid(for occurrenceDate: Date, calendar: Calendar) -> Decimal {
-        safePayments
-            .filter { calendar.isDate($0.occurrenceDate, inSameDayAs: occurrenceDate) }
+        paymentEntries(for: occurrenceDate, calendar: calendar)
             .reduce(0) { $0 + $1.amount }
     }
 
     /// Returns true if totalPaid >= bill amount
     @MainActor
     func isFullyPaid(for occurrenceDate: Date, calendar: Calendar) -> Bool {
-        totalPaid(for: occurrenceDate, calendar: calendar) >= amount
+        totalPaid(for: occurrenceDate, calendar: calendar) >= expectedAmount(for: occurrenceDate, calendar: calendar)
     }
 
     /// Returns remaining balance for occurrence
     @MainActor
     func remainingBalance(for occurrenceDate: Date, calendar: Calendar) -> Decimal {
-        max(0, amount - totalPaid(for: occurrenceDate, calendar: calendar))
+        max(0, expectedAmount(for: occurrenceDate, calendar: calendar) - totalPaid(for: occurrenceDate, calendar: calendar))
     }
 
     // MARK: - Occurrence Generation with Partial Payment Support

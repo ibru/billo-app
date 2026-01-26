@@ -22,7 +22,7 @@ enum CalendarSectionsBuilder {
 
     static func build(
         occurrences: [BillOccurrence],
-        payments: [Payment],
+        payments: [PaymentEntry],
         incomeOccurrences: [IncomeOccurrence] = [],
         from startMonth: DateComponents,
         to endMonth: DateComponents,
@@ -39,7 +39,7 @@ enum CalendarSectionsBuilder {
             level: .debug
         )
 
-        var paymentsByOccurrence: [CalendarPaymentKey: [Payment]] = [:]
+        var paymentsByOccurrence: [CalendarPaymentKey: [PaymentEntry]] = [:]
         paymentsByOccurrence.reserveCapacity(payments.count)
         for payment in payments {
             guard let billID = payment.bill?.persistentModelID else { continue }

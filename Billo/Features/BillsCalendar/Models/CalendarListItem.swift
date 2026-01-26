@@ -4,7 +4,7 @@ import Foundation
 import SwiftData
 
 enum CalendarListItem: Identifiable, Equatable {
-    case occurrence(BillOccurrence, payments: [Payment])
+    case occurrence(BillOccurrence, payments: [PaymentEntry])
     case pastOccurrence(PastBillDisplay)
     case income(IncomeOccurrence)
     case todayDivider(date: Date, sectionId: String)
@@ -88,17 +88,17 @@ enum CalendarListItem: Identifiable, Equatable {
         }
     }
 
-    private static func paymentIdentifierStrings(_ payments: [Payment]) -> Set<String> {
+    private static func paymentIdentifierStrings(_ payments: [PaymentEntry]) -> Set<String> {
         Set(payments.map { String(describing: $0.persistentModelID) })
     }
 }
 
 /// Wrapper for past bill occurrences with associated payment info.
-/// Note: Custom Equatable implementation because Payment is a SwiftData @Model.
+/// Note: Custom Equatable implementation because PaymentEntry is a SwiftData @Model.
 /// Hashable is intentionally NOT implemented (not needed for our use cases).
 struct PastBillDisplay: Identifiable, Equatable {
     let occurrence: BillOccurrence
-    let payments: [Payment]
+    let payments: [PaymentEntry]
 
     var id: String { "past-\(occurrence.id.billID)-\(occurrence.id.dueTime)" }
 
@@ -116,7 +116,7 @@ struct PastBillDisplay: Identifiable, Equatable {
     }
 
     /// For partial: returns all payments sorted by date ascending (stable ordering).
-    var paymentsSortedByDate: [Payment] {
+    var paymentsSortedByDate: [PaymentEntry] {
         payments.sorted { lhs, rhs in
             if lhs.datePaid != rhs.datePaid { return lhs.datePaid < rhs.datePaid }
             if lhs.createdDate != rhs.createdDate { return lhs.createdDate < rhs.createdDate }

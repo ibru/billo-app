@@ -534,7 +534,7 @@ private func requireItem(_ items: [CalendarListItem], at index: Int) throws -> C
     return try #require(item)
 }
 
-private func extractOccurrence(from item: CalendarListItem) -> (occurrence: BillOccurrence, payments: [Payment])? {
+private func extractOccurrence(from item: CalendarListItem) -> (occurrence: BillOccurrence, payments: [PaymentEntry])? {
     if case .occurrence(let occurrence, let payments) = item {
         return (occurrence: occurrence, payments: payments)
     }
@@ -566,7 +566,7 @@ private func extractTodayDivider(from item: CalendarListItem) -> (date: Date, se
 
 @MainActor
 private func makeContext() throws -> ModelContext {
-    let schema = Schema([Bill.self, Payment.self, Income.self, RecurrenceRule.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, Income.self, RecurrenceRule.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     return ModelContext(container)
@@ -614,15 +614,14 @@ private func makePayment(
     occurrence: Date,
     bill: Bill,
     in context: ModelContext
-) -> Payment {
-    let payment = Payment(
+) -> PaymentEntry {
+    makePaymentEntry(
         amount: amount,
         datePaid: paid,
         occurrenceDate: occurrence,
-        bill: bill
+        bill: bill,
+        in: context
     )
-    context.insert(payment)
-    return payment
 }
 
 private func utcCalendar() -> Calendar {

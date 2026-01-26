@@ -5,10 +5,10 @@ import SwiftData
 import Foundation
 @testable import Billo
 
-@Suite("Income")
+@Suite("Income") @MainActor
 struct IncomeTests {
 
-    @Suite("generateOccurrences")
+    @Suite("generateOccurrences") @MainActor
     struct GenerateOccurrences {
         @Test func whenNoRecurrenceRule_thenReturnsSingleOccurrence() {
             let income = makeIncome(
@@ -182,7 +182,7 @@ struct IncomeTests {
         }
     }
 
-    @Suite("validation")
+    @Suite("validation") @MainActor
     struct Validation {
         @Test func whenAmountIsZero_thenThrowsNonPositiveAmountError() {
             #expect(throws: IncomeValidationError.nonPositiveAmount) {

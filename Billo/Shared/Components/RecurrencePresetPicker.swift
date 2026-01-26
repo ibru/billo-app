@@ -10,7 +10,9 @@ struct RecurrencePresetPicker: View {
     @Binding var dayOfWeek: Weekday
     @Binding var dayOfMonth: Int
 
-    let anchorDate: Date
+    @Binding var anchorDate: Date
+
+    var synchronizer: DateAnchorSynchronizer = DateAnchorSynchronizer()
 
     var body: some View {
         Picker(String(localized: "Repeat"), selection: $selectedPreset) {
@@ -31,6 +33,12 @@ struct RecurrencePresetPicker: View {
         }
         .onChange(of: intervalType) { _, _ in
             anchorRepeatFieldsIfNeeded()
+        }
+        .onChange(of: dayOfWeek) { _, newWeekday in
+            syncAnchorDateToWeekday(newWeekday)
+        }
+        .onChange(of: dayOfMonth) { _, newDay in
+            syncAnchorDateToDayOfMonth(newDay)
         }
 
         if selectedPreset == .custom {
@@ -75,17 +83,34 @@ struct RecurrencePresetPicker: View {
     private func anchorRepeatFieldsIfNeeded() {
         guard selectedPreset != .none else { return }
 
-        let calendar = Calendar.current
         switch intervalType {
         case .weekly:
-            let weekday = calendar.component(.weekday, from: anchorDate)
-            dayOfWeek = Weekday.fromCalendarWeekday(weekday) ?? .monday
+            dayOfWeek = synchronizer.weekday(from: anchorDate)
 
         case .monthly:
-            dayOfMonth = calendar.component(.day, from: anchorDate)
+            dayOfMonth = synchronizer.dayOfMonth(from: anchorDate)
 
         case .yearly:
             break
+        }
+    }
+
+    /// Syncs the anchor date to match the selected weekday (for weekly recurrence).
+    /// Snaps forward to the next occurrence of the weekday.
+    private func syncAnchorDateToWeekday(_ weekday: Weekday) {
+        guard selectedPreset != .none, intervalType == .weekly else { return }
+
+        if let newDate = synchronizer.syncDateToWeekday(anchorDate, weekday: weekday) {
+            anchorDate = newDate
+        }
+    }
+
+    /// Syncs the anchor date to match the selected day of month (for monthly recurrence).
+    private func syncAnchorDateToDayOfMonth(_ targetDay: Int) {
+        guard selectedPreset != .none, intervalType == .monthly else { return }
+
+        if let newDate = synchronizer.syncDateToDayOfMonth(anchorDate, targetDay: targetDay) {
+            anchorDate = newDate
         }
     }
 }

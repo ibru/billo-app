@@ -20,8 +20,14 @@ struct CalendarNavigationBoundsTests {
         context.insert(earlyBill)
         context.insert(laterBill)
 
-        let payment = Payment(amount: 10, datePaid: laterPaymentDate, occurrenceDate: laterPaymentDate, bill: laterBill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 10,
+            datePaid: laterPaymentDate,
+            occurrenceDate: laterPaymentDate,
+            bill: laterBill,
+            calendar: calendar,
+            in: context
+        )
 
         let components = CalendarNavigationBounds.earliestMonth(
             bills: [earlyBill, laterBill],
@@ -43,8 +49,14 @@ struct CalendarNavigationBoundsTests {
         let bill = Bill(name: "Rent", amount: 50, dueDate: makeDate(year: 2025, month: 2, day: 1, calendar: calendar))
         context.insert(bill)
 
-        let payment = Payment(amount: 50, datePaid: paymentDate, occurrenceDate: paymentDate, bill: bill)
-        context.insert(payment)
+        let payment = makePaymentEntry(
+            amount: 50,
+            datePaid: paymentDate,
+            occurrenceDate: paymentDate,
+            bill: bill,
+            calendar: calendar,
+            in: context
+        )
 
         let components = CalendarNavigationBounds.earliestMonth(
             bills: [bill],
@@ -107,7 +119,7 @@ struct CalendarNavigationBoundsTests {
 
 @MainActor
 private func makeContext() throws -> ModelContext {
-    let schema = Schema([Bill.self, Payment.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     return ModelContext(container)

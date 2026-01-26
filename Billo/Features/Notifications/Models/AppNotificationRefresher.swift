@@ -20,14 +20,14 @@ struct AppNotificationRefresher: Sendable {
             do {
                 try billsModel.refresh()
             } catch {
-                print("[Notifications] Failed to refresh bills before scheduling: \(error)")
+                Logger.log("Failed to refresh bills before scheduling: \(error)", level: .error)
             }
         }
 
         do {
             try await coordinator.refreshAllNotifications(for: billsModel.bills)
         } catch {
-            print("[Notifications] Failed to refresh notifications after app became active: \(error)")
+            Logger.log("Failed to refresh notifications after app became active: \(error)", level: .error)
         }
     }
 }

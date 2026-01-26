@@ -4,15 +4,15 @@ import SwiftData
 import SwiftUI
 
 struct PaymentDetailView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(BillsModel.self) private var billsModel
     @Environment(\.dismiss) private var dismiss
 
-    @Bindable var payment: Payment
+    @Bindable var payment: PaymentEntry
 
     @State private var showDeleteConfirmation = false
 
     private var currencyCode: String {
-        payment.bill?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+        payment.snapshotCurrencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
     var body: some View {
@@ -47,10 +47,10 @@ struct PaymentDetailView: View {
                 }
             }
 
-            if let bill = payment.bill {
+            if let billName = payment.snapshotName {
                 Section("Bill") {
-                    Text(bill.name)
-                    Text("Due date: \(bill.dueDate.formatted(date: .abbreviated, time: .omitted))")
+                    Text(billName)
+                    Text("Due date: \(payment.occurrenceDate.formatted(date: .abbreviated, time: .omitted))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -80,7 +80,13 @@ struct PaymentDetailView: View {
     }
 
     private func deletePayment() {
-        modelContext.delete(payment)
-        dismiss()
+        Task {
+            do {
+                try await billsModel.deletePaymentEntry(payment)
+                dismiss()
+            } catch {
+                Logger.log("Failed to delete payment: \(error)", level: .error)
+            }
+        }
     }
 }

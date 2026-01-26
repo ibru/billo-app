@@ -4,7 +4,7 @@ import SwiftUI
 
 struct CalendarFutureBillRow: View {
     let occurrence: BillOccurrence
-    let payments: [Payment]
+    let payments: [PaymentEntry]
     let customCategories: [CustomCategory]
 
     private var categoryInfo: CategoryDisplayInfo? {

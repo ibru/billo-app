@@ -4,10 +4,10 @@ import Foundation
 import SwiftData
 
 /// Represents a future bill occurrence with its associated payments (for prepaid indicator).
-/// Note: Custom Equatable implementation because Payment is a SwiftData @Model.
+/// Note: Custom Equatable implementation because PaymentEntry is a SwiftData @Model.
 struct FutureOccurrenceWithPayments: Equatable {
     let occurrence: BillOccurrence
-    let payments: [Payment]
+    let payments: [PaymentEntry]
 
     var isPrepaid: Bool { !payments.isEmpty }
 
@@ -22,7 +22,7 @@ struct CalendarDayData: Identifiable, Equatable {
     let date: Date
     let futureOccurrencesWithPayments: [FutureOccurrenceWithPayments]
     let pastOccurrences: [PastBillDisplay]
-    let payments: [Payment]
+    let payments: [PaymentEntry]
     let incomeOccurrences: [IncomeOccurrence]
 
     var id: Date { date }
@@ -59,7 +59,7 @@ struct CalendarDayData: Identifiable, Equatable {
         date: Date,
         futureOccurrencesWithPayments: [FutureOccurrenceWithPayments] = [],
         pastOccurrences: [PastBillDisplay] = [],
-        payments: [Payment] = [],
+        payments: [PaymentEntry] = [],
         incomeOccurrences: [IncomeOccurrence] = []
     ) {
         self.date = date
@@ -77,7 +77,7 @@ struct CalendarDayData: Identifiable, Equatable {
         lhs.incomeOccurrences == rhs.incomeOccurrences
     }
 
-    private static func paymentIdentifierStrings(_ payments: [Payment]) -> Set<String> {
+    private static func paymentIdentifierStrings(_ payments: [PaymentEntry]) -> Set<String> {
         Set(payments.map { String(describing: $0.persistentModelID) })
     }
 }

@@ -98,6 +98,7 @@ extension Income {
     /// Generate income dates within a range, delegating to RecurrenceRule.
     /// CRITICAL: Always generates from startDate (anchor) then filters to window.
     /// This matches Bill.generateOccurrences behavior and prevents schedule drift.
+    @MainActor
     func generateOccurrences(
         from rangeStart: Date,
         until rangeEnd: Date,

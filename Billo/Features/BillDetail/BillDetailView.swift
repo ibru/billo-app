@@ -90,7 +90,7 @@ struct BillDetailView: View {
 
                             Spacer()
 
-                            Text(formatCurrency(payment.amount, code: billModel.currencyCode))
+                            Text(formatCurrency(payment.amount, code: payment.snapshotCurrencyCode ?? billModel.currencyCode))
                                 .font(.headline)
                         }
                         .swipeActions(edge: .trailing) {
@@ -153,17 +153,18 @@ struct BillDetailView: View {
                 try await billsModel.deleteBill(bill)
                 dismiss()
             } catch {
-                print("Failed to delete bill: \(error)")
+                Logger.log("Failed to delete bill: \(error)", level: .error)
             }
         }
     }
 
-    private func deletePayment(_ payment: Payment) {
-        do {
-            try billModel.deletePayment(payment)
-            try billsModel.refresh()
-        } catch {
-            print("Failed to delete payment: \(error)")
+    private func deletePayment(_ payment: PaymentEntry) {
+        Task {
+            do {
+                try await billsModel.deletePaymentEntry(payment)
+            } catch {
+                Logger.log("Failed to delete payment: \(error)", level: .error)
+            }
         }
     }
 
@@ -336,7 +337,7 @@ struct MarkPaidSheet: View {
                 try billsModel.refresh()
                 dismiss()
             } catch {
-                print("Failed to mark bill as paid: \(error)")
+                Logger.log("Failed to mark bill as paid: \(error)", level: .error)
             }
         }
     }

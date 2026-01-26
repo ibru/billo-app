@@ -64,12 +64,12 @@ struct DayDetailSheet: View {
     }
 }
 
-/// Payment row showing which bill occurrence the payment is for.
+/// PaymentEntry row showing which bill occurrence the payment is for.
 private struct DaySheetPaymentRow: View {
-    let payment: Payment
+    let payment: PaymentEntry
 
     private var currencyCode: String {
-        payment.bill?.currencyCode ?? "USD"
+        payment.snapshotCurrencyCode ?? "USD"
     }
 
 	    var body: some View {
@@ -77,7 +77,7 @@ private struct DaySheetPaymentRow: View {
 	            CalendarDateStamp(date: payment.datePaid)
 	
 	            VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
-	                if let billName = payment.bill?.name {
+	                if let billName = payment.snapshotName {
 	                    Text(billName)
 	                        .font(.headline)
 	                        .foregroundStyle(.primary)
@@ -111,7 +111,7 @@ private struct DaySheetPaymentRow: View {
     }
 
     private var accessibilityLabel: String {
-        let billName = payment.bill?.name ?? String(localized: "Unknown Bill")
+        let billName = payment.snapshotName ?? String(localized: "Unknown Bill")
         let amountString = payment.amount.formatted(.currency(code: currencyCode))
         let paidOn = payment.datePaid.formatted(.dateTime.month(.wide).day().year())
         let forOccurrence = payment.occurrenceDate.formatted(.dateTime.month(.wide).day().year())

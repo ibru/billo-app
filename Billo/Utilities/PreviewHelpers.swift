@@ -30,7 +30,8 @@ struct BilloPreviewContainer {
     static func withSampleData(referenceDate: Date = Date()) -> BilloPreviewContainer {
         let schema = Schema([
             Bill.self,
-            Payment.self,
+            PaymentEntry.self,
+            IssuedOccurrence.self,
             RecurrenceRule.self,
             Income.self,
             CustomCategory.self,
@@ -80,20 +81,32 @@ struct BilloPreviewContainer {
             )
         ]
 
+        sampleBills.forEach { context.insert($0) }
+
         // Mark one bill as paid
         if let paidBill = sampleBills.last {
-            let payment = Payment(
-                amount: paidBill.amount,
-                datePaid: now,
-                occurrenceDate: paidBill.dueDate,
-                confirmationNumber: "PREVIEW-1234",
+            let key = paidBill.occurrenceKey(for: paidBill.dueDate, calendar: calendar)
+            let issued = IssuedOccurrence(
+                occurrenceKey: key,
+                dueDate: paidBill.dueDate,
+                billName: paidBill.name,
+                billAmount: paidBill.amount,
+                billCurrencyCode: paidBill.currencyCode,
+                billAccountIdentifier: paidBill.accountIdentifier,
+                billNotes: paidBill.notes,
+                billCategoryRawValue: paidBill.categoryIdentifier?.rawValue,
                 bill: paidBill
             )
-            paidBill.payments?.append(payment)
+            context.insert(issued)
+
+            let payment = PaymentEntry(
+                amount: paidBill.amount,
+                datePaid: now,
+                confirmationNumber: "PREVIEW-1234",
+                issuedOccurrence: issued
+            )
             context.insert(payment)
         }
-
-        sampleBills.forEach { context.insert($0) }
 
         try? context.save()
 
@@ -138,7 +151,8 @@ struct BilloPreviewContainer {
     static func empty(referenceDate: Date = Date()) -> BilloPreviewContainer {
         let schema = Schema([
             Bill.self,
-            Payment.self,
+            PaymentEntry.self,
+            IssuedOccurrence.self,
             RecurrenceRule.self,
             Income.self,
             CustomCategory.self,

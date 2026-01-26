@@ -7,7 +7,7 @@ enum CalendarNavigationBounds {
 
     static func earliestMonth(
         bills: [Bill],
-        payments: [Payment],
+        payments: [PaymentEntry],
         incomes: [Income] = [],
         calendar: Calendar,
         currentDate: Date = Date()
