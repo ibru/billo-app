@@ -51,12 +51,20 @@ struct PaywallView: View {
         yearlyProduct?.displayPrice ?? currencyString(amount: FallbackPricing.yearlyPrice, locale: .current)
     }
 
+    private var weeklyTitleText: String {
+        let trialText = introductoryOfferText(weeklyProduct)
+        if trialText.isEmpty {
+            return "Weekly — \(weeklyDisplayPrice)"
+        }
+        return trialText
+    }
+
     private var weeklySubtitleText: String {
         let trialText = introductoryOfferText(weeklyProduct)
         if trialText.isEmpty {
             return "Then \(weeklyDisplayPrice)/week • cancel anytime"
         }
-        return "\(trialText) • then \(weeklyDisplayPrice)/week • cancel anytime"
+        return "Then \(weeklyDisplayPrice)/week • cancel anytime"
     }
 
     private var yearlySubtitleText: String {
@@ -86,8 +94,7 @@ struct PaywallView: View {
                         heroSection
                         benefitsList
                         subscriptionOptions
-                        purchaseButton
-                        securityNote
+                        purchaseSection
                         legalLinks
                     }
                     .padding(.horizontal, DesignSystem.Spacing.large)
@@ -124,20 +131,6 @@ struct PaywallView: View {
             }
 
             Spacer()
-
-            Button("Restore") {
-                Logger.log("Paywall restore tapped", level: .info)
-                Task {
-                    do {
-                        try await storeKit.restorePurchases()
-                    } catch {
-                        errorMessage = error.localizedDescription
-                    }
-                }
-            }
-            .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(.secondary)
-            .accessibilityIdentifier("paywall_restore")
         }
         .padding(.horizontal, DesignSystem.Spacing.large)
         .padding(.vertical, 12)
@@ -211,7 +204,7 @@ struct PaywallView: View {
                 freeTrialToggle
 
                 SubscriptionOptionRow(
-                    title: "Weekly — \(weeklyDisplayPrice)",
+                    title: weeklyTitleText,
                     subtitle: weeklySubtitleText,
                     isSelected: selectedPlan == .weekly,
                     action: {
@@ -264,6 +257,39 @@ struct PaywallView: View {
 
     // MARK: - Purchase
 
+    private var purchaseSection: some View {
+        VStack(spacing: DesignSystem.Spacing.small) {
+            purchaseButton
+            if shouldShowNoPaymentRequiredNow {
+                noPaymentRequiredNowNote
+            }
+        }
+    }
+
+    private var shouldShowNoPaymentRequiredNow: Bool {
+        if let selectedProduct {
+            return selectedProduct.hasNoImmediateCharge
+        }
+        return selectedPlan == .weekly
+    }
+
+    private var selectedProduct: Product? {
+        storeKit.products.first { $0.id == selectedProductID }
+    }
+
+    private var noPaymentRequiredNowNote: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.tint)
+                .symbolRenderingMode(.hierarchical)
+            Text("No payment required now")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityIdentifier("paywall_no_payment_required_now")
+        .frame(maxWidth: .infinity)
+    }
+
     private var purchaseButton: some View {
         Button {
             Task { await purchaseSelected() }
@@ -287,22 +313,26 @@ struct PaywallView: View {
         .accessibilityIdentifier("paywall_continue")
     }
 
-    private var securityNote: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "checkmark.shield.fill")
-                .foregroundStyle(.tint)
-                .symbolRenderingMode(.hierarchical)
-            Text("App Store secure • cancel anytime")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private var legalLinks: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 16) {
             if let termsURL = URL(string: "https://example.com/terms") {
                 Link("Terms of Use", destination: termsURL)
             }
+
+            Text("•")
+                .foregroundStyle(.tertiary)
+
+            Button("Restore") {
+                Logger.log("Paywall restore tapped", level: .info)
+                Task {
+                    do {
+                        try await storeKit.restorePurchases()
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
+                }
+            }
+            .accessibilityIdentifier("paywall_restore")
 
             Text("•")
                 .foregroundStyle(.tertiary)
@@ -311,6 +341,7 @@ struct PaywallView: View {
                 Link("Privacy Policy", destination: privacyURL)
             }
         }
+        .padding(.vertical, 8)
         .font(.caption)
         .foregroundStyle(.secondary)
     }
@@ -412,6 +443,33 @@ struct PaywallView: View {
 
         guard let unit else { return "" }
         return PaywallPricing.introductoryOfferText(value: period.value, unit: unit)
+    }
+}
+
+private extension Product {
+    var hasNoImmediateCharge: Bool {
+        guard let subscription else { return false }
+
+        if let introductoryOffer = subscription.introductoryOffer, introductoryOffer.isFreeUpFront {
+            return true
+        }
+
+        return false
+    }
+}
+
+private extension Product.SubscriptionOffer {
+    var isFreeUpFront: Bool {
+        if price == 0 {
+            return true
+        }
+
+        switch paymentMode {
+        case .freeTrial:
+            return true
+        default:
+            return false
+        }
     }
 }
 
