@@ -32,12 +32,6 @@ struct BillsListView: View {
                 totals: billsModel.sections.monthlyTotals,
                 currencyCode: currencyCode
             )
-            PaymentHistoryNavigationRow(
-                usesStackNavigation: usesStackNavigation,
-                onOpen: onOpen
-            )
-                .listRowBackground(Color.clear)
-
             billSections()
         }
         .platformListSectionSpacing(0)
@@ -104,60 +98,6 @@ struct BillsListView: View {
                 Logger.log("Failed to mark bill as paid: \(error)", level: .error)
             }
         }
-    }
-}
-
-private struct PaymentHistoryNavigationRow: View {
-    let usesStackNavigation: Bool
-    let onOpen: (HomeDetailDestination) -> Void
-
-    var body: some View {
-        Section {
-            navigationRow(
-                title: "Payment History",
-                systemImage: "clock.arrow.circlepath",
-                destination: .paymentHistory
-            )
-
-            navigationRow(
-                title: "Income",
-                systemImage: "banknote",
-                iconColor: DesignSystem.Color.income,
-                destination: .incomeList
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func navigationRow(
-        title: String,
-        systemImage: String,
-        iconColor: SwiftUI.Color? = nil,
-        destination: HomeDetailDestination
-    ) -> some View {
-        if usesStackNavigation {
-            NavigationLink(value: destination) {
-                rowLabel(title: title, systemImage: systemImage, iconColor: iconColor)
-            }
-            .buttonStyle(.plain)
-        } else {
-            Button {
-                onOpen(destination)
-            } label: {
-                rowLabel(title: title, systemImage: systemImage, iconColor: iconColor)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func rowLabel(title: String, systemImage: String, iconColor: SwiftUI.Color?) -> some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
-            Image(systemName: systemImage)
-                .foregroundStyle(iconColor ?? .primary)
-            Text(title)
-            Spacer()
-        }
-        .font(.caption)
     }
 }
 
