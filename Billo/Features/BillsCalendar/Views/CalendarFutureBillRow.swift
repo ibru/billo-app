@@ -30,13 +30,17 @@ struct CalendarFutureBillRow: View {
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
                 Text(occurrence.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(Color(uiColor: .label))
 
                 if let info = categoryInfo {
-                    Text(info.name)
+                    HStack(spacing: 6) {
+                        Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                            .foregroundStyle(DesignSystem.Color.categoryColor(for: info.colorToken))
+                        Text(info.name)
+                            .foregroundStyle(.secondary)
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -45,18 +49,18 @@ struct CalendarFutureBillRow: View {
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
                 Text(occurrence.amount, format: .currency(code: occurrence.currencyCode))
                     .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(Color(uiColor: .label))
 
                 if let prepaidDate {
                     let prepaidDateString = prepaidDate.formatted(.dateTime.month(.abbreviated).day())
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(DesignSystem.Color.green)
                         Text(String(
                             localized: "Prepaid \(prepaidDateString)",
                             comment: "Calendar row: prepaid label with payment date"
                         ))
-                            .foregroundStyle(.green)
+                            .foregroundStyle(DesignSystem.Color.green)
                     }
                     .font(.caption)
                 }

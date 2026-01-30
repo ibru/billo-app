@@ -109,6 +109,7 @@ struct BillDetailView: View {
                     showingMarkPaidSheet = true
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(DesignSystem.Color.green)
                 .frame(maxWidth: .infinity)
 
                 Button("Edit Bill") {
@@ -232,7 +233,7 @@ struct MarkPaidSheet: View {
                                 if remaining > 0 && remaining < bill.amount {
                                     Text("Balance: \(formatCurrency(remaining))")
                                         .font(.caption)
-                                        .foregroundStyle(.orange)
+                                        .foregroundStyle(DesignSystem.Color.orange)
                                 }
                             }
 
@@ -313,7 +314,7 @@ struct MarkPaidSheet: View {
             if totalPaid > 0 && remaining > 0 {
                 Text("\(formatCurrency(remaining)) left")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(DesignSystem.Color.orange)
             }
         }
     }

@@ -50,7 +50,7 @@ struct IncomeListView: View {
 	private struct EmptyStateView: View {
 	    var body: some View {
 	        ContentUnavailableView {
-	            Label("No Income", systemImage: "banknote")
+	            Label("No Income", systemImage: "wallet.bifold")
 	        } description: {
 	            Text("Add your income sources to track your budget")
 	        }
@@ -70,8 +70,8 @@ struct IncomeRowView: View {
 
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
-            Image(systemName: "banknote")
-                .foregroundStyle(DesignSystem.Color.income)
+            Image(systemName: "wallet.bifold")
+                .foregroundStyle(DesignSystem.Color.green)
                 .font(.title2)
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
@@ -95,7 +95,7 @@ struct IncomeRowView: View {
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.extraSmall) {
                 Text(income.amount, format: .currency(code: income.currencyCode))
                     .font(.headline)
-                    .foregroundStyle(DesignSystem.Color.income)
+                    .foregroundStyle(DesignSystem.Color.green)
 
                 Text(income.startDate, style: .date)
                     .font(.caption)

@@ -23,16 +23,17 @@ struct CalendarPastBillRow: View {
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
                 Text(display.occurrence.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(Color(uiColor: .label))
 
                 if let info = categoryInfo {
                     HStack(spacing: 6) {
                         Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                            .foregroundStyle(DesignSystem.Color.categoryColor(for: info.colorToken))
                         Text(info.name)
+                            .foregroundStyle(.secondary)
                     }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -41,7 +42,7 @@ struct CalendarPastBillRow: View {
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
                 Text(display.occurrence.amount, format: .currency(code: display.occurrence.currencyCode))
                     .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(Color(uiColor: .label))
 
                 statusUnderAmountView
             }
@@ -91,12 +92,12 @@ struct CalendarPastBillRow: View {
                 let paidOnDateString = lastDate.formatted(.dateTime.month(.abbreviated).day())
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignSystem.Color.green)
                     Text(String(
                         localized: "Paid on \(paidOnDateString)",
                         comment: "Calendar past bill row: paid-on label with date"
                     ))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignSystem.Color.green)
                 }
                 .font(.caption)
             }
@@ -133,19 +134,19 @@ struct CalendarPastBillRow: View {
                     comment: "Calendar past bill row: remaining amount label"
                 ))
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(DesignSystem.Color.orange)
             }
 
         case .missed:
             let dueDateString = display.occurrence.dueDate.formatted(.dateTime.month(.abbreviated).day())
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DesignSystem.Color.red)
                 Text(String(
                     localized: "Was due \(dueDateString)",
                     comment: "Calendar past bill row: was-due label with due date"
                 ))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DesignSystem.Color.red)
             }
             .font(.caption)
         }

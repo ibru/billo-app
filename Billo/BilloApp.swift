@@ -56,18 +56,19 @@ struct BilloApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel, let appFlowModel, let storeKitManager {
-                AppRootView()
-                    .environment(billsModel)
-                    .environment(notificationCoordinator)
-                    .environment(preferencesStore)
-                    .environment(appSettingsModel)
-                    .environment(appFlowModel)
-                    .environment(storeKitManager)
-            } else {
-                ProgressView()
-                    .task {
-                        let context = sharedModelContainer.mainContext
+            Group {
+                if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel, let appFlowModel, let storeKitManager {
+                    AppRootView()
+                        .environment(billsModel)
+                        .environment(notificationCoordinator)
+                        .environment(preferencesStore)
+                        .environment(appSettingsModel)
+                        .environment(appFlowModel)
+                        .environment(storeKitManager)
+                } else {
+                    ProgressView()
+                        .task {
+                            let context = sharedModelContainer.mainContext
 
                         // Set up notification system
                         let center = UNUserNotificationCenter.current()
@@ -132,14 +133,16 @@ struct BilloApp: App {
                             Logger.log("Failed to refresh bills on launch: \(error)", level: .error)
                         }
 
-                        billsModel = bills
-                        notificationCoordinator = coordinator
-                        preferencesStore = preferences
-                        appSettingsModel = settings
-                        appFlowModel = flow
-                        storeKitManager = storeKit
-                    }
+                            billsModel = bills
+                            notificationCoordinator = coordinator
+                            preferencesStore = preferences
+                            appSettingsModel = settings
+                            appFlowModel = flow
+                            storeKitManager = storeKit
+                        }
+                }
             }
+            .tint(DesignSystem.Color.green)
         }
         .modelContainer(sharedModelContainer)
         .onChange(of: billsModel != nil) { _, isReady in

@@ -17,15 +17,19 @@ struct CalendarPagedGridView: View {
     let onMonthChange: (DateComponents) -> Void
 
     /// Base row height scales with Dynamic Type (relative to callout font)
-    @ScaledMetric(relativeTo: .callout) private var rowHeight: CGFloat = 36
+    /// Accounts for: day circle (36) + dot spacing (2) + dot size (6) = 44
+    @ScaledMetric(relativeTo: .callout) private var rowHeight: CGFloat = 44
     /// Header height scales with Dynamic Type (relative to caption2 font used in weekday header)
     @ScaledMetric(relativeTo: .caption2) private var headerHeight: CGFloat = 14
 
-    private var rowSpacing: CGFloat { DesignSystem.Spacing.small }
+    private var rowSpacing: CGFloat { DesignSystem.Spacing.extraSmall }
 
     private func gridHeight(for month: DateComponents) -> CGFloat {
         let rowCount = CGFloat(numberOfRows(for: month))
-        return (rowHeight * rowCount) + (rowSpacing * (rowCount - 1)) + headerHeight + DesignSystem.Spacing.extraSmall
+        let topPadding = DesignSystem.Spacing.extraSmall   // .padding(.top) on each page
+        let headerToGridSpacing = DesignSystem.Spacing.extraSmall  // VStack spacing in CalendarGridView
+        let bottomInset = DesignSystem.Spacing.extraSmall  // clearance for last row dots
+        return (rowHeight * rowCount) + (rowSpacing * (rowCount - 1)) + headerHeight + headerToGridSpacing + topPadding + bottomInset
     }
 
     private func numberOfRows(for month: DateComponents) -> Int {
@@ -58,7 +62,7 @@ struct CalendarPagedGridView: View {
         return date.formatted(.dateTime.month(.wide).year())
     }
 
-	    var body: some View {
+    var body: some View {
         VStack(spacing: DesignSystem.Spacing.extraSmall) {
             if showsMonthNavigationHeader {
                 monthNavigationHeader
@@ -73,6 +77,7 @@ struct CalendarPagedGridView: View {
                         today: today,
                         selectedDate: selectedDate,
                         monthData: monthDataProvider(month),
+                        rowHeight: rowHeight,
                         onSelectDay: onSelectDay
                     )
                     .tag(index)
@@ -144,10 +149,8 @@ private struct CalendarGridView: View {
     let today: Date
     let selectedDate: Date?
     let monthData: CalendarMonthGridData
+    let rowHeight: CGFloat
     let onSelectDay: (CalendarDayData) -> Void
-
-    /// Empty cell placeholder height scales with Dynamic Type
-    @ScaledMetric(relativeTo: .callout) private var emptyCellHeight: CGFloat = 32
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible()), count: 7)
@@ -159,7 +162,7 @@ private struct CalendarGridView: View {
         VStack(spacing: DesignSystem.Spacing.extraSmall) {
             weekdayHeader
 
-            LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.small) {
+            LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.extraSmall) {
                 ForEach(entries.indices, id: \.self) { index in
                     if let date = entries[index] {
                         CalendarDayCell(
@@ -173,9 +176,10 @@ private struct CalendarGridView: View {
                                 onSelectDay(dayData)
                             }
                         )
+                        .frame(height: rowHeight)
                     } else {
                         Color.clear
-                            .frame(height: emptyCellHeight)
+                            .frame(height: rowHeight)
                     }
                 }
             }
@@ -185,15 +189,33 @@ private struct CalendarGridView: View {
 
     private var weekdayHeader: some View {
         let symbols = shiftedWeekdaySymbols()
-        return HStack {
-            ForEach(symbols, id: \.self) { symbol in
-                Text(symbol)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
+        let weekendIndices = weekendColumnIndices()
+        return VStack(spacing: DesignSystem.Spacing.small) {
+            HStack {
+                ForEach(Array(symbols.enumerated()), id: \.offset) { index, symbol in
+                    Text(symbol)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(weekendIndices.contains(index) ? Color(uiColor: .secondaryLabel) : Color(uiColor: .label))
+                        .frame(maxWidth: .infinity)
+                }
             }
+            .padding(.horizontal, DesignSystem.Spacing.medium)
+
+            Divider()
+                .padding(.horizontal, DesignSystem.Spacing.medium)
         }
-        .padding(.horizontal, DesignSystem.Spacing.medium)
+    }
+
+    private func weekendColumnIndices() -> Set<Int> {
+        // Find which column indices are Saturday (7) and Sunday (1)
+        let saturdayWeekday = 7
+        let sundayWeekday = 1
+        let firstWeekday = calendar.firstWeekday
+
+        let saturdayIndex = (saturdayWeekday - firstWeekday + 7) % 7
+        let sundayIndex = (sundayWeekday - firstWeekday + 7) % 7
+
+        return [saturdayIndex, sundayIndex]
     }
 
     private func shiftedWeekdaySymbols() -> [String] {
@@ -233,13 +255,24 @@ private struct CalendarDayCell: View {
     let onTap: (CalendarDayData) -> Void
 
     /// Dot indicator size scales with Dynamic Type
-    @ScaledMetric(relativeTo: .caption2) private var dotSize: CGFloat = 5
-    /// Spacing between dots scales with Dynamic Type
-    @ScaledMetric(relativeTo: .caption2) private var dotSpacing: CGFloat = 2
-    /// Highlight padding around content
-    @ScaledMetric(relativeTo: .callout) private var highlightPadding: CGFloat = 4
-    /// Highlight corner radius
-    @ScaledMetric(relativeTo: .callout) private var highlightCornerRadius: CGFloat = 6
+    @ScaledMetric(relativeTo: .caption2) private var dotSize: CGFloat = 6
+    /// Horizontal spacing between individual dots
+    @ScaledMetric(relativeTo: .caption2) private var dotGap: CGFloat = 1
+    /// Vertical gap between bottom of day circle and top of dots row
+    @ScaledMetric(relativeTo: .caption2) private var numberToDotSpacing: CGFloat = -2
+    /// Fixed layout slot for day number; keeps row height stable if circleSize changes
+    @ScaledMetric(relativeTo: .callout) private var daySlotSize: CGFloat = 36
+    /// Circle diameter for today/selected highlight, scales with Dynamic Type
+    @ScaledMetric(relativeTo: .callout) private var circleSize: CGFloat = 30
+
+    private var isWeekend: Bool {
+        let weekday = calendar.component(.weekday, from: date)
+        return weekday == 1 || weekday == 7 // Sunday = 1, Saturday = 7
+    }
+
+    private var dayNumberColor: Color {
+        isWeekend ? Color(uiColor: .secondaryLabel) : Color(uiColor: .label)
+    }
 
     private var dots: [DotIndicator] {
         DotIndicatorGenerator.dots(
@@ -255,23 +288,25 @@ private struct CalendarDayCell: View {
                 onTap(dayData)
             }
         } label: {
-            VStack(spacing: dotSpacing) {
-                Text("\(calendar.component(.day, from: date))")
-                    .font(.callout.weight(isToday ? .semibold : .regular))
-                    .padding(.horizontal, highlightPadding)
-                    .padding(.vertical, highlightPadding / 2)
-                    .background {
-                        if isToday {
-                            RoundedRectangle(cornerRadius: highlightCornerRadius, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.15))
-                        } else if isSelected {
-                            RoundedRectangle(cornerRadius: highlightCornerRadius, style: .continuous)
-                                .fill(Color.secondary.opacity(0.22))
-                        }
+            VStack(spacing: 0) {
+                ZStack {
+                    if isToday {
+                        Circle()
+                            .fill(DesignSystem.Color.yellow)
+                            .frame(width: circleSize, height: circleSize)
+                    } else if isSelected {
+                        Circle()
+                            .fill(DesignSystem.Color.yellow.opacity(0.25))
+                            .frame(width: circleSize, height: circleSize)
                     }
 
-                // Always reserve space for dots to keep day numbers aligned
-                HStack(spacing: dotSpacing) {
+                    Text("\(calendar.component(.day, from: date))")
+                        .font(.callout.weight(isToday ? .semibold : .regular))
+                        .foregroundColor(isToday ? Color(white: 0.2) : dayNumberColor)
+                }
+                .frame(width: daySlotSize, height: daySlotSize)
+
+                HStack(spacing: dotGap) {
                     if dayData.hasItems {
                         ForEach(dots.prefix(4)) { dot in
                             Circle()
@@ -286,78 +321,78 @@ private struct CalendarDayCell: View {
                     }
                 }
                 .frame(height: dotSize)
+                .padding(.top, numberToDotSpacing)
             }
-            .frame(maxWidth: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-	        .buttonStyle(.plain)
-	        .disabled(!dayData.hasItems)
-	        .accessibilityElement(children: .ignore)
-	        .accessibilityLabel(accessibilityLabel)
-	        .accessibilityHint(dayData.hasItems
-	            ? String(
-	                localized: "Double-tap to open day details",
-	                comment: "Accessibility hint for a calendar day cell that has items"
-	            )
-	            : String(
-	                localized: "No bills or payments on this day",
-	                comment: "Accessibility hint for a calendar day cell that has no items"
-	            )
-	        )
-	        .accessibilityAddTraits(.isButton)
-	    }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(dayData.hasItems
+                           ? String(
+                            localized: "Double-tap to open day details",
+                            comment: "Accessibility hint for a calendar day cell that has items"
+                           )
+                           : String(
+                            localized: "No bills or payments on this day",
+                            comment: "Accessibility hint for a calendar day cell that has no items"
+                           )
+        )
+        .accessibilityAddTraits(.isButton)
+    }
 
     private func color(for dotColor: DotColor) -> Color {
         switch dotColor {
-        case .red: return .red
-        case .orange: return .orange
-        case .yellow: return .yellow
-        case .gray: return .gray
-        case .green: return .green
-        case .income: return DesignSystem.Color.income
+        case .red: return DesignSystem.Color.red
+        case .orange: return DesignSystem.Color.orange
+        case .yellow: return DesignSystem.Color.yellow
+        case .gray: return DesignSystem.Color.neutralDark
+        case .green: return DesignSystem.Color.green
+        case .income: return DesignSystem.Color.blue
         }
     }
 
-	    private var accessibilityLabel: String {
-	        let dayString = date.formatted(.dateTime.month(.abbreviated).day())
-	        let billCount = dayData.futureOccurrencesWithPayments.count + dayData.pastOccurrences.count
-	        let paymentCount = dayData.payments.count
-	        let incomeCount = dayData.incomeOccurrences.count
-	
-	        var components: [String] = [dayString]
-	        if isToday {
-	            components.append(String(localized: "today", comment: "Accessibility: day state (today)"))
-	        }
-	        if isSelected {
-	            components.append(String(localized: "selected", comment: "Accessibility: day state (selected)"))
-	        }
-	
-	        if dayData.hasItems {
-	            if incomeCount > 0 {
-	                components.append(String(
-	                    localized: incomeCount == 1 ? "\(incomeCount) income" : "\(incomeCount) incomes",
-	                    comment: "Accessibility: calendar day cell income count"
-	                ))
-	            }
-	            components.append(String(
-	                localized: billCount == 1 ? "\(billCount) bill" : "\(billCount) bills",
-	                comment: "Accessibility: calendar day cell bill count"
-	            ))
-	            components.append(String(
-	                localized: paymentCount == 1 ? "\(paymentCount) payment" : "\(paymentCount) payments",
-	                comment: "Accessibility: calendar day cell payment count"
-	            ))
-	        } else {
-	            components.append(String(
-	                localized: "No bills or payments",
-	                comment: "Accessibility: calendar day cell empty state"
-	            ))
-	        }
-	
-	        let listFormatter = ListFormatter()
-	        listFormatter.locale = .autoupdatingCurrent
-	        return listFormatter.string(from: components) ?? components.joined(separator: ", ")
-	    }
-	}
+    private var accessibilityLabel: String {
+        let dayString = date.formatted(.dateTime.month(.abbreviated).day())
+        let billCount = dayData.futureOccurrencesWithPayments.count + dayData.pastOccurrences.count
+        let paymentCount = dayData.payments.count
+        let incomeCount = dayData.incomeOccurrences.count
+
+        var components: [String] = [dayString]
+        if isToday {
+            components.append(String(localized: "today", comment: "Accessibility: day state (today)"))
+        }
+        if isSelected {
+            components.append(String(localized: "selected", comment: "Accessibility: day state (selected)"))
+        }
+
+        if dayData.hasItems {
+            if incomeCount > 0 {
+                components.append(String(
+                    localized: incomeCount == 1 ? "\(incomeCount) income" : "\(incomeCount) incomes",
+                    comment: "Accessibility: calendar day cell income count"
+                ))
+            }
+            components.append(String(
+                localized: billCount == 1 ? "\(billCount) bill" : "\(billCount) bills",
+                comment: "Accessibility: calendar day cell bill count"
+            ))
+            components.append(String(
+                localized: paymentCount == 1 ? "\(paymentCount) payment" : "\(paymentCount) payments",
+                comment: "Accessibility: calendar day cell payment count"
+            ))
+        } else {
+            components.append(String(
+                localized: "No bills or payments",
+                comment: "Accessibility: calendar day cell empty state"
+            ))
+        }
+
+        let listFormatter = ListFormatter()
+        listFormatter.locale = .autoupdatingCurrent
+        return listFormatter.string(from: components) ?? components.joined(separator: ", ")
+    }
+}
 
 // MARK: - Previews
 
@@ -422,55 +457,131 @@ private struct CalendarDayCell: View {
                 categoryIdentifier: .predefined(.utilities)
             )
 
-	            // Day with unpaid bill (today)
-	            let todayStart = calendar.startOfDay(for: today)
-	            if calendar.isDate(todayStart, equalTo: monthStart, toGranularity: .month) {
-	                let occurrence = BillOccurrence(bill: sampleBill, dueDate: todayStart)
-	                data[todayStart] = CalendarDayData(
-	                    date: todayStart,
-	                    futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])]
-	                )
-	            }
+            // Day with unpaid bill (today)
+            let todayStart = calendar.startOfDay(for: today)
+            if calendar.isDate(todayStart, equalTo: monthStart, toGranularity: .month) {
+                let occurrence = BillOccurrence(bill: sampleBill, dueDate: todayStart)
+                data[todayStart] = CalendarDayData(
+                    date: todayStart,
+                    futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])]
+                )
+            }
 
             // Day with paid bill (5 days ago)
             if let fiveDaysAgo = calendar.date(byAdding: .day, value: -5, to: today) {
                 let fiveDaysAgoStart = calendar.startOfDay(for: fiveDaysAgo)
                 if calendar.isDate(fiveDaysAgoStart, equalTo: monthStart, toGranularity: .month) {
-	                    let issued = IssuedOccurrence(
-	                        occurrenceKey: sampleBill.occurrenceKey(for: fiveDaysAgoStart, calendar: calendar),
-	                        dueDate: fiveDaysAgoStart,
-	                        billName: sampleBill.name,
-	                        billAmount: sampleBill.amount,
-	                        billCurrencyCode: sampleBill.currencyCode,
-	                        billAccountIdentifier: sampleBill.accountIdentifier,
-	                        billNotes: sampleBill.notes,
-	                        billCategoryRawValue: sampleBill.categoryIdentifier?.rawValue,
-	                        bill: sampleBill
-	                    )
-	                    let payment = PaymentEntry(
-	                        amount: 50,
-	                        datePaid: fiveDaysAgoStart,
-	                        confirmationNumber: nil,
-	                        issuedOccurrence: issued
-	                    )
-	                    data[fiveDaysAgoStart] = CalendarDayData(
-	                        date: fiveDaysAgoStart,
-	                        payments: [payment]
-	                    )
-	                }
-	            }
+                    let issued = IssuedOccurrence(
+                        occurrenceKey: sampleBill.occurrenceKey(for: fiveDaysAgoStart, calendar: calendar),
+                        dueDate: fiveDaysAgoStart,
+                        billName: sampleBill.name,
+                        billAmount: sampleBill.amount,
+                        billCurrencyCode: sampleBill.currencyCode,
+                        billAccountIdentifier: sampleBill.accountIdentifier,
+                        billNotes: sampleBill.notes,
+                        billCategoryRawValue: sampleBill.categoryIdentifier?.rawValue,
+                        bill: sampleBill
+                    )
+                    let payment = PaymentEntry(
+                        amount: 50,
+                        datePaid: fiveDaysAgoStart,
+                        confirmationNumber: nil,
+                        issuedOccurrence: issued
+                    )
+                    data[fiveDaysAgoStart] = CalendarDayData(
+                        date: fiveDaysAgoStart,
+                        payments: [payment]
+                    )
+                }
+            }
 
             // Day with income (10 days from now)
             if let tenDaysFromNow = calendar.date(byAdding: .day, value: 10, to: today) {
                 let tenDaysStart = calendar.startOfDay(for: tenDaysFromNow)
-	                if calendar.isDate(tenDaysStart, equalTo: monthStart, toGranularity: .month) {
-	                    let income = Income(name: "Salary", amount: 5000, startDate: tenDaysStart)
-	                    data[tenDaysStart] = CalendarDayData(
-	                        date: tenDaysStart,
-	                        incomeOccurrences: [IncomeOccurrence(from: income, on: tenDaysStart)]
-	                    )
-	                }
-	            }
+                if calendar.isDate(tenDaysStart, equalTo: monthStart, toGranularity: .month) {
+                    let income = Income(name: "Salary", amount: 5000, startDate: tenDaysStart)
+                    data[tenDaysStart] = CalendarDayData(
+                        date: tenDaysStart,
+                        incomeOccurrences: [IncomeOccurrence(from: income, on: tenDaysStart)]
+                    )
+                }
+            }
+
+            let rentBill = Bill(name: "Rent", amount: 1200, dueDate: today, categoryIdentifier: .predefined(.housing))
+            let streamingBill = Bill(name: "Netflix", amount: 15, dueDate: today, categoryIdentifier: .predefined(.subscriptions))
+            let phoneBill = Bill(name: "Phone", amount: 60, dueDate: today, categoryIdentifier: .predefined(.utilities))
+            let salary = Income(name: "Salary", amount: 5000, startDate: today)
+            let freelance = Income(name: "Freelance", amount: 800, startDate: today)
+
+            // Day with 3 future bills (multiple urgency dots)
+            if let day2 = calendar.date(byAdding: .day, value: 2, to: today) {
+                let d = calendar.startOfDay(for: day2)
+                if calendar.isDate(d, equalTo: monthStart, toGranularity: .month) {
+                    data[d] = CalendarDayData(
+                        date: d,
+                        futureOccurrencesWithPayments: [
+                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: sampleBill, dueDate: d), payments: []),
+                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: rentBill, dueDate: d), payments: []),
+                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: phoneBill, dueDate: d), payments: [])
+                        ]
+                    )
+                }
+            }
+
+            // Day with income + bill (income dot + bill dot)
+            if let day7 = calendar.date(byAdding: .day, value: 7, to: today) {
+                let d = calendar.startOfDay(for: day7)
+                if calendar.isDate(d, equalTo: monthStart, toGranularity: .month) {
+                    data[d] = CalendarDayData(
+                        date: d,
+                        futureOccurrencesWithPayments: [
+                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: streamingBill, dueDate: d), payments: [])
+                        ],
+                        incomeOccurrences: [IncomeOccurrence(from: salary, on: d)]
+                    )
+                }
+            }
+
+            // Day with 2 incomes
+            if let day15 = calendar.date(byAdding: .day, value: 15, to: today) {
+                let d = calendar.startOfDay(for: day15)
+                if calendar.isDate(d, equalTo: monthStart, toGranularity: .month) {
+                    data[d] = CalendarDayData(
+                        date: d,
+                        incomeOccurrences: [
+                            IncomeOccurrence(from: salary, on: d),
+                            IncomeOccurrence(from: freelance, on: d)
+                        ]
+                    )
+                }
+            }
+
+            // Day far out with single gray-urgency bill
+            if let day25 = calendar.date(byAdding: .day, value: 25, to: today) {
+                let d = calendar.startOfDay(for: day25)
+                if calendar.isDate(d, equalTo: monthStart, toGranularity: .month) {
+                    data[d] = CalendarDayData(
+                        date: d,
+                        futureOccurrencesWithPayments: [
+                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: rentBill, dueDate: d), payments: [])
+                        ]
+                    )
+                }
+            }
+
+            // Single-bill days at various offsets
+            for dayOffset in [3, 8, 12, -2, -8, -12] {
+                if let date = calendar.date(byAdding: .day, value: dayOffset, to: today) {
+                    let dateStart = calendar.startOfDay(for: date)
+                    guard calendar.isDate(dateStart, equalTo: monthStart, toGranularity: .month),
+                          data[dateStart] == nil else { continue }
+                    let occurrence = BillOccurrence(bill: sampleBill, dueDate: dateStart)
+                    data[dateStart] = CalendarDayData(
+                        date: dateStart,
+                        futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])]
+                    )
+                }
+            }
 
             return data
         }

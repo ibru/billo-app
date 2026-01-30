@@ -15,10 +15,10 @@ struct IncomeDetailView: View {
         List {
             Section {
                 HStack {
-                    Label("Amount", systemImage: "banknote")
+                    Label("Amount", systemImage: "wallet.bifold")
                     Spacer()
                     Text(income.amount, format: .currency(code: income.currencyCode))
-                        .foregroundStyle(DesignSystem.Color.income)
+                        .foregroundStyle(DesignSystem.Color.green)
                         .fontWeight(.semibold)
                 }
 

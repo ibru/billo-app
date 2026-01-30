@@ -159,12 +159,12 @@ private struct DaySheetPastOccurrenceRow: View {
                 let paidOnDateString = lastDate.formatted(.dateTime.month(.abbreviated).day())
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignSystem.Color.green)
                     Text(String(
                         localized: "Paid on \(paidOnDateString)",
                         comment: "Day details: paid status label with date"
                     ))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignSystem.Color.green)
                 }
                 .font(.caption)
             }
@@ -201,19 +201,19 @@ private struct DaySheetPastOccurrenceRow: View {
                     comment: "Day details: remaining amount label"
                 ))
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(DesignSystem.Color.orange)
             }
 
         case .missed:
             let dueDateString = display.occurrence.dueDate.formatted(.dateTime.month(.abbreviated).day())
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DesignSystem.Color.red)
                 Text(String(
                     localized: "Was due \(dueDateString)",
                     comment: "Day details: missed status label with due date"
                 ))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DesignSystem.Color.red)
             }
             .font(.caption)
         }
@@ -273,7 +273,7 @@ private struct IncomeOccurrenceRow: View {
 
             Text(incomeOccurrence.amount, format: .currency(code: incomeOccurrence.currencyCode))
                 .font(.subheadline)
-                .foregroundStyle(DesignSystem.Color.income)
+                .foregroundStyle(DesignSystem.Color.green)
         }
         .padding(.vertical, DesignSystem.Spacing.small)
         .accessibilityElement(children: .combine)
@@ -312,7 +312,7 @@ private struct IncomeOccurrenceRow: View {
 	                    onMarkPaid()
 	                }
 	                .buttonStyle(.borderedProminent)
-	                .tint(.green)
+                .tint(DesignSystem.Color.green)
                 .accessibilityLabel(String(
                     localized: "Mark paid for \(occurrence.name)",
                     comment: "Accessibility: mark paid button (bill name)"

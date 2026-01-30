@@ -47,13 +47,13 @@ struct MonthlyCashFlowChart: View {
                 x: .value("Type", String(localized: "Income")),
                 y: .value("Amount", data.income)
             )
-            .foregroundStyle(DesignSystem.Color.Chart.income)
+            .foregroundStyle(DesignSystem.Color.green)
 
             BarMark(
                 x: .value("Type", String(localized: "Bills")),
                 y: .value("Amount", data.bills)
             )
-            .foregroundStyle(DesignSystem.Color.Chart.bills)
+            .foregroundStyle(DesignSystem.Color.red)
         }
         .frame(height: 200)
         .chartYAxis {
@@ -78,8 +78,8 @@ struct MonthlyCashFlowChart: View {
 
             Text(data.net, format: .currency(code: currencyCode))
                 .foregroundStyle(data.net >= 0
-                    ? DesignSystem.Color.Chart.net
-                    : DesignSystem.Color.Chart.netNegative)
+                    ? DesignSystem.Color.green
+                    : DesignSystem.Color.red)
                 .fontWeight(.semibold)
         }
     }

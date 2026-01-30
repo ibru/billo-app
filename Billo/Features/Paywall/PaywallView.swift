@@ -162,14 +162,15 @@ struct PaywallView: View {
 
     private var benefitsList: some View {
         VStack(spacing: DesignSystem.Spacing.small) {
-            BenefitRow(icon: "sparkles", text: "Peace of mind about what’s due next")
+            BenefitRow(icon: "sparkles", text: "Peace of mind about what's due next")
             BenefitRow(icon: "tray.full", text: "Everything in one place — no scattered notes")
             BenefitRow(icon: "bell.badge", text: "Stay ahead of late fees and surprises")
             BenefitRow(icon: "checkmark.circle", text: "Build a simple weekly routine that sticks")
         }
         .padding(DesignSystem.Spacing.large)
-        .background(.fill.tertiary)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(DesignSystem.Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large))
+        .cardShadow()
     }
 
     // MARK: - Subscription Options
@@ -246,13 +247,13 @@ struct PaywallView: View {
                 }
             ))
             .labelsHidden()
-            .tint(.accentColor)
+            .tint(DesignSystem.Color.green)
             .accessibilityLabel("Free trial")
         }
         .padding(.horizontal, DesignSystem.Spacing.medium)
-        .padding(.vertical, 12)
-        .background(.fill.tertiary)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, DesignSystem.Spacing.mediumSmall)
+        .background(DesignSystem.Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium))
     }
 
     // MARK: - Purchase

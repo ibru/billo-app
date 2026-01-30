@@ -86,7 +86,7 @@ struct PaymentRowView: View {
             }
         case .checkmark:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(DesignSystem.Color.green)
                 .font(.title3)
                 .frame(width: 36)
         }

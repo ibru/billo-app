@@ -157,6 +157,11 @@ struct BillsHomeSwitchView: View {
     private var masterColumnBase: some View {
         masterContent
             .platformInlineNavigationTitle()
+            .toolbarBackground(
+                viewModeBinding.wrappedValue == .calendar ? Color.white : Color.clear,
+                for: .navigationBar
+            )
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) { moreMenu }
 
@@ -337,7 +342,7 @@ private struct HomeFloatingQuickActionsView: View {
                     systemImage: "clock.arrow.circlepath"
                 )
                 .buttonStyle(.plain)
-	                .frame(width: 44, height: 44)
+	                .frame(width: 52, height: 44)
 	                .contentShape(Rectangle())
 	                .accessibilityLabel(Text("Payment History"))
 
@@ -346,14 +351,15 @@ private struct HomeFloatingQuickActionsView: View {
 
                 quickAction(
                     destination: .incomeList,
-                    systemImage: "banknote"
+                    systemImage: "wallet.bifold"
                 )
                 .buttonStyle(.plain)
-	                .frame(width: 44, height: 44)
+	                .frame(width: 52, height: 44)
 	                .contentShape(Rectangle())
 	                .accessibilityLabel(Text("Income"))
 	            }
 	            .font(.headline)
+	            .foregroundStyle(DesignSystem.Color.green)
 	        }
 	    }
 	}

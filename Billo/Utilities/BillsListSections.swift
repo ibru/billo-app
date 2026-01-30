@@ -45,11 +45,12 @@ struct BillsListSections {
         from bills: [Bill],
         incomes: [Income] = [],
         referenceDate: Date,
-        calendar: Calendar
+        calendar: Calendar,
+        monthsAhead: Int = 3
     ) -> BillsListSections {
-        let threeMonthsLater = calendar.date(byAdding: .month, value: 3, to: referenceDate) ?? referenceDate
+        let horizon = calendar.date(byAdding: .month, value: monthsAhead, to: referenceDate) ?? referenceDate
 
-        let allOccurrences = makeOccurrences(from: bills, until: threeMonthsLater, calendar: calendar)
+        let allOccurrences = makeOccurrences(from: bills, until: horizon, calendar: calendar)
 
         // Start income generation from the earlier of current week or month start
         // to ensure weekly and monthly overviews include all relevant income
@@ -61,7 +62,7 @@ struct BillsListSections {
         let allIncomeOccurrences = IncomeOccurrence.generateOccurrences(
             from: incomes,
             rangeStart: incomeRangeStart,
-            rangeEnd: threeMonthsLater,
+            rangeEnd: horizon,
             calendar: calendar
         )
 

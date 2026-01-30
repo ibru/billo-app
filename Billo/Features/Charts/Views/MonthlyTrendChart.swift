@@ -65,7 +65,7 @@ struct MonthlyTrendChart: View {
                 x: .value("Month", point.monthLabel),
                 y: .value("Amount", point.totalDue)
             )
-            .foregroundStyle(DesignSystem.Color.Chart.bills.gradient)
+            .foregroundStyle(DesignSystem.Color.red.gradient)
         }
         .frame(height: 180)
         .chartYAxis {

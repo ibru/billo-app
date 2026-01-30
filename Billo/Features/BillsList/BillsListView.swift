@@ -10,6 +10,8 @@ struct BillsListView: View {
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
+    @State private var monthsAhead = 3
+
     private let usesStackNavigation: Bool
     private let onOpen: (HomeDetailDestination) -> Void
 
@@ -26,18 +28,23 @@ struct BillsListView: View {
     }
 
     var body: some View {
-        List {
-            SummarySectionView(
-                overview: billsModel.sections.weeklyOverview,
-                totals: billsModel.sections.monthlyTotals,
-                currencyCode: currencyCode
-            )
-            billSections()
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                SummarySectionView(
+                    overview: billsModel.sections.weeklyOverview,
+                    totals: billsModel.sections.monthlyTotals,
+                    currencyCode: currencyCode
+                )
+
+                billSections()
+
+                showMoreButton
+            }
         }
-        .platformListSectionSpacing(0)
+        .background(DesignSystem.Color.groupedBackground)
         .task {
             do {
-                try billsModel.refresh()
+                try billsModel.refresh(monthsAhead: monthsAhead)
             } catch {
                 Logger.log("Failed to refresh bills: \(error)", level: .error)
             }
@@ -48,38 +55,27 @@ struct BillsListView: View {
     private func billSections() -> some View {
         ForEach(BillSection.allCases) { section in
             if let occurrences = billsModel.sections.occurrencesBySection[section], !occurrences.isEmpty {
-	                Section {
-	                    ForEach(occurrences) { occurrence in
-	                        if usesStackNavigation {
-	                            NavigationLink(value: HomeDetailDestination.bill(occurrence.bill.persistentModelID)) {
-	                                BillRowView(occurrence: occurrence, customCategories: customCategories)
-	                            }
-	                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-	                                Button {
-	                                    markPaid(occurrence)
-	                                } label: {
-	                                    Label("Paid Today", systemImage: "checkmark.circle")
-	                                }
-	                                .tint(.green)
-	                            }
-	                        } else {
-	                            Button {
-	                                onOpen(.bill(occurrence.bill.persistentModelID))
-	                            } label: {
-	                                BillRowView(occurrence: occurrence, customCategories: customCategories)
-	                            }
-	                            .buttonStyle(.plain)
-	                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-	                                Button {
-	                                    markPaid(occurrence)
-	                                } label: {
-	                                    Label("Paid Today", systemImage: "checkmark.circle")
-	                                }
-	                                .tint(.green)
-	                            }
-	                        }
-	                    }
-	                } header: {
+                Section {
+                    ForEach(occurrences) { occurrence in
+                        if usesStackNavigation {
+                            NavigationLink(value: HomeDetailDestination.bill(occurrence.bill.persistentModelID)) {
+                                BillRowView(occurrence: occurrence, customCategories: customCategories, section: section)
+                                    .listRowStyle()
+                                    .foregroundColor(Color(uiColor: .label))
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button {
+                                onOpen(.bill(occurrence.bill.persistentModelID))
+                            } label: {
+                                BillRowView(occurrence: occurrence, customCategories: customCategories, section: section)
+                                    .listRowStyle()
+                                    .foregroundColor(Color(uiColor: .label))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } header: {
                     BillSectionHeader(
                         section: section,
                         occurrences: occurrences,
@@ -87,6 +83,23 @@ struct BillsListView: View {
                     )
                 }
             }
+        }
+    }
+
+    private var showMoreButton: some View {
+        Button {
+            monthsAhead += 3
+            do {
+                try billsModel.refresh(monthsAhead: monthsAhead)
+            } catch {
+                Logger.log("Failed to load more bills: \(error)", level: .error)
+            }
+        } label: {
+            Label("Show 3 More Months", systemImage: "calendar.badge.plus")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DesignSystem.Spacing.medium)
         }
     }
 
@@ -101,41 +114,132 @@ struct BillsListView: View {
     }
 }
 
+// MARK: - Row Style
+
+private extension View {
+    func listRowStyle() -> some View {
+        VStack(spacing: 0) {
+            self
+                .padding(.horizontal, DesignSystem.Spacing.mediumSmall)
+                .padding(.vertical, DesignSystem.Spacing.small)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(DesignSystem.Color.background)
+
+            Divider()
+                .padding(.leading, DesignSystem.Spacing.medium)
+        }
+    }
+}
+
+// MARK: - Summary Section
+
 private struct SummarySectionView: View {
     let overview: WeeklyOverview
     let totals: MonthlyTotals
     let currencyCode: String
 
     var body: some View {
-        Section {
-            HStack(spacing: DesignSystem.Spacing.small) {
-                CompactWeeklySummary(overview: overview, currencyCode: currencyCode)
-                CompactMonthlySummary(totals: totals, currencyCode: currencyCode)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(DesignSystem.Color.groupedBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(DesignSystem.Color.separator, lineWidth: 0.5)
-                    )
+        HStack(alignment: .top, spacing: 0) {
+            SummaryColumn(
+                title: "This Week",
+                incomeTotal: overview.incomeTotal,
+                billsTotal: overview.dueAmount,
+                netAmount: overview.netAmount,
+                currencyCode: currencyCode
+            )
+
+            Divider()
+                .frame(height: 56)
+
+            SummaryColumn(
+                title: "This Month",
+                incomeTotal: totals.incomeTotal,
+                billsTotal: totals.totalDue,
+                netAmount: totals.netAmount,
+                currencyCode: currencyCode
             )
         }
-        .listRowInsets(
-            EdgeInsets(
-                top: DesignSystem.Spacing.small,
-                leading: DesignSystem.Spacing.small,
-                bottom: DesignSystem.Spacing.small,
-                trailing: DesignSystem.Spacing.small
-            )
+        .padding(.vertical, DesignSystem.Spacing.mediumSmall)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large, style: .continuous)
+                .fill(DesignSystem.Color.background)
         )
-        .listRowBackground(Color.clear)
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.vertical, DesignSystem.Spacing.mediumSmall)
+    }
+}
+
+private struct SummaryColumn: View {
+    let title: String
+    let incomeTotal: Decimal
+    let billsTotal: Decimal
+    let netAmount: Decimal
+    let currencyCode: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+            Text(LocalizedStringKey(title))
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            VStack(alignment: .leading, spacing: 2) {
+                SummaryRow(
+                    label: "Income",
+                    amount: incomeTotal,
+                    currencyCode: currencyCode,
+                    color: DesignSystem.Color.green
+                )
+
+                SummaryRow(
+                    label: "Bills",
+                    amount: billsTotal,
+                    currencyCode: currencyCode,
+                    color: nil
+                )
+
+                SummaryRow(
+                    label: "Net",
+                    amount: netAmount,
+                    currencyCode: currencyCode,
+                    color: netAmount >= 0 ? DesignSystem.Color.green : DesignSystem.Color.red
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DesignSystem.Spacing.mediumSmall)
+    }
+}
+
+private struct SummaryRow: View {
+    let label: String
+    let amount: Decimal
+    let currencyCode: String
+    let color: Color?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.extraSmall) {
+            Text(LocalizedStringKey(label))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if amount == 0 {
+                Text("–")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            } else {
+                Text(amount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(color ?? .primary)
+            }
+        }
     }
 }
 
 struct BillRowView: View {
     let occurrence: BillOccurrence
     let customCategories: [CustomCategory]
+    var section: BillSection = .later
 
     private var categoryInfo: CategoryDisplayInfo? {
         CategoryCatalog.displayInfo(for: occurrence.categoryIdentifier, customCategories: customCategories)
@@ -155,9 +259,27 @@ struct BillRowView: View {
         )
     }
 
+    private var showsCountdownBadge: Bool {
+        section != .later && badgeConfiguration.isVisible
+    }
+
+    private var categoryColor: Color {
+        guard let info = categoryInfo else { return .secondary }
+        return DesignSystem.Color.categoryColor(for: info.colorToken)
+    }
+
+    private var amountColor: Color {
+        switch section {
+        case .overdue, .today: return DesignSystem.Color.red
+        case .next7Days: return DesignSystem.Color.orange
+        case .next30Days: return DesignSystem.Color.yellow
+        case .later: return Color(uiColor: .label)
+        }
+    }
+
     var body: some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
-            if badgeConfiguration.isVisible {
+        HStack(spacing: DesignSystem.Spacing.mediumSmall) {
+            if showsCountdownBadge {
                 CountdownBadgeView(
                     numberText: countdownParts.value,
                     unitText: countdownParts.unit,
@@ -165,34 +287,42 @@ struct BillRowView: View {
                     progress: badgeConfiguration.progress,
                     isOverdue: badgeConfiguration.isOverdue
                 )
+            } else if section == .later, let info = categoryInfo {
+                Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                    .font(.title2)
+                    .foregroundStyle(categoryColor)
+                    .frame(width: 36, height: 36)
             }
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
                 Text(occurrence.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(Color(uiColor: .label))
 
-                if occurrence.status(relativeTo: Date(), calendar: .current) == .partiallyPaid {
-                    Text("Partially paid")
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.orange.opacity(0.15))
-                        )
-                        .foregroundStyle(.orange)
-                }
-
-                if let info = categoryInfo {
-                    HStack {
-                        if let info = categoryInfo {
-                            Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                HStack(spacing: DesignSystem.Spacing.small) {
+                    if let info = categoryInfo {
+                        HStack(spacing: DesignSystem.Spacing.extraSmall) {
+                            if section != .later {
+                                Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                                    .foregroundStyle(categoryColor)
+                            }
+                            Text(info.name)
                         }
-                        Text(info.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                    if occurrence.status(relativeTo: Date(), calendar: .current) == .partiallyPaid {
+                        Text("Partially paid")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(DesignSystem.Color.orange.opacity(0.15))
+                            )
+                            .foregroundStyle(DesignSystem.Color.orange)
+                    }
                 }
             }
 
@@ -200,14 +330,15 @@ struct BillRowView: View {
 
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
                 Text(occurrence.amount, format: .currency(code: occurrence.currencyCode))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(amountColor)
 
                 Text(occurrence.dueDate, style: .date)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
+        .contentShape(Rectangle())
     }
 }
 
@@ -248,16 +379,16 @@ private struct CountdownBadgeView: View {
     let progress: Double
     let isOverdue: Bool
 
-    @ScaledMetric(relativeTo: .caption) private var lineWidth: CGFloat = 1.5
-    @ScaledMetric(relativeTo: .caption) private var padding: CGFloat = 8
-    @ScaledMetric(relativeTo: .caption2) private var unitFontSize: CGFloat = 9
+    @ScaledMetric(relativeTo: .caption) private var lineWidth: CGFloat = 2
+    @ScaledMetric(relativeTo: .caption) private var padding: CGFloat = 10
+    @ScaledMetric(relativeTo: .caption2) private var unitFontSize: CGFloat = 10
 
     var body: some View {
         let clampedProgress = max(0, min(progress, 1))
 
         VStack(spacing: -2) {
             Text(numberText)
-                .font(.footnote)
+                .font(.callout)
             Text(unitText)
                 .font(.system(size: unitFontSize))
                 .fontWeight(.light)
@@ -304,137 +435,54 @@ private struct BillSectionHeader: View {
             Text(section.displayName)
             Spacer()
             if section != .later {
-                Text(totalAmount, format: .currency(code: currencyCode))
-                    .monospacedDigit()
+                HStack(spacing: 0) {
+                    Text("-")
+                    Text(totalAmount, format: .currency(code: currencyCode))
+                }
+                .monospacedDigit()
+                .fontWeight(.bold)
             }
         }
         .frame(maxWidth: .infinity)
-        .font(.caption2)
-        .fontWeight(.semibold)
+        .font(.subheadline)
+        .fontWeight(.bold)
         .foregroundStyle(sectionColor)
         .textCase(nil)
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.vertical, DesignSystem.Spacing.small)
+        .padding(.top, DesignSystem.Spacing.medium)
+        .background(DesignSystem.Color.groupedBackground)
     }
 
     private func color(for section: BillSection) -> Color {
         switch section {
         case .overdue, .today:
-            return DesignSystem.Color.dueTodayOrOverdue
+            return DesignSystem.Color.red
         case .next7Days:
-            return DesignSystem.Color.dueWithin7Days
+            return DesignSystem.Color.orange
         case .next30Days:
-            return DesignSystem.Color.dueWithin30Days
+            return DesignSystem.Color.yellow
         case .later:
-            return DesignSystem.Color.dueLater
+            return DesignSystem.Color.neutralDark
         }
     }
 }
 
-struct CompactWeeklySummary: View {
-    let overview: WeeklyOverview
-    let currencyCode: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small / 2) {
-            Text("This Week")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if overview.incomeTotal > 0 {
-                    HStack {
-                        Text("Income:")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text(overview.incomeTotal, format: .currency(code: currencyCode).precision(.fractionLength(0)))
-                            .font(.subheadline)
-                            .bold()
-                            .foregroundStyle(DesignSystem.Color.income)
-                    }
-                }
-
-                HStack {
-                    Text("Bills:")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(overview.dueAmount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
-                        .font(.subheadline)
-                        .bold()
-                }
-
-                HStack {
-                    Text("Net:")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(overview.netAmount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
-                        .font(.subheadline)
-                        .bold()
-                        .foregroundStyle(overview.netAmount >= 0 ? DesignSystem.Color.income : .red)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DesignSystem.Spacing.small)
-    }
-}
-
-struct CompactMonthlySummary: View {
-    let totals: MonthlyTotals
-    let currencyCode: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small / 2) {
-            Text("This Month")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if totals.incomeTotal > 0 {
-                    HStack {
-                        Text("Income:")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text(totals.incomeTotal, format: .currency(code: currencyCode).precision(.fractionLength(0)))
-                            .font(.subheadline)
-                            .bold()
-                            .foregroundStyle(DesignSystem.Color.income)
-                    }
-                }
-
-                HStack {
-                    Text("Bills:")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(totals.totalDue, format: .currency(code: currencyCode).precision(.fractionLength(0)))
-                        .font(.subheadline)
-                        .bold()
-                }
-
-                HStack {
-                    Text("Net:")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(totals.netAmount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
-                        .font(.subheadline)
-                        .bold()
-                        .foregroundStyle(totals.netAmount >= 0 ? DesignSystem.Color.income : .red)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DesignSystem.Spacing.small)
-    }
-}
 
 #Preview("Sample Data") {
     let preview = BilloPreviewContainer.withSampleData()
 
-    return BillsListView()
-        .billoPreviewEnvironment(preview)
+    return NavigationStack {
+        BillsListView()
+    }
+    .billoPreviewEnvironment(preview)
 }
 
 #Preview("Empty State") {
     let preview = BilloPreviewContainer.empty()
 
-    return BillsListView()
-        .billoPreviewEnvironment(preview)
+    return NavigationStack {
+        BillsListView()
+    }
+    .billoPreviewEnvironment(preview)
 }

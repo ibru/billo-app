@@ -34,6 +34,10 @@ final class BillsModel {
     }
 
     func refresh() throws {
+        try refresh(monthsAhead: 3)
+    }
+
+    func refresh(monthsAhead: Int) throws {
         // Fetch both bills and incomes from same context for data consistency
         let billDescriptor = FetchDescriptor<Bill>(sortBy: [SortDescriptor(\.dueDate)])
         bills = try modelContext.fetch(billDescriptor)
@@ -45,9 +49,10 @@ final class BillsModel {
             from: bills,
             incomes: incomes,
             referenceDate: currentDate(),
-            calendar: calendar
+            calendar: calendar,
+            monthsAhead: monthsAhead
         )
-        Logger.log("Refreshed bills: \(bills.count), incomes: \(incomes.count)", level: .debug)
+        Logger.log("Refreshed bills: \(bills.count), incomes: \(incomes.count), months: \(monthsAhead)", level: .debug)
     }
 
     func markPaid(

@@ -45,6 +45,7 @@ struct BilloPreviewContainer {
         // Create bills
         let calendar = Calendar.current
         let now = referenceDate
+        let defaultCurrency = AppSettingsModel.defaultCurrency ?? "USD"
         let sampleBills: [Bill] = [
             Bill(
                 name: "Water bill",
@@ -82,6 +83,25 @@ struct BilloPreviewContainer {
         ]
 
         sampleBills.forEach { context.insert($0) }
+
+        // Create incomes
+        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        let salaryRule = RecurrenceRule(pattern: .monthly, frequency: 1, dayOfWeek: nil, dayOfMonth: 1, endConditionType: .never, endDate: nil)
+        let salary = Income(
+            name: "Salary",
+            amount: 4200,
+            currencyCode: defaultCurrency,
+            startDate: startOfMonth,
+            recurrenceRule: salaryRule
+        )
+        let freelance = Income(
+            name: "Freelance",
+            amount: 650,
+            currencyCode: defaultCurrency,
+            startDate: calendar.date(byAdding: .day, value: 6, to: now) ?? now
+        )
+        context.insert(salary)
+        context.insert(freelance)
 
         // Mark one bill as paid
         if let paidBill = sampleBills.last {
@@ -125,7 +145,6 @@ struct BilloPreviewContainer {
         try? billsModel.refresh()
 
         // Set up app settings with default currency
-        let defaultCurrency = AppSettingsModel.defaultCurrency ?? "USD"
         let previewSettings = AppSettings(currencyCode: defaultCurrency)
         context.insert(previewSettings)
         try? context.save()

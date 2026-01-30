@@ -22,7 +22,7 @@ struct PaymentDetailView: View {
                     Text("Amount")
                     Spacer()
                     Text(payment.amount, format: .currency(code: currencyCode))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignSystem.Color.green)
                 }
 
                 HStack {

@@ -81,11 +81,11 @@ struct NotificationSettingsView: View {
     private var permissionStatusView: some View {
         if model.authorizationStatus.isEffectivelyAuthorizedForReminders {
             Label("Notifications Enabled", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(DesignSystem.Color.green)
         } else if model.authorizationStatus == .denied {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications Disabled", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DesignSystem.Color.red)
                 Text("Enable in Settings to receive reminders")
                     .font(.caption)
                     .foregroundStyle(.secondary)

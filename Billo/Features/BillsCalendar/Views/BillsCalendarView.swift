@@ -92,6 +92,7 @@ struct BillsCalendarView: View {
             }
         } else {
             VStack(spacing: 0) {
+                // Calendar section with white background, rounded bottom corners, and shadow
                 CalendarPagedGridView(
                     months: months,
                     pageIndex: $pageIndex,
@@ -110,7 +111,17 @@ struct BillsCalendarView: View {
                         updateIsAtCurrentMonth()
                     }
                 )
-                Divider()
+                .padding(.bottom, DesignSystem.Spacing.small)
+                .background(
+                    DesignSystem.Color.background
+                        .clipShape(
+                            UnevenRoundedRectangle(
+                                bottomLeadingRadius: DesignSystem.CornerRadius.extraLarge,
+                                bottomTrailingRadius: DesignSystem.CornerRadius.extraLarge
+                            )
+                        )
+                )
+
 
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -139,7 +150,6 @@ struct BillsCalendarView: View {
                         .scrollTargetLayout()
                     }
                     .scrollIndicators(.visible)
-                    .background(DesignSystem.Color.groupedBackground)
                     .onChange(of: scrollTarget) { _, target in
                         guard let target else { return }
                         withAnimation(.easeInOut) {
@@ -150,6 +160,9 @@ struct BillsCalendarView: View {
                     }
                 }
             }
+            .background(DesignSystem.Color.groupedBackground)
+            .toolbarBackground(DesignSystem.Color.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
     }
 
@@ -363,7 +376,7 @@ private struct MonthSectionHeader: View {
     let currencyCode: String
 
     private var remainingColor: Color {
-        section.netRemaining >= 0 ? DesignSystem.Color.income : .red
+        section.netRemaining >= 0 ? DesignSystem.Color.green : DesignSystem.Color.red
     }
 
     private var showBreakdown: Bool {
@@ -371,24 +384,22 @@ private struct MonthSectionHeader: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
+        HStack(alignment: .top) {
                 Text(section.title)
                     .font(.headline)
 
-                Spacer()
-
                 if showBreakdown {
-                    breakdownView
-                }
-            }
+                    Spacer()
 
-            if showBreakdown {
-                remainingView
-            }
+                    VStack(alignment: .trailing, spacing: 2) {
+                        breakdownView
+                        remainingLabel
+                    }
+                }
         }
         .padding(.horizontal, DesignSystem.Spacing.medium)
         .padding(.vertical, DesignSystem.Spacing.small)
+        .padding(.top, DesignSystem.Spacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DesignSystem.Color.groupedBackground)
     }
@@ -401,7 +412,7 @@ private struct MonthSectionHeader: View {
                 Text("+")
                 Text(section.totalIncome, format: .currency(code: currencyCode))
             }
-            .foregroundStyle(DesignSystem.Color.income)
+            .foregroundStyle(DesignSystem.Color.green)
 
             Text("/")
                 .foregroundStyle(.secondary)
@@ -411,23 +422,23 @@ private struct MonthSectionHeader: View {
                 Text("-")
                 Text(section.totalBillsDue, format: .currency(code: currencyCode))
             }
-            .foregroundStyle(.red)
+            .foregroundStyle(DesignSystem.Color.red)
         }
         .font(.caption)
     }
 
     @ViewBuilder
-	    private var remainingView: some View {
-	        HStack(spacing: 4) {
-	            Spacer()
-	            Text("Remaining:")
-	                .foregroundStyle(.secondary)
-	            Text(section.netRemaining, format: .currency(code: currencyCode))
-	                .foregroundStyle(remainingColor)
-	        }
-	        .font(.caption)
-	    }
-	}
+    private var remainingLabel: some View {
+        HStack(spacing: 4) {
+            Text("Remaining:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(section.netRemaining, format: .currency(code: currencyCode))
+                .foregroundStyle(remainingColor)
+        }
+        .font(.caption)
+    }
+}
 
 // MARK: - Day Detail Presentation Modifier
 
@@ -475,13 +486,19 @@ private extension View {
 #Preview("Sample Data") {
     let preview = BilloPreviewContainer.withSampleData()
 
-    return BillsCalendarView()
-        .billoPreviewEnvironment(preview)
+    return NavigationStack {
+        BillsCalendarView()
+            .navigationBarTitleDisplayMode(.inline)
+    }
+    .billoPreviewEnvironment(preview)
 }
 
 #Preview("Empty State") {
     let preview = BilloPreviewContainer.empty()
 
-    return BillsCalendarView()
-        .billoPreviewEnvironment(preview)
+    return NavigationStack {
+        BillsCalendarView()
+            .navigationBarTitleDisplayMode(.inline)
+    }
+    .billoPreviewEnvironment(preview)
 }
