@@ -31,7 +31,7 @@ final class BillModel {
     var dueDate: Date {
         get { bill.dueDate }
         set {
-            bill.dueDate = newValue
+            bill.dueDate = calendar.startOfDay(for: newValue)
             bill.lastUpdatedDate = currentDate()
         }
     }

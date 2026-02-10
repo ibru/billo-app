@@ -234,7 +234,7 @@ final class NotificationCoordinator: NotificationCoordinating {
             .sorted { $0.dueDate < $1.dueDate }
 
             let overdue = occurrences
-                .filter { $0.dueDate < day }
+                .filter { calendar.startOfDay(for: $0.dueDate) < day }
                 .sorted { $0.dueDate > $1.dueDate }
 
             guard upcoming.isEmpty == false || overdue.isEmpty == false else {
@@ -309,7 +309,7 @@ final class NotificationCoordinator: NotificationCoordinating {
 
         let key = ScheduledReminderKey(
             billIDString: occurrence.bill.stableID,
-            occurrenceTimestamp: Int(occurrence.dueDate.timeIntervalSinceReferenceDate)
+            occurrenceTimestamp: occurrenceTimestamp(for: occurrence.dueDate)
         )
 
         let suppressed = scheduledReminders.contains(key)
@@ -396,7 +396,7 @@ final class NotificationCoordinator: NotificationCoordinating {
             plan.map {
                 ScheduledReminderKey(
                     billIDString: $0.0.billIDString,
-                    occurrenceTimestamp: Int($0.0.dueDate.timeIntervalSinceReferenceDate)
+                    occurrenceTimestamp: occurrenceTimestamp(for: $0.0.dueDate)
                 )
             }
         )
@@ -447,9 +447,11 @@ final class NotificationCoordinator: NotificationCoordinating {
         )
         content.sound = .default
         content.categoryIdentifier = NotificationCategory.billReminder
+
+        let normalizedDueDate = normalizedOccurrenceDate(for: snapshot.dueDate)
         content.userInfo = [
             "billID": snapshot.billIDString,
-            "occurrenceTimestamp": snapshot.dueDate.timeIntervalSinceReferenceDate,
+            "occurrenceTimestamp": normalizedDueDate.timeIntervalSinceReferenceDate,
             "offsetDays": offsetDays
         ]
 
@@ -458,7 +460,7 @@ final class NotificationCoordinator: NotificationCoordinating {
         )
         let identifier = NotificationIdentifier(
             billIDHash: billIDHash,
-            occurrenceTimestamp: Int(snapshot.dueDate.timeIntervalSinceReferenceDate),
+            occurrenceTimestamp: occurrenceTimestamp(for: snapshot.dueDate),
             offsetDays: offsetDays
         )
 
@@ -490,6 +492,14 @@ final class NotificationCoordinator: NotificationCoordinating {
         }
     }
 
+    private func normalizedOccurrenceDate(for dueDate: Date) -> Date {
+        calendar.startOfDay(for: dueDate)
+    }
+
+    private func occurrenceTimestamp(for dueDate: Date) -> Int {
+        Int(normalizedOccurrenceDate(for: dueDate).timeIntervalSinceReferenceDate)
+    }
+
     func cancelReminders(for occurrenceIDs: [BillOccurrence.OccurrenceID]) async {
         let pending = await notificationCenter.pendingNotificationRequests()
 
@@ -502,7 +512,8 @@ final class NotificationCoordinator: NotificationCoordinating {
                 let billIDHash = NotificationIdentifier.shortHash(
                     of: occurrenceID.billID
                 )
-                let occurrenceTimestamp = Int(occurrenceID.dueTime)
+                let rawDate = Date(timeIntervalSinceReferenceDate: occurrenceID.dueTime)
+                let occurrenceTimestamp = occurrenceTimestamp(for: rawDate)
 
                 if parsed.billIDHash == billIDHash &&
                    parsed.occurrenceTimestamp == occurrenceTimestamp {

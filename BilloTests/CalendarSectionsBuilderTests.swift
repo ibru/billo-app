@@ -574,16 +574,16 @@ private func makeContext() throws -> ModelContext {
 
 @MainActor
 @discardableResult
-private func makeBill(name: String, dueDate: Date, in context: ModelContext) -> Bill {
-    let bill = Bill(name: name, amount: 50, dueDate: dueDate)
+private func makeBill(name: String, dueDate: Date, calendar: Calendar = utcCalendar(), in context: ModelContext) -> Bill {
+    let bill = Bill(name: name, amount: 50, dueDate: dueDate, calendar: calendar)
     context.insert(bill)
     return bill
 }
 
 @MainActor
 @discardableResult
-private func makeBill(name: String, amount: Decimal, dueDate: Date, in context: ModelContext) -> Bill {
-    let bill = Bill(name: name, amount: amount, dueDate: dueDate)
+private func makeBill(name: String, amount: Decimal, dueDate: Date, calendar: Calendar = utcCalendar(), in context: ModelContext) -> Bill {
+    let bill = Bill(name: name, amount: amount, dueDate: dueDate, calendar: calendar)
     context.insert(bill)
     return bill
 }

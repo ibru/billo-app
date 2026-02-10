@@ -408,7 +408,8 @@ struct BillOccurrenceProviderTests {
             name: "Test Bill",
             amount: 100,
             dueDate: dueDate,
-            recurrenceRule: rule
+            recurrenceRule: rule,
+            calendar: calendar
         )
 
         context.insert(bill)
@@ -431,7 +432,8 @@ struct BillOccurrenceProviderTests {
             name: "Test Bill",
             amount: 100,
             dueDate: dueDate,
-            recurrenceRule: rule
+            recurrenceRule: rule,
+            calendar: calendar
         )
 
         context.insert(bill)
@@ -463,7 +465,8 @@ struct BillOccurrenceProviderTests {
             name: "Test Bill",
             amount: 100,
             dueDate: dueDate,
-            recurrenceRule: rule
+            recurrenceRule: rule,
+            calendar: calendar
         )
 
         context.insert(bill)

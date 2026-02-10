@@ -21,14 +21,15 @@ struct PaymentRecorder: Sendable {
         currentDate: () -> Date
     ) async throws -> PaymentEntry {
         Logger.log("Recording payment: \(amount) for \(bill.name)", level: .debug)
+        let normalizedOccurrenceDate = calendar.startOfDay(for: occurrenceDate)
         let issuedOccurrence: IssuedOccurrence
-        if let existingIssued = bill.issuedOccurrence(for: occurrenceDate, calendar: calendar) {
+        if let existingIssued = bill.issuedOccurrence(for: normalizedOccurrenceDate, calendar: calendar) {
             issuedOccurrence = existingIssued
         } else {
-            let key = bill.occurrenceKey(for: occurrenceDate, calendar: calendar)
+            let key = bill.occurrenceKey(for: normalizedOccurrenceDate, calendar: calendar)
             let issued = IssuedOccurrence(
                 occurrenceKey: key,
-                dueDate: occurrenceDate,
+                dueDate: normalizedOccurrenceDate,
                 billName: bill.name,
                 billAmount: bill.amount,
                 billCurrencyCode: bill.currencyCode,
@@ -55,7 +56,7 @@ struct PaymentRecorder: Sendable {
         // 2. Cancel reminders for this occurrence
         let occurrenceID = BillOccurrence.OccurrenceID(
             billID: bill.stableID,
-            dueDate: occurrenceDate
+            dueDate: normalizedOccurrenceDate
         )
         await notificationCoordinator.cancelReminders(for: [occurrenceID])
 

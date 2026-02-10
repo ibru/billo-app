@@ -243,7 +243,7 @@ struct BillsCalendarView: View {
             return []
         }
 
-        let endDate = endMonthInterval.end.addingTimeInterval(-1)
+        let endDate = endMonthInterval.end // exclusive upper bound (first instant of next month)
         var occurrences: [BillOccurrence] = []
 
         for bill in bills {
@@ -253,7 +253,7 @@ struct BillsCalendarView: View {
                 calendar: calendar
             )
 
-            let filtered = generatedDates.filter { $0 >= startDate && $0 <= endDate }
+            let filtered = generatedDates.filter { $0 >= startDate && $0 < endDate }
             occurrences.append(contentsOf: filtered.map { BillOccurrence(bill: bill, dueDate: $0, calendar: calendar) })
         }
 
@@ -271,7 +271,7 @@ struct BillsCalendarView: View {
             return []
         }
 
-        let endDate = endMonthInterval.end.addingTimeInterval(-1)
+        let endDate = endMonthInterval.end // exclusive upper bound (first instant of next month)
         return IncomeOccurrence.generateOccurrences(
             from: incomes,
             rangeStart: startDate,

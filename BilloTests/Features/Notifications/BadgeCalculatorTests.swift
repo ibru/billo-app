@@ -61,6 +61,37 @@ struct BadgeCalculatorTests {
     }
 
     @Test
+    func whenModeDueAndOverdueAndDueTodayWithNonMidnightTime_thenIncludesOccurrence() {
+        let calc = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
+        let reference = makeDate(2025, 12, 10, hour: 14, minute: 0)
+        // Due date is same day but with a morning time component (simulates pre-migration data)
+        let dueTodayMorning = makeOccurrence(due: makeDate(2025, 12, 10, hour: 9, minute: 0))
+
+        let count = calc.calculateBadgeCount(
+            occurrences: [dueTodayMorning],
+            badgeMode: .dueAndOverdue,
+            referenceDate: reference
+        )
+
+        #expect(count == 1)
+    }
+
+    @Test
+    func whenModeDaysBeforeZeroAndDueDateIsTomorrowWithEarlierClockTime_thenExcludesOccurrence() {
+        let calc = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
+        let reference = makeDate(2025, 12, 10, hour: 23, minute: 0)
+        let tomorrowEarly = makeOccurrence(due: makeDate(2025, 12, 11, hour: 1, minute: 0))
+
+        let count = calc.calculateBadgeCount(
+            occurrences: [tomorrowEarly],
+            badgeMode: .daysBefore(0),
+            referenceDate: reference
+        )
+
+        #expect(count == 0)
+    }
+
+    @Test
     func whenRecurringBillNotDueToday_thenBadgeCountExcludesToday() {
         // Given: Monthly bill due on 20th, today is 3rd
         let calc = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
@@ -86,6 +117,18 @@ struct BadgeCalculatorTests {
 
     private func makeDate(_ y: Int, _ m: Int, _ d: Int) -> Date {
         calendar.date(from: DateComponents(year: y, month: m, day: d))!
+    }
+
+    private func makeDate(_ y: Int, _ m: Int, _ d: Int, hour: Int, minute: Int) -> Date {
+        calendar.date(
+            from: DateComponents(
+                year: y,
+                month: m,
+                day: d,
+                hour: hour,
+                minute: minute
+            )
+        )!
     }
 
     private func makeOccurrence(due: Date) -> BillOccurrence {

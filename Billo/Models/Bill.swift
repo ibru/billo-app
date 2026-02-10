@@ -113,7 +113,7 @@ struct BillSnapshot {
     /// Always anchored at dueDate to preserve the occurrence alignment from when the
     /// snapshot was captured. Use this for historical reporting of past-due bills.
     ///
-    /// - Parameter endDate: The upper bound for generated occurrences
+    /// - Parameter endDate: Exclusive upper bound for generated occurrences
     /// - Parameter calendar: Calendar for date calculations
     /// - Returns: Array of occurrence dates, always starting from dueDate
     func generateOccurrences(
@@ -121,7 +121,7 @@ struct BillSnapshot {
         calendar: Calendar
     ) -> [Date] {
         guard let rule = recurrenceRule else {
-            return (dueDate <= endDate) ? [dueDate] : []
+            return (dueDate < endDate) ? [dueDate] : []
         }
 
         return rule.generateOccurrences(from: dueDate, until: endDate, calendar: calendar)
@@ -208,13 +208,14 @@ final class Bill {
         providerURL: String? = nil,
         categoryIdentifier: CategoryIdentifier? = nil,
         recurrenceRule: RecurrenceRule? = nil,
-        stableID: String? = nil
+        stableID: String? = nil,
+        calendar: Calendar = .current
     ) {
         self.stableID = stableID ?? UUID().uuidString
         self.name = name
         self.amount = amount
         self.currencyCode = currencyCode
-        self.dueDate = dueDate
+        self.dueDate = calendar.startOfDay(for: dueDate)
         self.notes = notes
         self.accountIdentifier = accountIdentifier
         self.providerURL = providerURL
@@ -326,10 +327,11 @@ extension Bill {
         calendar: Calendar
     ) -> [Date] {
         guard let rule = recurrenceRule else {
-            return (dueDate >= startDate && dueDate <= endDate) ? [dueDate] : []
+            return (dueDate >= startDate && dueDate < endDate) ? [dueDate] : []
         }
 
         // IMPORTANT:
+        // `until` is exclusive and the effective range is [startDate, endDate).
         // Always generate from the original `dueDate` (anchor) and then filter to the requested window.
         // Generating from `startDate` would shift the schedule (e.g., everything becomes due on the 1st),
         // and payments keyed by real occurrence dates would no longer match.

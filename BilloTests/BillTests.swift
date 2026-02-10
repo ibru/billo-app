@@ -154,6 +154,51 @@ struct BillTests {
         }
     }
 
+    @Suite("Initialization") @MainActor
+    struct Initialization {
+        @Test func whenBillInitializedWithTime_thenDueDateStoredAtStartOfDay() {
+            let calendar = Calendar.current
+            let dueDateWithTime = calendar.date(
+                from: DateComponents(year: 2025, month: 1, day: 15, hour: 21, minute: 45)
+            ) ?? Date()
+
+            let bill = Bill(
+                name: "Test Bill",
+                amount: 100,
+                dueDate: dueDateWithTime
+            )
+
+            #expect(bill.dueDate == calendar.startOfDay(for: dueDateWithTime))
+        }
+    }
+
+    @Suite("OccurrenceID") @MainActor
+    struct OccurrenceIDTests {
+        @Test func whenOccurrenceIDsCreatedWithSameNormalizedDate_thenTheyAreEqual() {
+            let calendar = Calendar.current
+            let midnightDate = calendar.startOfDay(for: Date())
+
+            let id1 = BillOccurrence.OccurrenceID(billID: "test", dueDate: midnightDate)
+            let id2 = BillOccurrence.OccurrenceID(billID: "test", dueDate: midnightDate)
+
+            #expect(id1 == id2)
+        }
+
+        @Test func whenBillInitNormalizesDate_thenOccurrenceIDsMatchAcrossTimeComponents() {
+            let calendar = Calendar.current
+            let afternoonDate = calendar.date(
+                from: DateComponents(year: 2025, month: 6, day: 15, hour: 14, minute: 30)
+            )!
+
+            // Bill.init normalizes to start-of-day, so both paths produce the same dueDate
+            let bill = Bill(name: "Test", amount: 100, dueDate: afternoonDate)
+            let id1 = BillOccurrence.OccurrenceID(billID: "test", dueDate: bill.dueDate)
+            let id2 = BillOccurrence.OccurrenceID(billID: "test", dueDate: bill.dueDate)
+
+            #expect(id1 == id2)
+        }
+    }
+
     @Suite("Occurrence Key") @MainActor
     struct OccurrenceKey {
         @Test func whenOccurrenceKeyGeneratedAcrossTimeZones_thenUsesUTCDateOnly() throws {

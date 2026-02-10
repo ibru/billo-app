@@ -386,7 +386,7 @@ struct BillsModelTests {
 
             // Create bill with past due date
             let pastDueDate = makeDate(year: 2025, month: 1, day: 10)
-            let bill = Bill(name: "Past Bill", amount: 100, dueDate: pastDueDate)
+            let bill = Bill(name: "Past Bill", amount: 100, dueDate: pastDueDate, calendar: calendar)
             modelContext.insert(bill)
             try modelContext.save()
             try sut.refresh()
@@ -492,7 +492,7 @@ struct BillsModelTests {
             )
 
             let pastDueDate = makeDate(year: 2025, month: 1, day: 1)
-            let bill = Bill(name: "Original Name", amount: 100, dueDate: pastDueDate)
+            let bill = Bill(name: "Original Name", amount: 100, dueDate: pastDueDate, calendar: calendar)
             modelContext.insert(bill)
             try modelContext.save()
             try sut.refresh()
@@ -526,7 +526,7 @@ struct BillsModelTests {
             )
 
             let pastDueDate = makeDate(year: 2024, month: 10, day: 1)
-            let bill = Bill(name: "Streaming", amount: 40, dueDate: pastDueDate)
+            let bill = Bill(name: "Streaming", amount: 40, dueDate: pastDueDate, calendar: calendar)
             let rule = RecurrenceRule(pattern: .monthly, frequency: 1, dayOfMonth: 1)
             bill.recurrenceRule = rule
             modelContext.insert(bill)
@@ -590,7 +590,8 @@ private func makeSUT(
             let bill = Bill(
                 name: "Bill \(index)",
                 amount: Decimal(100),
-                dueDate: dueDate
+                dueDate: dueDate,
+                calendar: calendar
             )
             modelContext.insert(bill)
             return bill

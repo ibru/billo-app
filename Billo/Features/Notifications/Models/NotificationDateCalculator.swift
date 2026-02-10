@@ -64,7 +64,9 @@ struct NotificationDateCalculator: Sendable {
         calendar: Calendar
     ) -> [BillOccurrence] {
         occurrences.filter { occurrence in
-            let daysUntil = calendar.dateComponents([.day], from: referenceDate, to: occurrence.dueDate).day ?? 999
+            let referenceDay = calendar.startOfDay(for: referenceDate)
+            let dueDay = calendar.startOfDay(for: occurrence.dueDate)
+            let daysUntil = calendar.dateComponents([.day], from: referenceDay, to: dueDay).day ?? 999
             return daysUntil <= lookaheadDays && daysUntil >= 0
         }
     }

@@ -251,6 +251,22 @@ struct NotificationDateCalculatorTests {
         }
 
         @Test
+        func whenDueDateIsYesterdayWithLateTime_thenLookaheadExcludesIt() {
+            let referenceDate = makeDate(2025, 12, 6)
+            let yesterdayLate = makeDate(2025, 12, 5, hour: 23, minute: 30)
+            let occurrences = [makeOccurrence(dueDate: yesterdayLate)]
+
+            let result = sut.occurrencesWithinLookahead(
+                occurrences,
+                lookaheadDays: 5,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+
+            #expect(result.isEmpty)
+        }
+
+        @Test
         func whenEmptyOccurrences_thenReturnsEmpty() {
             let result = sut.occurrencesWithinLookahead(
                 [],
@@ -266,6 +282,17 @@ struct NotificationDateCalculatorTests {
 
         private func makeDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
             let components = DateComponents(year: year, month: month, day: day)
+            return calendar.date(from: components)!
+        }
+
+        private func makeDate(_ year: Int, _ month: Int, _ day: Int, hour: Int, minute: Int) -> Date {
+            let components = DateComponents(
+                year: year,
+                month: month,
+                day: day,
+                hour: hour,
+                minute: minute
+            )
             return calendar.date(from: components)!
         }
 

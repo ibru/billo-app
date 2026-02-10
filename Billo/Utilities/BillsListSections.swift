@@ -133,19 +133,21 @@ struct BillsListSections {
         calendar: Calendar
     ) -> BillSection {
         let status = occurrence.status(relativeTo: referenceDate, calendar: calendar)
+        let referenceDay = calendar.startOfDay(for: referenceDate)
+        let dueDay = calendar.startOfDay(for: occurrence.dueDate)
 
         switch status {
         case .overdue, .partiallyPaid:
             // Partially paid items still need attention; group by timing relative to reference date
-            if occurrence.dueDate < referenceDate {
+            if dueDay < referenceDay {
                 return .overdue
             }
-            let sevenDaysFromNow = calendar.date(byAdding: .day, value: 7, to: referenceDate) ?? referenceDate
-            if occurrence.dueDate <= sevenDaysFromNow {
+            let sevenDaysFromNow = calendar.date(byAdding: .day, value: 7, to: referenceDay) ?? referenceDay
+            if dueDay <= sevenDaysFromNow {
                 return .next7Days
             }
-            let thirtyDaysFromNow = calendar.date(byAdding: .day, value: 30, to: referenceDate) ?? referenceDate
-            if occurrence.dueDate <= thirtyDaysFromNow {
+            let thirtyDaysFromNow = calendar.date(byAdding: .day, value: 30, to: referenceDay) ?? referenceDay
+            if dueDay <= thirtyDaysFromNow {
                 return .next30Days
             }
             return .later
@@ -153,13 +155,13 @@ struct BillsListSections {
             return .today
         case .upcoming, .paid:
             // Rolling 7-day window from reference date
-            let sevenDaysFromNow = calendar.date(byAdding: .day, value: 7, to: referenceDate) ?? referenceDate
+            let sevenDaysFromNow = calendar.date(byAdding: .day, value: 7, to: referenceDay) ?? referenceDay
             // Rolling 30-day window from reference date
-            let thirtyDaysFromNow = calendar.date(byAdding: .day, value: 30, to: referenceDate) ?? referenceDate
+            let thirtyDaysFromNow = calendar.date(byAdding: .day, value: 30, to: referenceDay) ?? referenceDay
 
-            if occurrence.dueDate <= sevenDaysFromNow {
+            if dueDay <= sevenDaysFromNow {
                 return .next7Days
-            } else if occurrence.dueDate <= thirtyDaysFromNow {
+            } else if dueDay <= thirtyDaysFromNow {
                 return .next30Days
             } else {
                 return .later

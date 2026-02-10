@@ -96,6 +96,7 @@ extension Income {
 
 extension Income {
     /// Generate income dates within a range, delegating to RecurrenceRule.
+    /// Range semantics are half-open: `[from, until)`.
     /// CRITICAL: Always generates from startDate (anchor) then filters to window.
     /// This matches Bill.generateOccurrences behavior and prevents schedule drift.
     @MainActor
@@ -106,7 +107,7 @@ extension Income {
     ) -> [Date] {
         guard let rule = recurrenceRule else {
             // One-time income: return startDate if within range
-            return (startDate >= rangeStart && startDate <= rangeEnd) ? [startDate] : []
+            return (startDate >= rangeStart && startDate < rangeEnd) ? [startDate] : []
         }
 
         // IMPORTANT: Generate from startDate (anchor), then filter to window.

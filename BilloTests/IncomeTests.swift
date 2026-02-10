@@ -34,7 +34,7 @@ struct IncomeTests {
                 recurrenceRule: rule
             )
             let rangeStart = makeDate(month: 1, day: 1)
-            let rangeEnd = makeDate(month: 4, day: 1)
+            let rangeEnd = makeDate(month: 5, day: 1) // exclusive upper bound
 
             let occurrences = income.generateOccurrences(
                 from: rangeStart,
@@ -42,6 +42,7 @@ struct IncomeTests {
                 calendar: .current
             )
 
+            // Jan 1, Feb 1, Mar 1, Apr 1 = 4 monthly occurrences (all < May 1)
             #expect(occurrences.count == 4)
         }
 

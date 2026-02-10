@@ -88,6 +88,49 @@ struct BillsListSectionsTests {
             #expect(sections.occurrencesBySection[.overdue]?.contains { $0.name == "Bill 1" } == true)
         }
 
+        @Test func whenReferenceTimeIsLaterSameDay_thenTodayItemDoesNotBecomeOverdue() throws {
+            let calendar = Calendar.current
+            let referenceDate = makeDateTime(year: 2025, month: 1, day: 15, hour: 15, minute: 0)
+
+            let bill = Bill(name: "Bill 1", amount: 100, dueDate: makeDate(year: 2025, month: 1, day: 15))
+            bill.dueDate = makeDateTime(year: 2025, month: 1, day: 15, hour: 9, minute: 0)
+
+            let sections = BillsListSections.build(from: [bill], referenceDate: referenceDate, calendar: calendar)
+
+            #expect(sections.occurrencesBySection[.today]?.contains { $0.name == "Bill 1" } == true)
+            #expect(sections.occurrencesBySection[.overdue]?.contains { $0.name == "Bill 1" } != true)
+        }
+
+        @Test func whenPartiallyPaidBillIsDueToday_thenNotBucketedAsOverdue() throws {
+            let calendar = Calendar.current
+            let referenceDate = makeDateTime(year: 2025, month: 1, day: 15, hour: 15, minute: 0)
+            let dueDate = makeDateTime(year: 2025, month: 1, day: 15, hour: 9, minute: 0)
+
+            let bill = Bill(name: "Bill 1", amount: 100, dueDate: makeDate(year: 2025, month: 1, day: 15))
+            bill.dueDate = dueDate
+
+            let container = try ModelContainer(
+                for: Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self]),
+                configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            )
+            let context = ModelContext(container)
+            context.insert(bill)
+            _ = makePaymentEntry(
+                amount: 40,
+                datePaid: referenceDate,
+                occurrenceDate: dueDate,
+                bill: bill,
+                calendar: calendar,
+                in: context
+            )
+            try context.save()
+
+            let sections = BillsListSections.build(from: [bill], referenceDate: referenceDate, calendar: calendar)
+
+            #expect(sections.occurrencesBySection[.next7Days]?.contains { $0.name == "Bill 1" } == true)
+            #expect(sections.occurrencesBySection[.overdue]?.contains { $0.name == "Bill 1" } != true)
+        }
+
         @Test func whenBillsAcrossMultipleSections_thenGroupsCorrectly() throws {
             let (bills, referenceDate, calendar) = try makeBills(
                 dueDays: [-2, 0, 3, 15, 35]
@@ -630,6 +673,23 @@ private func makeDate(year: Int = 2025, month: Int = 1, day: Int) -> Date {
     components.year = year
     components.month = month
     components.day = day
+    return calendar.date(from: components)!
+}
+
+private func makeDateTime(
+    year: Int = 2025,
+    month: Int = 1,
+    day: Int,
+    hour: Int,
+    minute: Int
+) -> Date {
+    let calendar = Calendar.current
+    var components = DateComponents()
+    components.year = year
+    components.month = month
+    components.day = day
+    components.hour = hour
+    components.minute = minute
     return calendar.date(from: components)!
 }
 

@@ -3,6 +3,9 @@
 import Foundation
 
 struct RecurrenceRuleGenerator {
+    /// Generates recurrence dates in a half-open range: `[from, until)`.
+    /// - Important: `until` is exclusive.
+    /// - Important: `endDate` remains user-inclusive and is converted internally.
     static func generateOccurrences(
         pattern: RepeatIntervalType,
         frequency: Int,
@@ -24,12 +27,15 @@ struct RecurrenceRuleGenerator {
 
         let effectiveEndDate: Date
         if endConditionType == .endDate, let endDate {
-            effectiveEndDate = min(endDate, maxDate)
+            // endDate is inclusive (user's "end on" date); convert to exclusive
+            // so occurrences on the endDate are still included.
+            let exclusiveEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)) ?? maxDate
+            effectiveEndDate = min(exclusiveEnd, maxDate)
         } else {
             effectiveEndDate = maxDate
         }
 
-        while currentDate <= effectiveEndDate {
+        while currentDate < effectiveEndDate {
             occurrences.append(currentDate)
 
             guard let nextDate = calculateNextOccurrence(
@@ -43,7 +49,7 @@ struct RecurrenceRuleGenerator {
                 break
             }
 
-            if nextDate > effectiveEndDate {
+            if nextDate >= effectiveEndDate {
                 break
             }
 

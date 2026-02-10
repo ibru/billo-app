@@ -178,7 +178,7 @@ struct BillEditView: View {
                     let preEditSnapshot = BillSnapshot(bill: bill)
                     bill.name = name
                     bill.amount = amount
-                    bill.dueDate = dueDate
+                    bill.dueDate = Calendar.current.startOfDay(for: dueDate)
                     bill.notes = notes.isEmpty ? nil : notes
                     bill.accountIdentifier = accountIdentifier.isEmpty ? nil : accountIdentifier
                     bill.providerURL = providerURL.isEmpty ? nil : providerURL

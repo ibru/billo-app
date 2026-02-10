@@ -99,7 +99,9 @@ struct BadgeCalculator: Sendable, BadgeCalculating {
             // Always include overdue and due today
             if status == .overdue || status == .dueToday { return true }
             // Check if within the window
-            let daysUntil = calendar.dateComponents([.day], from: referenceDate, to: occurrence.dueDate).day ?? 999
+            let referenceDay = calendar.startOfDay(for: referenceDate)
+            let dueDay = calendar.startOfDay(for: occurrence.dueDate)
+            let daysUntil = calendar.dateComponents([.day], from: referenceDay, to: dueDay).day ?? 999
             return daysUntil <= days && daysUntil >= 0
         }
     }

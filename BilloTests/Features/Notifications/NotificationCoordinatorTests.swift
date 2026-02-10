@@ -251,6 +251,36 @@ struct NotificationCoordinatorTests {
         }
 
         @Test
+        func whenBillIsPreviousDayWithTime_thenDigestDoesNotDuplicateInUpcomingAndOverdue() async throws {
+            let referenceDate = makeDateTime(2025, 12, 6, hour: 8, minute: 0)
+            let overdueWithTime = makeDateTime(2025, 12, 5, hour: 23, minute: 30)
+            let occurrence = makeOccurrence(dueDate: overdueWithTime, name: "Rent", amount: 10)
+            let (sut, center, _) = makeSUT(
+                remindersEnabled: false,
+                digestEnabled: true,
+                digestLookaheadDays: 5,
+                occurrences: [occurrence],
+                referenceDate: referenceDate
+            )
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            let digestID = NotificationIdentifier.digestIdentifier(for: referenceDate, calendar: testCalendar)
+            guard let digest = center.addedRequests.first(where: { $0.identifier == digestID }) else {
+                Issue.record("Expected digest request to be scheduled")
+                return
+            }
+
+            let rentMentions = digest.content.body
+                .split(separator: "\n")
+                .filter { $0.contains("Rent") }
+                .count
+
+            #expect(digest.content.title == "1 bill is overdue")
+            #expect(rentMentions == 1)
+        }
+
+        @Test
         func whenBadgeModeIsNever_thenBadgeIsCleared() async throws {
             let referenceDate = makeDate(2025, 12, 1)
             let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
@@ -577,7 +607,8 @@ private func makeOccurrence(
         name: name,
         amount: amount,
         currencyCode: currency,
-        dueDate: dueDate
+        dueDate: dueDate,
+        calendar: testCalendar
     )
     context.insert(bill)
     try? context.save()
