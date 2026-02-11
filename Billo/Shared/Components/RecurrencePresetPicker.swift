@@ -25,6 +25,9 @@ struct RecurrencePresetPicker: View {
         }
         .pickerStyle(.menu)
         .tint(.secondary)
+        .onAppear {
+            anchorRepeatFieldsIfNeeded()
+        }
         .onChange(of: selectedPreset) { oldValue, newValue in
             applyPresetChange(from: oldValue, to: newValue)
         }
@@ -81,17 +84,39 @@ struct RecurrencePresetPicker: View {
     }
 
     private func anchorRepeatFieldsIfNeeded() {
-        guard selectedPreset != .none else { return }
+        let anchored = Self.anchoredRepeatFieldValues(
+            selectedPreset: selectedPreset,
+            intervalType: intervalType,
+            anchorDate: anchorDate,
+            synchronizer: synchronizer
+        )
+
+        if let dayOfWeek = anchored.dayOfWeek {
+            self.dayOfWeek = dayOfWeek
+        }
+
+        if let dayOfMonth = anchored.dayOfMonth {
+            self.dayOfMonth = dayOfMonth
+        }
+    }
+
+    static func anchoredRepeatFieldValues(
+        selectedPreset: RecurrencePreset,
+        intervalType: RepeatIntervalType,
+        anchorDate: Date,
+        synchronizer: DateAnchorSynchronizer
+    ) -> (dayOfWeek: Weekday?, dayOfMonth: Int?) {
+        guard selectedPreset != .none else {
+            return (dayOfWeek: nil, dayOfMonth: nil)
+        }
 
         switch intervalType {
         case .weekly:
-            dayOfWeek = synchronizer.weekday(from: anchorDate)
-
+            return (dayOfWeek: synchronizer.weekday(from: anchorDate), dayOfMonth: nil)
         case .monthly:
-            dayOfMonth = synchronizer.dayOfMonth(from: anchorDate)
-
+            return (dayOfWeek: nil, dayOfMonth: synchronizer.dayOfMonth(from: anchorDate))
         case .yearly:
-            break
+            return (dayOfWeek: nil, dayOfMonth: nil)
         }
     }
 
