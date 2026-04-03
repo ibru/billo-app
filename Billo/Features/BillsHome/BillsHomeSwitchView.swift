@@ -206,6 +206,7 @@ struct BillsHomeSwitchView: View {
         case .list:
             BillsListView(
                 usesStackNavigation: usesStackNavigation,
+                onAddBill: { showingAddBill = true },
                 onOpen: openSelection
             )
                 .navigationTitle("Bills")

@@ -13,13 +13,16 @@ struct BillsListView: View {
     @State private var monthsAhead = 3
 
     private let usesStackNavigation: Bool
+    private let onAddBill: () -> Void
     private let onOpen: (HomeDetailDestination) -> Void
 
     init(
         usesStackNavigation: Bool = true,
+        onAddBill: @escaping () -> Void,
         onOpen: @escaping (HomeDetailDestination) -> Void = { _ in }
     ) {
         self.usesStackNavigation = usesStackNavigation
+        self.onAddBill = onAddBill
         self.onOpen = onOpen
     }
 
@@ -30,15 +33,19 @@ struct BillsListView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                SummarySectionView(
-                    overview: billsModel.sections.weeklyOverview,
-                    totals: billsModel.sections.monthlyTotals,
-                    currencyCode: currencyCode
-                )
+                if billsModel.bills.isEmpty {
+                    BillsEmptyStateView(onAddBill: onAddBill)
+                } else {
+                    SummarySectionView(
+                        overview: billsModel.sections.weeklyOverview,
+                        totals: billsModel.sections.monthlyTotals,
+                        currencyCode: currencyCode
+                    )
 
-                billSections()
+                    billSections()
 
-                showMoreButton
+                    showMoreButton
+                }
             }
         }
         .background(DesignSystem.Color.groupedBackground)
@@ -291,7 +298,7 @@ struct BillRowView: View {
                 Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
                     .font(.title2)
                     .foregroundStyle(categoryColor)
-                    .frame(width: 36, height: 36)
+                    .frame(minWidth: CountdownBadgeView.estimatedSize, minHeight: CountdownBadgeView.estimatedSize)
             }
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
@@ -372,7 +379,10 @@ struct CountdownBadgeConfiguration: Equatable {
     }
 }
 
-private struct CountdownBadgeView: View {
+struct CountdownBadgeView: View {
+    /// Approximate rendered size of the badge for layout alignment purposes.
+    static let estimatedSize: CGFloat = 36
+
     let numberText: String
     let unitText: String
     let color: Color
@@ -473,7 +483,7 @@ private struct BillSectionHeader: View {
     let preview = BilloPreviewContainer.withSampleData()
 
     return NavigationStack {
-        BillsListView()
+        BillsListView(onAddBill: {})
     }
     .billoPreviewEnvironment(preview)
 }
@@ -482,7 +492,7 @@ private struct BillSectionHeader: View {
     let preview = BilloPreviewContainer.empty()
 
     return NavigationStack {
-        BillsListView()
+        BillsListView(onAddBill: {})
     }
     .billoPreviewEnvironment(preview)
 }

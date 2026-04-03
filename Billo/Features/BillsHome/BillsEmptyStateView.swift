@@ -2,14 +2,15 @@
 
 import SwiftUI
 
-struct CalendarEmptyStateView: View {
+struct BillsEmptyStateView: View {
     let onAddBill: () -> Void
+    var descriptionText: LocalizedStringKey = "Add your first bill to get started"
 
     var body: some View {
         ContentUnavailableView {
             Label("No Bills Yet", systemImage: "calendar.badge.plus")
         } description: {
-            Text("Add your first bill to see it in the calendar")
+            Text(descriptionText)
         } actions: {
             Button("Add Bill") {
                 onAddBill()

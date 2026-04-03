@@ -87,9 +87,10 @@ struct BillsCalendarView: View {
     @ViewBuilder
     private var content: some View {
         if billsModel.bills.isEmpty && billsModel.incomes.isEmpty {
-            CalendarEmptyStateView {
-                onAddBill()
-            }
+            BillsEmptyStateView(
+                onAddBill: { onAddBill() },
+                descriptionText: "Add your first bill to see it in the calendar"
+            )
         } else {
             VStack(spacing: 0) {
                 // Calendar section with white background, rounded bottom corners, and shadow
