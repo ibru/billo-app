@@ -60,7 +60,7 @@ struct CalendarItemRow: View {
         case .income(let incomeOccurrence):
             if usesStackNavigation {
                 NavigationLink(value: HomeDetailDestination.income(incomeOccurrence.income.persistentModelID)) {
-                    CalendarIncomeCardRow(incomeOccurrence: incomeOccurrence)
+                    CalendarIncomeRow8(incomeOccurrence: incomeOccurrence)
                         .foregroundColor(Color(uiColor: .label))
                 }
                 .buttonStyle(.plain)
@@ -68,13 +68,13 @@ struct CalendarItemRow: View {
                 Button {
                     onOpen(.income(incomeOccurrence.income.persistentModelID))
                 } label: {
-                    CalendarIncomeCardRow(incomeOccurrence: incomeOccurrence)
+                    CalendarIncomeRow8(incomeOccurrence: incomeOccurrence)
                         .foregroundColor(Color(uiColor: .label))
                 }
                 .buttonStyle(.plain)
             }
         case .todayDivider(let date, _):
-            CalendarTodayDividerRow5(date: date)
+            CalendarTodayDividerRow8(date: date)
                 .padding(.vertical, -DesignSystem.Spacing.extraSmall)
         case .emptyMonth:
             Text("No events this month")
@@ -476,6 +476,45 @@ private struct CalendarIncomeRow7: View {
     }
 }
 
+struct CalendarIncomeRow8: View {
+    let incomeOccurrence: IncomeOccurrence
+
+    private var formattedAmount: String {
+        incomeOccurrence.amount.formatted(.currency(code: incomeOccurrence.currencyCode))
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            CalendarFilledDateStamp(date: incomeOccurrence.date, color: DesignSystem.Color.blue)
+
+            Text(incomeOccurrence.name)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(DesignSystem.Color.blue)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.leading, DesignSystem.Spacing.medium)
+
+            Rectangle()
+                .fill(DesignSystem.Color.blue.opacity(0.35))
+                .frame(height: 2)
+                .padding(.horizontal, DesignSystem.Spacing.small)
+
+            Text(incomeOccurrence.amount, format: .currency(code: incomeOccurrence.currencyCode))
+                .font(.subheadline)
+                .foregroundStyle(DesignSystem.Color.blue)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.vertical, DesignSystem.Spacing.small)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(
+            localized: "Income: \(incomeOccurrence.name), \(formattedAmount)",
+            comment: "Accessibility: calendar income row label (income name, amount)"
+        ))
+    }
+}
+
 struct CalendarIncomeCardRow: View {
     let incomeOccurrence: IncomeOccurrence
 
@@ -562,6 +601,7 @@ extension View {
                 CalendarTodayDividerRow6(date: date)
                 CalendarTodayDividerRow7(date: date)
                 CalendarTodayDividerCardRow(date: date)
+                CalendarTodayDividerRow8(date: date)
             }
 
             VStack(spacing: DesignSystem.Spacing.extraSmall) {
@@ -573,6 +613,7 @@ extension View {
                 CalendarIncomeRow5(incomeOccurrence: occurrence)
                 CalendarIncomeRow6(incomeOccurrence: occurrence)
                 CalendarIncomeRow7(incomeOccurrence: occurrence)
+                CalendarIncomeRow8(incomeOccurrence: occurrence)
                 CalendarIncomeRow9(incomeOccurrence: occurrence)
             }
         }

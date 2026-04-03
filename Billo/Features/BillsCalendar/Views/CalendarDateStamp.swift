@@ -49,3 +49,32 @@ struct CalendarCompactDateStamp: View {
         .accessibilityHidden(true)
     }
 }
+
+/// Filled date stamp with colored rounded rectangle background and white text.
+/// Used for "Today" dividers and income rows that embed the date inside a solid shape.
+struct CalendarFilledDateStamp: View {
+    let date: Date
+    let color: Color
+
+    @ScaledMetric(relativeTo: .caption2) private var width: CGFloat = 38
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(date, format: .dateTime.day())
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white)
+
+            Text(date, format: .dateTime.month(.abbreviated))
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .textCase(.uppercase)
+        }
+        .frame(width: width)
+        .padding(.vertical, DesignSystem.Spacing.extraSmall)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(color)
+        )
+        .accessibilityHidden(true)
+    }
+}

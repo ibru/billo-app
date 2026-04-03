@@ -280,6 +280,25 @@ struct CalendarTodayDividerCardRow: View {
     }
 }
 
+struct CalendarTodayDividerRow8: View {
+    let date: Date
+
+    var body: some View {
+        HStack(spacing: 0) {
+            CalendarFilledDateStamp(date: date, color: DesignSystem.Color.yellow)
+
+            Rectangle()
+                .fill(DesignSystem.Color.yellow.opacity(0.35))
+                .frame(height: 2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.vertical, DesignSystem.Spacing.small)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Today"))
+    }
+}
+
 #Preview("All Rows") {
     let sampleDate = Date()
     ScrollView {
@@ -292,6 +311,7 @@ struct CalendarTodayDividerCardRow: View {
             CalendarTodayDividerRow6(date: sampleDate)
             CalendarTodayDividerRow7(date: sampleDate)
             CalendarTodayDividerCardRow(date: sampleDate)
+            CalendarTodayDividerRow8(date: sampleDate)
         }
         .padding()
     }
