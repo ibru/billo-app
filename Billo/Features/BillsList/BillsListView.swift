@@ -63,25 +63,31 @@ struct BillsListView: View {
         ForEach(BillSection.allCases) { section in
             if let occurrences = billsModel.sections.occurrencesBySection[section], !occurrences.isEmpty {
                 Section {
-                    ForEach(occurrences) { occurrence in
-                        if usesStackNavigation {
-                            NavigationLink(value: HomeDetailDestination.bill(occurrence.bill.persistentModelID)) {
-                                BillRowView(occurrence: occurrence, customCategories: customCategories, section: section)
-                                    .listRowStyle()
-                                    .foregroundColor(Color(uiColor: .label))
+                    VStack(spacing: 0) {
+                        ForEach(occurrences) { occurrence in
+                            let isLast = occurrence.id == occurrences.last?.id
+                            if usesStackNavigation {
+                                NavigationLink(value: HomeDetailDestination.bill(occurrence.bill.persistentModelID)) {
+                                    BillRowView(occurrence: occurrence, customCategories: customCategories, section: section)
+                                        .listRowStyle(isLast: isLast)
+                                        .foregroundColor(Color(uiColor: .label))
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Button {
+                                    onOpen(.bill(occurrence.bill.persistentModelID))
+                                } label: {
+                                    BillRowView(occurrence: occurrence, customCategories: customCategories, section: section)
+                                        .listRowStyle(isLast: isLast)
+                                        .foregroundColor(Color(uiColor: .label))
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
-                        } else {
-                            Button {
-                                onOpen(.bill(occurrence.bill.persistentModelID))
-                            } label: {
-                                BillRowView(occurrence: occurrence, customCategories: customCategories, section: section)
-                                    .listRowStyle()
-                                    .foregroundColor(Color(uiColor: .label))
-                            }
-                            .buttonStyle(.plain)
                         }
                     }
+                    .background(DesignSystem.Color.background)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large, style: .continuous))
+                    .padding(.horizontal, DesignSystem.Spacing.mediumSmall)
                 } header: {
                     BillSectionHeader(
                         section: section,
@@ -104,10 +110,13 @@ struct BillsListView: View {
         } label: {
             Label("Show 3 More Months", systemImage: "calendar.badge.plus")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, DesignSystem.Spacing.medium)
+                .padding(.horizontal, DesignSystem.Spacing.extraSmall)
+                .padding(.vertical, DesignSystem.Spacing.extraSmall / 2)
         }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DesignSystem.Spacing.medium)
     }
 
     private func markPaid(_ occurrence: BillOccurrence) {
@@ -124,16 +133,17 @@ struct BillsListView: View {
 // MARK: - Row Style
 
 private extension View {
-    func listRowStyle() -> some View {
+    func listRowStyle(isLast: Bool = false) -> some View {
         VStack(spacing: 0) {
             self
                 .padding(.horizontal, DesignSystem.Spacing.mediumSmall)
                 .padding(.vertical, DesignSystem.Spacing.small)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DesignSystem.Color.background)
 
-            Divider()
-                .padding(.leading, DesignSystem.Spacing.medium)
+            if !isLast {
+                Divider()
+                    .padding(.leading, DesignSystem.Spacing.medium)
+            }
         }
     }
 }
@@ -171,7 +181,7 @@ private struct SummarySectionView: View {
             RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large, style: .continuous)
                 .fill(DesignSystem.Color.background)
         )
-        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.horizontal, DesignSystem.Spacing.mediumSmall)
         .padding(.vertical, DesignSystem.Spacing.mediumSmall)
     }
 }
@@ -303,7 +313,7 @@ struct BillRowView: View {
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
                 Text(occurrence.name)
-                    .font(.headline.weight(.bold))
+                    .font(.headline)
                     .foregroundColor(Color(uiColor: .label))
 
                 HStack(spacing: DesignSystem.Spacing.small) {
@@ -337,7 +347,7 @@ struct BillRowView: View {
 
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
                 Text(occurrence.amount, format: .currency(code: occurrence.currencyCode))
-                    .font(.subheadline.weight(.bold))
+                    .font(.subheadline)
                     .foregroundColor(amountColor)
 
                 Text(occurrence.dueDate, style: .date)
@@ -345,6 +355,7 @@ struct BillRowView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .frame(minHeight: CountdownBadgeView.estimatedSize)
         .contentShape(Rectangle())
     }
 }
@@ -458,7 +469,7 @@ private struct BillSectionHeader: View {
         .fontWeight(.bold)
         .foregroundStyle(sectionColor)
         .textCase(nil)
-        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.horizontal, DesignSystem.Spacing.mediumSmall + DesignSystem.Spacing.mediumSmall)
         .padding(.vertical, DesignSystem.Spacing.small)
         .padding(.top, DesignSystem.Spacing.medium)
         .background(DesignSystem.Color.groupedBackground)

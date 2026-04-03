@@ -20,6 +20,7 @@ struct AppRootView: View {
                 mainAppFlow
             }
         }
+        .tint(DesignSystem.Color.green)
         .animation(.spring(duration: 0.35), value: flow.didCompleteOnboarding)
     }
 
