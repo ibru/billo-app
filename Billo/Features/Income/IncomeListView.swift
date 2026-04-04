@@ -14,7 +14,9 @@ struct IncomeListView: View {
 	                EmptyStateView()
             } else {
                 ForEach(billsModel.incomes) { income in
-                    NavigationLink(value: HomeDetailDestination.income(income.persistentModelID)) {
+                    NavigationLink {
+                        IncomeDetailView(income: income)
+                    } label: {
                         IncomeRowView(income: income)
                     }
                 }

@@ -32,10 +32,8 @@ struct PaymentHistoryView: View {
                 )
             } else {
                 ForEach(displayedPayments, id: \.persistentModelID) { payment in
-                    NavigationLink(value: HomeDetailDestination.payment(payment.persistentModelID)) {
-                        PaymentRowView(payment: payment, customCategories: customCategories)
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    paymentRow(for: payment)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             deletePayment(payment)
                         } label: {
@@ -58,6 +56,15 @@ struct PaymentHistoryView: View {
             }
         }
         .navigationTitle("Payment History")
+    }
+
+    @ViewBuilder
+    private func paymentRow(for payment: PaymentEntry) -> some View {
+        NavigationLink {
+            PaymentDetailView(payment: payment)
+        } label: {
+            PaymentRowView(payment: payment, customCategories: customCategories)
+        }
     }
 
     private func deletePayment(_ payment: PaymentEntry) {
