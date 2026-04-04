@@ -19,10 +19,10 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - **Business Model**: Freemium (Free access with limitation, paid upgrade using In-App Subscriptions)
 
 ## Commands
-- Build (simulator default): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1' build`
+- Build (simulator default): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' build`
 - Clean build: `xcodebuild -project Billo.xcodeproj -scheme Billo clean`
 - Unit tests (default: Mac Catalyst): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst,name=My Mac' test`
-- Unit tests (iOS Simulator): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1' test`
+- Unit tests (iOS Simulator): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' test`
 - Focused tests: append `-only-testing:BilloTests/<TestClass>`
 - No external dependencies: Project uses only native Apple frameworks (SwiftUI, SwiftData, StoreKit 2, Charts)
 
