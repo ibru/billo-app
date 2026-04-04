@@ -377,7 +377,7 @@ private struct MonthSectionHeader: View {
     let currencyCode: String
 
     private var remainingColor: Color {
-        section.netRemaining >= 0 ? DesignSystem.Color.green : DesignSystem.Color.red
+        section.netRemaining >= 0 ? DesignSystem.Color.greenIncome : DesignSystem.Color.red
     }
 
     private var showBreakdown: Bool {
@@ -413,7 +413,7 @@ private struct MonthSectionHeader: View {
                 Text("+")
                 Text(section.totalIncome, format: .currency(code: currencyCode))
             }
-            .foregroundStyle(DesignSystem.Color.green)
+            .foregroundStyle(DesignSystem.Color.greenIncome)
 
             Text("/")
                 .foregroundStyle(.secondary)

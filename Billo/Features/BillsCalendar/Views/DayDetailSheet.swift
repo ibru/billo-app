@@ -273,7 +273,7 @@ private struct IncomeOccurrenceRow: View {
 
             Text(incomeOccurrence.amount, format: .currency(code: incomeOccurrence.currencyCode))
                 .font(.subheadline)
-                .foregroundStyle(DesignSystem.Color.green)
+                .foregroundStyle(DesignSystem.Color.greenIncome)
         }
         .padding(.vertical, DesignSystem.Spacing.small)
         .accessibilityElement(children: .combine)

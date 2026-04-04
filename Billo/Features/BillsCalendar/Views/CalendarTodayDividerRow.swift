@@ -286,6 +286,7 @@ struct CalendarTodayDividerRow8: View {
     var body: some View {
         HStack(spacing: 0) {
             CalendarFilledDateStamp(date: date, color: DesignSystem.Color.yellow)
+                .padding(.leading, -8)
 
             Rectangle()
                 .fill(DesignSystem.Color.yellow.opacity(0.35))
@@ -293,7 +294,8 @@ struct CalendarTodayDividerRow8: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, DesignSystem.Spacing.medium)
-        .padding(.vertical, DesignSystem.Spacing.small)
+        .padding(.vertical, DesignSystem.Spacing.mediumSmall)
+        .background(DesignSystem.Color.background)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Today"))
     }

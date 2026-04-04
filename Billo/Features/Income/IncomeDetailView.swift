@@ -18,7 +18,7 @@ struct IncomeDetailView: View {
                     Label("Amount", systemImage: "wallet.bifold")
                     Spacer()
                     Text(income.amount, format: .currency(code: income.currencyCode))
-                        .foregroundStyle(DesignSystem.Color.green)
+                        .foregroundStyle(DesignSystem.Color.greenIncome)
                         .fontWeight(.semibold)
                 }
 

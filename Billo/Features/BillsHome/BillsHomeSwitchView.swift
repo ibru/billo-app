@@ -360,7 +360,7 @@ private struct HomeFloatingQuickActionsView: View {
 	                .accessibilityLabel(Text("Income"))
 	            }
 	            .font(.headline)
-	            .foregroundStyle(DesignSystem.Color.green)
+	            .foregroundStyle(DesignSystem.Color.greenIncome)
 	        }
 	    }
 	}

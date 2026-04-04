@@ -60,7 +60,8 @@ struct CalendarItemRow: View {
         case .income(let incomeOccurrence):
             if usesStackNavigation {
                 NavigationLink(value: HomeDetailDestination.income(incomeOccurrence.income.persistentModelID)) {
-                    CalendarIncomeRow8(incomeOccurrence: incomeOccurrence)
+                    CalendarIncomeBillStyleRow(incomeOccurrence: incomeOccurrence)
+                        .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
                         .foregroundColor(Color(uiColor: .label))
                 }
                 .buttonStyle(.plain)
@@ -68,7 +69,8 @@ struct CalendarItemRow: View {
                 Button {
                     onOpen(.income(incomeOccurrence.income.persistentModelID))
                 } label: {
-                    CalendarIncomeRow8(incomeOccurrence: incomeOccurrence)
+                    CalendarIncomeBillStyleRow(incomeOccurrence: incomeOccurrence)
+                        .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
                         .foregroundColor(Color(uiColor: .label))
                 }
                 .buttonStyle(.plain)
@@ -506,6 +508,47 @@ struct CalendarIncomeRow8: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, DesignSystem.Spacing.medium)
         .padding(.vertical, DesignSystem.Spacing.small)
+        .background(DesignSystem.Color.background)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(
+            localized: "Income: \(incomeOccurrence.name), \(formattedAmount)",
+            comment: "Accessibility: calendar income row label (income name, amount)"
+        ))
+    }
+}
+
+/// Income row that mirrors CalendarFutureBillRow layout with income (green) colors.
+struct CalendarIncomeBillStyleRow: View {
+    let incomeOccurrence: IncomeOccurrence
+
+    private var formattedAmount: String {
+        incomeOccurrence.amount.formatted(.currency(code: incomeOccurrence.currencyCode))
+    }
+
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.small) {
+            CalendarDateStamp(date: incomeOccurrence.date, accentColor: DesignSystem.Color.greenIncome)
+
+            Image(systemName: "wallet.bifold")
+                .font(.subheadline)
+                .foregroundStyle(DesignSystem.Color.greenIncome)
+
+            Text(incomeOccurrence.name)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(DesignSystem.Color.greenIncome)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer()
+
+            HStack(spacing: 0) {
+                Text("+")
+                Text(incomeOccurrence.amount, format: .currency(code: incomeOccurrence.currencyCode))
+            }
+            .font(.subheadline)
+            .foregroundStyle(DesignSystem.Color.greenIncome)
+        }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(
@@ -544,7 +587,7 @@ struct CalendarIncomeCardRow: View {
                 .foregroundStyle(DesignSystem.Color.blue)
         }
         .padding(.vertical, -DesignSystem.Spacing.extraSmall)
-        .calendarCardStyle(indicatorColor: DesignSystem.Color.blue)
+        .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(

@@ -47,7 +47,7 @@ struct MonthlyCashFlowChart: View {
                 x: .value("Type", String(localized: "Income")),
                 y: .value("Amount", data.income)
             )
-            .foregroundStyle(DesignSystem.Color.green)
+            .foregroundStyle(DesignSystem.Color.greenIncome)
 
             BarMark(
                 x: .value("Type", String(localized: "Bills")),
@@ -78,7 +78,7 @@ struct MonthlyCashFlowChart: View {
 
             Text(data.net, format: .currency(code: currencyCode))
                 .foregroundStyle(data.net >= 0
-                    ? DesignSystem.Color.green
+                    ? DesignSystem.Color.greenIncome
                     : DesignSystem.Color.red)
                 .fontWeight(.semibold)
         }

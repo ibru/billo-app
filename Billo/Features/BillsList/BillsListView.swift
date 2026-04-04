@@ -205,7 +205,7 @@ private struct SummaryColumn: View {
                     label: "Income",
                     amount: incomeTotal,
                     currencyCode: currencyCode,
-                    color: DesignSystem.Color.green
+                    color: DesignSystem.Color.greenIncome
                 )
 
                 SummaryRow(
@@ -219,7 +219,7 @@ private struct SummaryColumn: View {
                     label: "Net",
                     amount: netAmount,
                     currencyCode: currencyCode,
-                    color: netAmount >= 0 ? DesignSystem.Color.green : DesignSystem.Color.red
+                    color: netAmount >= 0 ? DesignSystem.Color.greenIncome : DesignSystem.Color.red
                 )
             }
         }

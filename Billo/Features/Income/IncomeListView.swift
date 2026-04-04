@@ -71,7 +71,7 @@ struct IncomeRowView: View {
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             Image(systemName: "wallet.bifold")
-                .foregroundStyle(DesignSystem.Color.green)
+                .foregroundStyle(DesignSystem.Color.greenIncome)
                 .font(.title2)
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
@@ -95,7 +95,7 @@ struct IncomeRowView: View {
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.extraSmall) {
                 Text(income.amount, format: .currency(code: income.currencyCode))
                     .font(.headline)
-                    .foregroundStyle(DesignSystem.Color.green)
+                    .foregroundStyle(DesignSystem.Color.greenIncome)
 
                 Text(income.startDate, style: .date)
                     .font(.caption)

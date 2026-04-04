@@ -52,8 +52,11 @@ enum DesignSystem {
     // MARK: - Colors
     enum Color {
         // MARK: Base Palette (same in light/dark)
-        /// Main green (#0FBC4C)
-        static let green = paletteColor(0x0FBC4C)
+        /// Lighter green for paid/completed states (#34D068)
+        static let green = paletteColor(0x34D068)
+
+        /// Darker green for income and positive amounts (#0A8F3A)
+        static let greenIncome = paletteColor(0x0A8F3A)
 
         /// Main yellow (#FFBC03)
         static let yellow = paletteColor(0xFFBC03)
