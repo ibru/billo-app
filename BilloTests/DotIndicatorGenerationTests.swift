@@ -9,7 +9,7 @@ import Foundation
 @Suite("DotIndicator - Generation")
 struct DotIndicatorGenerationTests {
     @Test
-    func when_dayHasMultipleOccurrences_then_eachGetsOwnDot() throws {
+    func when_dayHasMultipleBills_then_eachGetsOwnDot() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let date = makeDate(year: 2025, month: 7, day: 10, calendar: calendar)
@@ -18,11 +18,8 @@ struct DotIndicatorGenerationTests {
             makeBill(name: "B", amount: 15, dueDate: date, in: context)
         ]
 
-        let occurrences = bills.map { BillOccurrence(bill: $0, dueDate: $0.dueDate) }
-        let dayData = CalendarDayData(
-            date: date,
-            futureOccurrencesWithPayments: occurrences.map { FutureOccurrenceWithPayments(occurrence: $0, payments: []) }
-        )
+        let displays = bills.map { BillDisplay(occurrence: BillOccurrence(bill: $0, dueDate: $0.dueDate), status: .upcoming) }
+        let dayData = CalendarDayData(date: date, bills: displays)
 
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date, calendar: calendar)
 
@@ -30,7 +27,7 @@ struct DotIndicatorGenerationTests {
     }
 
     @Test
-    func when_dayHasOccurrenceAndPayment_then_bothDotsGenerated() throws {
+    func when_dayHasBillAndPayment_then_bothDotsGenerated() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let date = makeDate(year: 2025, month: 8, day: 1, calendar: calendar)
@@ -48,7 +45,7 @@ struct DotIndicatorGenerationTests {
 
         let dayData = CalendarDayData(
             date: date,
-            futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])],
+            bills: [BillDisplay(occurrence: occurrence, status: .partiallyPaid(paid: 10, remaining: 20))],
             payments: [payment]
         )
 
@@ -66,11 +63,8 @@ struct DotIndicatorGenerationTests {
             makeBill(name: "Bill \(index)", amount: 10, dueDate: date, in: context)
         }
 
-        let occurrences = bills.map { BillOccurrence(bill: $0, dueDate: $0.dueDate) }
-        let dayData = CalendarDayData(
-            date: date,
-            futureOccurrencesWithPayments: occurrences.map { FutureOccurrenceWithPayments(occurrence: $0, payments: []) }
-        )
+        let displays = bills.map { BillDisplay(occurrence: BillOccurrence(bill: $0, dueDate: $0.dueDate), status: .upcoming) }
+        let dayData = CalendarDayData(date: date, bills: displays)
 
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date.addingTimeInterval(-86400), calendar: calendar)
 
@@ -78,13 +72,12 @@ struct DotIndicatorGenerationTests {
     }
 
     @Test
-    func when_dayHasPaidPastOccurrence_then_includesPastDotAndPaymentDot() throws {
+    func when_dayHasFullyPaidBillPaymentOnly_then_onlyGreenPaymentDot() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let date = makeDate(year: 2025, month: 10, day: 5, calendar: calendar)
 
         let bill = makeBill(name: "Loan", amount: 100, dueDate: date, in: context)
-        let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
         let payment = makePaymentEntry(
             amount: 100,
             datePaid: date,
@@ -94,16 +87,13 @@ struct DotIndicatorGenerationTests {
             in: context
         )
 
-        let dayData = CalendarDayData(
-            date: date,
-            pastOccurrences: [PastBillDisplay(occurrence: occurrence, payments: [payment])],
-            payments: [payment]
-        )
+        // Fully paid: no bill in bills array, only payment
+        let dayData = CalendarDayData(date: date, payments: [payment])
 
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date, calendar: calendar)
 
-        #expect(dots.count == 2)
-        #expect(dots.filter { $0.color == .green }.count == 2)
+        #expect(dots.count == 1)
+        #expect(dots.first?.color == .green)
     }
 
     @Test
@@ -145,7 +135,7 @@ struct DotIndicatorGenerationTests {
     }
 
     @Test
-    func when_dayHasBillsAndIncome_then_includesBothDotTypes() throws {
+    func when_dayHasBillAndIncome_then_includesBothDotTypes() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let date = makeDate(year: 2025, month: 12, day: 1, calendar: calendar)
@@ -158,7 +148,7 @@ struct DotIndicatorGenerationTests {
 
         let dayData = CalendarDayData(
             date: date,
-            futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])],
+            bills: [BillDisplay(occurrence: occurrence, status: .upcoming)],
             incomeOccurrences: [incomeOccurrence]
         )
 
@@ -180,9 +170,8 @@ struct DotIndicatorGenerationTests {
         let unpaidBill = makeBill(name: "Internet", amount: 50, dueDate: date, in: context)
         let unpaidOccurrence = BillOccurrence(bill: unpaidBill, dueDate: date)
 
-        // Paid bill with payment
+        // Payment for a different bill
         let paidBill = makeBill(name: "Phone", amount: 30, dueDate: date, in: context)
-        let paidOccurrence = BillOccurrence(bill: paidBill, dueDate: date)
         let payment = makePaymentEntry(
             amount: 30,
             datePaid: date,
@@ -198,8 +187,7 @@ struct DotIndicatorGenerationTests {
 
         let dayData = CalendarDayData(
             date: date,
-            futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: unpaidOccurrence, payments: [])],
-            pastOccurrences: [PastBillDisplay(occurrence: paidOccurrence, payments: [payment])],
+            bills: [BillDisplay(occurrence: unpaidOccurrence, status: .upcoming)],
             payments: [payment],
             incomeOccurrences: [incomeOccurrence]
         )
@@ -207,22 +195,22 @@ struct DotIndicatorGenerationTests {
         // Bill is 1 day in future relative to yesterday -> orange
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date.addingTimeInterval(-86400), calendar: calendar)
 
-        // Should have: 1 income dot, 1 payment dot, 1 past-occurrence dot, 1 future-occurrence dot
-        #expect(dots.count == 4)
+        // Should have: 1 income dot, 1 payment dot, 1 bill dot
+        #expect(dots.count == 3)
         #expect(dots.filter { $0.color == .income }.count == 1)
-        #expect(dots.filter { $0.color == .green }.count == 2) // PaymentEntry + paid past occurrence
+        #expect(dots.filter { $0.color == .green }.count == 1) // Payment
         #expect(dots.filter { $0.color == .orange }.count == 1) // Unpaid bill due tomorrow
     }
 
     @Test
-    func when_pastOccurrenceIsMissed_then_redDot() throws {
+    func when_missedBill_then_redDot() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let date = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
         let bill = makeBill(name: "Missed", amount: 10, dueDate: date, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: date)
 
-        let dayData = CalendarDayData(date: date, pastOccurrences: [PastBillDisplay(occurrence: occurrence, payments: [])])
+        let dayData = CalendarDayData(date: date, bills: [BillDisplay(occurrence: occurrence, status: .missed)])
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date, calendar: calendar)
 
         #expect(dots.count == 1)
@@ -230,53 +218,21 @@ struct DotIndicatorGenerationTests {
     }
 
     @Test
-    func when_pastOccurrenceIsPartiallyPaid_then_orangeDot() throws {
+    func when_partiallyPaidBill_then_orangeDot() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let date = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
         let bill = makeBill(name: "Partial", amount: 100, dueDate: date, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: date)
-        let payment = makePaymentEntry(
-            amount: 10,
-            datePaid: date,
-            occurrenceDate: date,
-            bill: bill,
-            calendar: calendar,
-            in: context
-        )
 
-        let dayData = CalendarDayData(date: date, pastOccurrences: [PastBillDisplay(occurrence: occurrence, payments: [payment])])
+        let dayData = CalendarDayData(
+            date: date,
+            bills: [BillDisplay(occurrence: occurrence, status: .partiallyPaid(paid: 10, remaining: 90))]
+        )
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date, calendar: calendar)
 
         #expect(dots.count == 1)
         #expect(dots.first?.color == .orange)
-    }
-
-    @Test
-    func when_futureOccurrenceWithPayments_then_greenDot() throws {
-        let calendar = utcCalendar()
-        let context = try makeContext()
-        let today = makeDate(year: 2025, month: 1, day: 1, calendar: calendar)
-        let dueDate = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
-        let bill = makeBill(name: "Prepaid", amount: 100, dueDate: dueDate, in: context)
-        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
-        let payment = makePaymentEntry(
-            amount: 50,
-            datePaid: today,
-            occurrenceDate: dueDate,
-            bill: bill,
-            calendar: calendar,
-            in: context
-        )
-
-        let dayData = CalendarDayData(
-            date: dueDate,
-            futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [payment])]
-        )
-
-        let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: today, calendar: calendar)
-        #expect(dots.count == 1)
-        #expect(dots.first?.color == .green)
     }
 
     @Test
@@ -301,14 +257,14 @@ struct DotIndicatorGenerationTests {
 
         let dayData = CalendarDayData(
             date: date,
-            futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])],
-            pastOccurrences: [PastBillDisplay(occurrence: occurrence, payments: [payment])],
+            bills: [BillDisplay(occurrence: occurrence, status: .missed)],
             payments: [payment],
             incomeOccurrences: [incomeOccurrence]
         )
 
         let dots = DotIndicatorGenerator.dots(for: dayData, relativeTo: date, calendar: calendar)
-        #expect(dots.map(\.color) == [.income, .green, .orange, .red])
+        // Order: income -> payments -> bills
+        #expect(dots.map(\.color) == [.income, .green, .red])
     }
 }
 

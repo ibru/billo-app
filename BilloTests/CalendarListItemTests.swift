@@ -9,28 +9,29 @@ import Foundation
 @Suite("CalendarListItem")
 struct CalendarListItemTests {
     @Test
-    func when_occurrenceItem_then_dateReturnsDueDate() throws {
+    func when_billItem_then_dateReturnsDueDate() throws {
         let calendar = Calendar(identifier: .gregorian)
         let context = try makeContext()
         let bill = makeBill(name: "Rent", dueDate: makeDate(year: 2025, month: 1, day: 10, calendar: calendar), in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
 
-        let sut = CalendarListItem.occurrence(occurrence, payments: [])
+        let sut = CalendarListItem.bill(BillDisplay(occurrence: occurrence, status: .upcoming))
 
         #expect(sut.date == bill.dueDate)
     }
 
     @Test
-    func when_pastOccurrenceItem_then_dateReturnsDueDate() throws {
+    func when_paymentItem_then_dateReturnsDatePaid() throws {
         let calendar = Calendar(identifier: .gregorian)
         let context = try makeContext()
-        let bill = makeBill(name: "Internet", dueDate: makeDate(year: 2025, month: 1, day: 15, calendar: calendar), in: context)
-        let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
-        let payment = makePayment(amount: 45, paid: bill.dueDate, occurrence: bill.dueDate, bill: bill, in: context)
+        let dueDate = makeDate(year: 2025, month: 1, day: 15, calendar: calendar)
+        let paidDate = makeDate(year: 2025, month: 1, day: 12, calendar: calendar)
+        let bill = makeBill(name: "Internet", dueDate: dueDate, in: context)
+        let payment = makePayment(amount: 45, paid: paidDate, occurrence: dueDate, bill: bill, in: context)
 
-        let sut = CalendarListItem.pastOccurrence(PastBillDisplay(occurrence: occurrence, payments: [payment]))
+        let sut = CalendarListItem.payment(payment)
 
-        #expect(sut.date == bill.dueDate)
+        #expect(sut.date == paidDate)
     }
 
     @Test
@@ -42,44 +43,25 @@ struct CalendarListItemTests {
     }
 
     @Test
-    func when_pastOccurrenceItem_then_typeSortOrderEquals1() throws {
+    func when_billItem_then_typeSortOrderEquals1() throws {
         let calendar = Calendar(identifier: .gregorian)
         let context = try makeContext()
         let dueDate = makeDate(year: 2025, month: 2, day: 1, calendar: calendar)
         let bill = makeBill(name: "A", dueDate: dueDate, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
-        let display = PastBillDisplay(occurrence: occurrence, payments: [])
 
-        #expect(CalendarListItem.pastOccurrence(display).typeSortOrder == 1)
+        #expect(CalendarListItem.bill(BillDisplay(occurrence: occurrence, status: .missed)).typeSortOrder == 1)
     }
 
     @Test
-    func when_occurrenceItemWithPayments_then_isPrepaidIsTrue() throws {
+    func when_paymentItem_then_typeSortOrderEquals1() throws {
         let calendar = Calendar(identifier: .gregorian)
         let context = try makeContext()
         let dueDate = makeDate(year: 2025, month: 2, day: 10, calendar: calendar)
         let bill = makeBill(name: "A", dueDate: dueDate, in: context)
-        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
         let payment = makePayment(amount: 10, paid: dueDate, occurrence: dueDate, bill: bill, in: context)
 
-        #expect(CalendarListItem.occurrence(occurrence, payments: [payment]).isPrepaid == true)
-        #expect(CalendarListItem.occurrence(occurrence, payments: []).isPrepaid == false)
-    }
-
-    @Test
-    func when_occurrenceItemPaymentsOrderDiffers_then_itemsAreEqual() throws {
-        let calendar = Calendar(identifier: .gregorian)
-        let context = try makeContext()
-        let dueDate = makeDate(year: 2025, month: 3, day: 5, calendar: calendar)
-        let bill = makeBill(name: "A", dueDate: dueDate, in: context)
-        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
-        let payment1 = makePayment(amount: 10, paid: dueDate, occurrence: dueDate, bill: bill, in: context)
-        let payment2 = makePayment(amount: 20, paid: dueDate, occurrence: dueDate, bill: bill, in: context)
-
-        let lhs = CalendarListItem.occurrence(occurrence, payments: [payment1, payment2])
-        let rhs = CalendarListItem.occurrence(occurrence, payments: [payment2, payment1])
-
-        #expect(lhs == rhs)
+        #expect(CalendarListItem.payment(payment).typeSortOrder == 1)
     }
 }
 

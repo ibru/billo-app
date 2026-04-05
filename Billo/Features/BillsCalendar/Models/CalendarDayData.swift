@@ -3,50 +3,49 @@
 import Foundation
 import SwiftData
 
-/// Represents a future bill occurrence with its associated payments (for prepaid indicator).
-/// Note: Custom Equatable implementation because PaymentEntry is a SwiftData @Model.
-struct FutureOccurrenceWithPayments: Equatable {
+/// Status of a bill on its due date. Fully-paid bills are excluded entirely
+/// (they only appear as payments on their `datePaid`).
+enum BillDueStatus: Equatable {
+    case upcoming
+    case partiallyPaid(paid: Decimal, remaining: Decimal)
+    case missed
+}
+
+/// A bill occurrence displayed on its due date, with payment-aware status.
+struct BillDisplay: Identifiable, Equatable {
     let occurrence: BillOccurrence
-    let payments: [PaymentEntry]
+    let status: BillDueStatus
 
-    var isPrepaid: Bool { !payments.isEmpty }
+    var id: String { "bill-\(occurrence.id.billID)-\(occurrence.id.dueTime)" }
 
-    static func == (lhs: FutureOccurrenceWithPayments, rhs: FutureOccurrenceWithPayments) -> Bool {
-        return lhs.occurrence == rhs.occurrence &&
-        Set(lhs.payments.map { String(describing: $0.persistentModelID) }) ==
-        Set(rhs.payments.map { String(describing: $0.persistentModelID) })
+    static func == (lhs: BillDisplay, rhs: BillDisplay) -> Bool {
+        lhs.occurrence == rhs.occurrence && lhs.status == rhs.status
     }
 }
 
 struct CalendarDayData: Identifiable, Equatable {
     let date: Date
-    let futureOccurrencesWithPayments: [FutureOccurrenceWithPayments]
-    let pastOccurrences: [PastBillDisplay]
+    let bills: [BillDisplay]
     let payments: [PaymentEntry]
     let incomeOccurrences: [IncomeOccurrence]
 
     var id: Date { date }
 
-    /// Convenience accessor for occurrences that are due on this date (future or today without payments).
-    var occurrences: [BillOccurrence] {
-        futureOccurrencesWithPayments.map(\.occurrence)
-    }
-
     var hasItems: Bool {
-        !futureOccurrencesWithPayments.isEmpty ||
-        !pastOccurrences.isEmpty ||
+        !bills.isEmpty ||
         !payments.isEmpty ||
         !incomeOccurrences.isEmpty
     }
 
     var totalDue: Decimal {
-        let futureTotal = futureOccurrencesWithPayments.reduce(Decimal.zero) { partial, item in
-            partial + item.occurrence.amount
+        bills.reduce(Decimal.zero) { partial, display in
+            switch display.status {
+            case .upcoming, .missed:
+                partial + display.occurrence.amount
+            case .partiallyPaid(_, let remaining):
+                partial + remaining
+            }
         }
-        let pastTotal = pastOccurrences.reduce(Decimal.zero) { partial, display in
-            partial + display.occurrence.amount
-        }
-        return futureTotal + pastTotal
     }
 
     var totalIncome: Decimal {
@@ -57,22 +56,19 @@ struct CalendarDayData: Identifiable, Equatable {
 
     init(
         date: Date,
-        futureOccurrencesWithPayments: [FutureOccurrenceWithPayments] = [],
-        pastOccurrences: [PastBillDisplay] = [],
+        bills: [BillDisplay] = [],
         payments: [PaymentEntry] = [],
         incomeOccurrences: [IncomeOccurrence] = []
     ) {
         self.date = date
-        self.futureOccurrencesWithPayments = futureOccurrencesWithPayments
-        self.pastOccurrences = pastOccurrences
+        self.bills = bills
         self.payments = payments
         self.incomeOccurrences = incomeOccurrences
     }
 
     static func == (lhs: CalendarDayData, rhs: CalendarDayData) -> Bool {
         lhs.date == rhs.date &&
-        lhs.futureOccurrencesWithPayments == rhs.futureOccurrencesWithPayments &&
-        lhs.pastOccurrences == rhs.pastOccurrences &&
+        lhs.bills == rhs.bills &&
         paymentIdentifierStrings(lhs.payments) == paymentIdentifierStrings(rhs.payments) &&
         lhs.incomeOccurrences == rhs.incomeOccurrences
     }

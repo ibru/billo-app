@@ -354,7 +354,7 @@ private struct CalendarDayCell: View {
 
     private var accessibilityLabel: String {
         let dayString = date.formatted(.dateTime.month(.abbreviated).day())
-        let billCount = dayData.futureOccurrencesWithPayments.count + dayData.pastOccurrences.count
+        let billCount = dayData.bills.count
         let paymentCount = dayData.payments.count
         let incomeCount = dayData.incomeOccurrences.count
 
@@ -463,7 +463,7 @@ private struct CalendarDayCell: View {
                 let occurrence = BillOccurrence(bill: sampleBill, dueDate: todayStart)
                 data[todayStart] = CalendarDayData(
                     date: todayStart,
-                    futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])]
+                    bills: [BillDisplay(occurrence: occurrence, status: .upcoming)]
                 )
             }
 
@@ -519,10 +519,10 @@ private struct CalendarDayCell: View {
                 if calendar.isDate(d, equalTo: monthStart, toGranularity: .month) {
                     data[d] = CalendarDayData(
                         date: d,
-                        futureOccurrencesWithPayments: [
-                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: sampleBill, dueDate: d), payments: []),
-                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: rentBill, dueDate: d), payments: []),
-                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: phoneBill, dueDate: d), payments: [])
+                        bills: [
+                            BillDisplay(occurrence: BillOccurrence(bill: sampleBill, dueDate: d), status: .upcoming),
+                            BillDisplay(occurrence: BillOccurrence(bill: rentBill, dueDate: d), status: .upcoming),
+                            BillDisplay(occurrence: BillOccurrence(bill: phoneBill, dueDate: d), status: .upcoming)
                         ]
                     )
                 }
@@ -534,8 +534,8 @@ private struct CalendarDayCell: View {
                 if calendar.isDate(d, equalTo: monthStart, toGranularity: .month) {
                     data[d] = CalendarDayData(
                         date: d,
-                        futureOccurrencesWithPayments: [
-                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: streamingBill, dueDate: d), payments: [])
+                        bills: [
+                            BillDisplay(occurrence: BillOccurrence(bill: streamingBill, dueDate: d), status: .upcoming)
                         ],
                         incomeOccurrences: [IncomeOccurrence(from: salary, on: d)]
                     )
@@ -562,8 +562,8 @@ private struct CalendarDayCell: View {
                 if calendar.isDate(d, equalTo: monthStart, toGranularity: .month) {
                     data[d] = CalendarDayData(
                         date: d,
-                        futureOccurrencesWithPayments: [
-                            FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: rentBill, dueDate: d), payments: [])
+                        bills: [
+                            BillDisplay(occurrence: BillOccurrence(bill: rentBill, dueDate: d), status: .upcoming)
                         ]
                     )
                 }
@@ -578,7 +578,7 @@ private struct CalendarDayCell: View {
                     let occurrence = BillOccurrence(bill: sampleBill, dueDate: dateStart)
                     data[dateStart] = CalendarDayData(
                         date: dateStart,
-                        futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])]
+                        bills: [BillDisplay(occurrence: occurrence, status: .upcoming)]
                     )
                 }
             }

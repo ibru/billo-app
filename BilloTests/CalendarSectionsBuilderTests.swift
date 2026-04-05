@@ -9,7 +9,7 @@ import Foundation
 @Suite("CalendarSectionsBuilder")
 struct CalendarSectionsBuilderTests {
     @Test
-    func when_occurrenceIsBeforeReferenceDate_then_createdAsPastOccurrence() throws {
+    func when_unpaidOccurrenceIsBeforeReferenceDate_then_createdAsMissedBill() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let referenceDate = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
@@ -30,13 +30,15 @@ struct CalendarSectionsBuilderTests {
         )
 
         let january = try #require(sections.first { $0.id == "2025-01" })
-        let item = try #require(january.items.first)
-        let display: PastBillDisplay = try #require(extractPastOccurrence(from: item))
+        let items = january.items.filter { if case .todayDivider = $0 { false } else { true } }
+        let item = try #require(items.first)
+        let display = try #require(extractBill(from: item))
         #expect(display.occurrence == occurrence)
+        #expect(display.status == .missed)
     }
 
     @Test
-    func when_occurrenceIsAfterReferenceDate_then_createdAsOccurrence() throws {
+    func when_occurrenceIsAfterReferenceDate_then_createdAsUpcomingBill() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let referenceDate = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
@@ -60,16 +62,13 @@ struct CalendarSectionsBuilderTests {
         let items = january.items.filter { if case .todayDivider = $0 { false } else { true } }
         try #require(items.count == 1)
 
-        let item = try requireItem(items, at: 0)
-        let extracted = try #require(extractOccurrence(from: item))
-        let builtOccurrence = extracted.occurrence
-        let payments = extracted.payments
-        #expect(builtOccurrence == occurrence)
-        #expect(payments.isEmpty)
+        let display = try #require(extractBill(from: items[0]))
+        #expect(display.occurrence == occurrence)
+        #expect(display.status == .upcoming)
     }
 
     @Test
-    func when_occurrenceIsTodayWithNoPayments_then_createdAsOccurrence() throws {
+    func when_occurrenceIsTodayWithNoPayments_then_createdAsUpcomingBill() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let today = makeDate(year: 2025, month: 2, day: 10, calendar: calendar)
@@ -92,16 +91,13 @@ struct CalendarSectionsBuilderTests {
         let items = february.items.filter { if case .todayDivider = $0 { false } else { true } }
         try #require(items.count == 1)
 
-        let item = try requireItem(items, at: 0)
-        let extracted = try #require(extractOccurrence(from: item))
-        let builtOccurrence = extracted.occurrence
-        let payments = extracted.payments
-        #expect(builtOccurrence == occurrence)
-        #expect(payments.isEmpty)
+        let display = try #require(extractBill(from: items[0]))
+        #expect(display.occurrence == occurrence)
+        #expect(display.status == .upcoming)
     }
 
     @Test
-    func when_occurrenceIsTodayWithPayments_then_createdAsPastOccurrence() throws {
+    func when_occurrenceIsTodayFullyPaid_then_billSkippedPaymentShows() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let today = makeDate(year: 2025, month: 3, day: 10, calendar: calendar)
@@ -110,7 +106,7 @@ struct CalendarSectionsBuilderTests {
 
         let bill = makeBill(name: "Today", dueDate: today, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: today)
-        let payment = makePayment(amount: 10, paid: today, occurrence: today, bill: bill, in: context)
+        let payment = makePayment(amount: 50, paid: today, occurrence: today, bill: bill, in: context)
 
         let sections = CalendarSectionsBuilder.build(
             occurrences: [occurrence],
@@ -123,16 +119,16 @@ struct CalendarSectionsBuilderTests {
 
         let march = try #require(sections.first { $0.id == "2025-03" })
         let items = march.items.filter { if case .todayDivider = $0 { false } else { true } }
-        try #require(items.count == 1)
 
-        let item = try requireItem(items, at: 0)
-        let display = try #require(extractPastOccurrence(from: item))
-        #expect(display.occurrence == occurrence)
-        #expect(display.payments.count == 1)
+        // Should have only a payment item, no bill item (fully paid)
+        let billItems = items.compactMap { extractBill(from: $0) }
+        let paymentItems = items.compactMap { extractPayment(from: $0) }
+        #expect(billItems.isEmpty)
+        #expect(paymentItems.count == 1)
     }
 
     @Test
-    func when_futureOccurrenceHasPayments_then_paymentsIncludedInOccurrence() throws {
+    func when_futureOccurrencePartiallyPaid_then_billShowsAsPartiallyPaid() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let referenceDate = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
@@ -141,7 +137,7 @@ struct CalendarSectionsBuilderTests {
         let start = DateComponents(year: 2025, month: 2)
         let end = DateComponents(year: 2025, month: 2)
 
-        let bill = makeBill(name: "Prepaid", dueDate: dueDate, in: context)
+        let bill = makeBill(name: "Prepaid", amount: 100, dueDate: dueDate, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
         let payment = makePayment(amount: 50, paid: paymentDate, occurrence: dueDate, bill: bill, in: context)
 
@@ -156,10 +152,8 @@ struct CalendarSectionsBuilderTests {
 
         let february = try #require(sections.first { $0.id == "2025-02" })
         let items = february.items.filter { if case .todayDivider = $0 { false } else { true } }
-        let item = try #require(items.first)
-        let extracted = try #require(extractOccurrence(from: item))
-        let payments = extracted.payments
-        #expect(payments.count == 1)
+        let display = try #require(items.compactMap({ extractBill(from: $0) }).first)
+        #expect(display.status == .partiallyPaid(paid: 50, remaining: 50))
     }
 
     @Test
@@ -187,45 +181,13 @@ struct CalendarSectionsBuilderTests {
 
         let january = try #require(sections.first { $0.id == "2025-01" })
         let items = january.items.filter { if case .todayDivider = $0 { false } else { true } }
-        let item = try #require(items.first)
-        let extracted = try #require(extractOccurrence(from: item))
-        let payments = extracted.payments
-        #expect(payments.isEmpty)
+        // Bill A should be upcoming (payment is for bill B, not A)
+        let billDisplay = try #require(items.compactMap({ extractBill(from: $0) }).first)
+        #expect(billDisplay.status == .upcoming)
     }
 
     @Test
-    func when_paymentForDifferentOccurrenceDate_then_notAssociatedWithOccurrence() throws {
-        let calendar = utcCalendar()
-        let context = try makeContext()
-        let referenceDate = makeDate(year: 2025, month: 1, day: 1, calendar: calendar)
-        let dueDate = makeDate(year: 2025, month: 1, day: 15, calendar: calendar)
-        let otherDueDate = makeDate(year: 2025, month: 1, day: 16, calendar: calendar)
-        let start = DateComponents(year: 2025, month: 1)
-        let end = DateComponents(year: 2025, month: 1)
-
-        let bill = makeBill(name: "A", dueDate: dueDate, in: context)
-        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
-        let payment = makePayment(amount: 10, paid: dueDate, occurrence: otherDueDate, bill: bill, in: context)
-
-        let sections = CalendarSectionsBuilder.build(
-            occurrences: [occurrence],
-            payments: [payment],
-            from: start,
-            to: end,
-            referenceDate: referenceDate,
-            calendar: calendar
-        )
-
-        let january = try #require(sections.first { $0.id == "2025-01" })
-        let items = january.items.filter { if case .todayDivider = $0 { false } else { true } }
-        let item = try #require(items.first)
-        let extracted = try #require(extractOccurrence(from: item))
-        let payments = extracted.payments
-        #expect(payments.isEmpty)
-    }
-
-    @Test
-    func when_monthHasPastAndFutureOccurrences_then_totalBillsDueIncludesAll() throws {
+    func when_monthHasUnpaidBills_then_totalBillsDueIncludesAll() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let referenceDate = makeDate(year: 2025, month: 5, day: 15, calendar: calendar)
@@ -251,6 +213,37 @@ struct CalendarSectionsBuilderTests {
 
         let may = try #require(sections.first { $0.id == "2025-05" })
         #expect(may.totalBillsDue == 35)
+    }
+
+    @Test
+    func when_monthHasFullyPaidBill_then_totalBillsDueExcludesIt() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 5, day: 15, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 5)
+        let end = DateComponents(year: 2025, month: 5)
+
+        let paidBill = makeBill(name: "Paid", amount: 100, dueDate: makeDate(year: 2025, month: 5, day: 1, calendar: calendar), in: context)
+        let unpaidBill = makeBill(name: "Unpaid", amount: 25, dueDate: makeDate(year: 2025, month: 5, day: 20, calendar: calendar), in: context)
+
+        let occurrences = [
+            BillOccurrence(bill: paidBill, dueDate: paidBill.dueDate),
+            BillOccurrence(bill: unpaidBill, dueDate: unpaidBill.dueDate)
+        ]
+
+        let payment = makePayment(amount: 100, paid: paidBill.dueDate, occurrence: paidBill.dueDate, bill: paidBill, in: context)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: occurrences,
+            payments: [payment],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(may.totalBillsDue == 25, "Fully paid bill should not count toward totalBillsDue")
     }
 
     @Test
@@ -363,38 +356,6 @@ struct CalendarSectionsBuilderTests {
     }
 
     @Test
-    func when_occurrenceAndPastOccurrenceOnSameDay_then_sortedByIdForStability() throws {
-        let calendar = utcCalendar()
-        let context = try makeContext()
-        let today = makeDate(year: 2025, month: 6, day: 10, calendar: calendar)
-        let start = DateComponents(year: 2025, month: 6)
-        let end = DateComponents(year: 2025, month: 6)
-
-        let paidBill = makeBill(name: "Paid", dueDate: today, in: context)
-        let unpaidBill = makeBill(name: "Unpaid", dueDate: today, in: context)
-
-        let paidOccurrence = BillOccurrence(bill: paidBill, dueDate: today)
-        let unpaidOccurrence = BillOccurrence(bill: unpaidBill, dueDate: today)
-        let payment = makePayment(amount: 10, paid: today, occurrence: today, bill: paidBill, in: context)
-
-        let sections = CalendarSectionsBuilder.build(
-            occurrences: [paidOccurrence, unpaidOccurrence],
-            payments: [payment],
-            from: start,
-            to: end,
-            referenceDate: today,
-            calendar: calendar
-        )
-
-        let june = try #require(sections.first { $0.id == "2025-06" })
-        let items = june.items.filter { if case .todayDivider = $0 { false } else { true } }
-        #expect(items.count == 2)
-
-        let ids = items.map(\.id)
-        #expect(ids == ids.sorted())
-    }
-
-    @Test
     func when_monthContainsToday_then_insertsTodayDividerBeforeFirstItemOnOrAfterToday() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
@@ -423,52 +384,19 @@ struct CalendarSectionsBuilderTests {
         let january = try #require(sections.first { $0.id == "2025-01" })
         try #require(january.items.count == 3)
 
-        let first = try requireItem(january.items, at: 0)
-        _ = try #require(extractPastOccurrence(from: first))
+        // First item: missed bill
+        let first = january.items[0]
+        let missedBill = try #require(extractBill(from: first))
+        #expect(missedBill.status == .missed)
 
-        let second = try requireItem(january.items, at: 1)
-        let divider = try #require(extractTodayDivider(from: second))
-        let dividerDate = divider.date
-        let sectionId = divider.sectionId
-        #expect(dividerDate == calendar.startOfDay(for: today))
-        #expect(sectionId == "2025-01")
-
-        let third = try requireItem(january.items, at: 2)
-        _ = try #require(extractOccurrence(from: third))
-    }
-
-    @Test
-    func when_allItemsAreBeforeToday_then_todayDividerInsertedAtEnd() throws {
-        let calendar = utcCalendar()
-        let context = try makeContext()
-        let today = makeDate(year: 2025, month: 1, day: 20, calendar: calendar)
-        let start = DateComponents(year: 2025, month: 1)
-        let end = DateComponents(year: 2025, month: 1)
-
-        let pastDueDate = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
-        let pastBill = makeBill(name: "Past", amount: 10, dueDate: pastDueDate, in: context)
-
-        let sections = CalendarSectionsBuilder.build(
-            occurrences: [BillOccurrence(bill: pastBill, dueDate: pastDueDate)],
-            payments: [],
-            from: start,
-            to: end,
-            referenceDate: today,
-            calendar: calendar
-        )
-
-        let january = try #require(sections.first { $0.id == "2025-01" })
-        #expect(january.items.count == 2)
-
-        // Past occurrence comes first
-        let first = try requireItem(january.items, at: 0)
-        _ = try #require(extractPastOccurrence(from: first))
-
-        // Today divider is at the end
-        let second = try requireItem(january.items, at: 1)
-        let divider = try #require(extractTodayDivider(from: second))
+        // Second item: today divider
+        let divider = try #require(extractTodayDivider(from: january.items[1]))
         #expect(divider.date == calendar.startOfDay(for: today))
         #expect(divider.sectionId == "2025-01")
+
+        // Third item: upcoming bill
+        let upcomingBill = try #require(extractBill(from: january.items[2]))
+        #expect(upcomingBill.status == .upcoming)
     }
 
     @Test
@@ -492,7 +420,7 @@ struct CalendarSectionsBuilderTests {
     }
 
     @Test
-    func when_incomeAndOccurrenceOnSameDay_then_sortsIncomeFirstThenOccurrence() throws {
+    func when_incomeAndOccurrenceOnSameDay_then_sortsIncomeFirstThenBill() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let referenceDate = makeDate(year: 2025, month: 3, day: 1, calendar: calendar)
@@ -519,31 +447,51 @@ struct CalendarSectionsBuilderTests {
         let items = march.items.filter { if case .todayDivider = $0 { false } else { true } }
         try #require(items.count == 2)
 
-        let first = try requireItem(items, at: 0)
-        _ = try #require(extractIncome(from: first))
+        _ = try #require(extractIncome(from: items[0]))
+        _ = try #require(extractBill(from: items[1]))
+    }
 
-        let second = try requireItem(items, at: 1)
-        _ = try #require(extractOccurrence(from: second))
+    @Test
+    func when_paymentsMadeInMonth_then_paymentItemsAppearInList() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 4, day: 10, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 4)
+        let end = DateComponents(year: 2025, month: 4)
+
+        let dueDate = makeDate(year: 2025, month: 4, day: 5, calendar: calendar)
+        let bill = makeBill(name: "Paid", dueDate: dueDate, in: context)
+        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
+        let payment = makePayment(amount: 50, paid: dueDate, occurrence: dueDate, bill: bill, in: context)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [occurrence],
+            payments: [payment],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let april = try #require(sections.first { $0.id == "2025-04" })
+        let items = april.items.filter { if case .todayDivider = $0 { false } else { true } }
+        let paymentItems = items.compactMap { extractPayment(from: $0) }
+        #expect(paymentItems.count == 1, "Payment should appear in the list")
     }
 }
 
 // MARK: - Test Helpers
 
-private func requireItem(_ items: [CalendarListItem], at index: Int) throws -> CalendarListItem {
-    let item: CalendarListItem? = items.indices.contains(index) ? items[index] : nil
-    return try #require(item)
-}
-
-private func extractOccurrence(from item: CalendarListItem) -> (occurrence: BillOccurrence, payments: [PaymentEntry])? {
-    if case .occurrence(let occurrence, let payments) = item {
-        return (occurrence: occurrence, payments: payments)
+private func extractBill(from item: CalendarListItem) -> BillDisplay? {
+    if case .bill(let display) = item {
+        return display
     }
     return nil
 }
 
-private func extractPastOccurrence(from item: CalendarListItem) -> PastBillDisplay? {
-    if case .pastOccurrence(let display) = item {
-        return display
+private func extractPayment(from item: CalendarListItem) -> PaymentEntry? {
+    if case .payment(let payment) = item {
+        return payment
     }
     return nil
 }

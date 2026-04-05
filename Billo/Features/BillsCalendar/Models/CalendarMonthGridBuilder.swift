@@ -42,47 +42,41 @@ enum CalendarMonthGridBuilder {
             updateDayData(for: key) { existing in
                 CalendarDayData(
                     date: key,
-                    futureOccurrencesWithPayments: existing.futureOccurrencesWithPayments,
-                    pastOccurrences: existing.pastOccurrences,
+                    bills: existing.bills,
                     payments: existing.payments,
                     incomeOccurrences: existing.incomeOccurrences + [incomeOccurrence]
                 )
             }
         }
 
-        // Add bill occurrences (on due date) and classify past/future with hybrid today rule
+        // Add bill occurrences on due date — skip fully paid bills
         for occurrence in occurrences where contains(occurrence.dueDate, in: interval) {
             let key = calendar.startOfDay(for: occurrence.dueDate)
 
             let paymentKey = CalendarPaymentKey(billID: occurrence.bill.persistentModelID, occurrenceDay: key)
             let occurrencePayments = paymentsByOccurrence[paymentKey] ?? []
+            let totalPaid = occurrencePayments.reduce(Decimal.zero) { $0 + $1.amount }
 
-            let isPast = key < startOfToday
-            let isToday = key == startOfToday
-            let hasPayments = !occurrencePayments.isEmpty
+            // Fully paid → skip (only the payment on datePaid represents this bill)
+            if totalPaid >= occurrence.amount { continue }
 
-            if isPast || (isToday && hasPayments) {
-                let display = PastBillDisplay(occurrence: occurrence, payments: occurrencePayments)
-                updateDayData(for: key) { existing in
-                    CalendarDayData(
-                        date: key,
-                        futureOccurrencesWithPayments: existing.futureOccurrencesWithPayments,
-                        pastOccurrences: existing.pastOccurrences + [display],
-                        payments: existing.payments,
-                        incomeOccurrences: existing.incomeOccurrences
-                    )
-                }
+            let status: BillDueStatus
+            if totalPaid > 0 {
+                status = .partiallyPaid(paid: totalPaid, remaining: occurrence.amount - totalPaid)
+            } else if key < startOfToday {
+                status = .missed
             } else {
-                let item = FutureOccurrenceWithPayments(occurrence: occurrence, payments: occurrencePayments)
-                updateDayData(for: key) { existing in
-                    CalendarDayData(
-                        date: key,
-                        futureOccurrencesWithPayments: existing.futureOccurrencesWithPayments + [item],
-                        pastOccurrences: existing.pastOccurrences,
-                        payments: existing.payments,
-                        incomeOccurrences: existing.incomeOccurrences
-                    )
-                }
+                status = .upcoming
+            }
+
+            let display = BillDisplay(occurrence: occurrence, status: status)
+            updateDayData(for: key) { existing in
+                CalendarDayData(
+                    date: key,
+                    bills: existing.bills + [display],
+                    payments: existing.payments,
+                    incomeOccurrences: existing.incomeOccurrences
+                )
             }
         }
 
@@ -92,8 +86,7 @@ enum CalendarMonthGridBuilder {
             updateDayData(for: key) { existing in
                 CalendarDayData(
                     date: key,
-                    futureOccurrencesWithPayments: existing.futureOccurrencesWithPayments,
-                    pastOccurrences: existing.pastOccurrences,
+                    bills: existing.bills,
                     payments: existing.payments + [payment],
                     incomeOccurrences: existing.incomeOccurrences
                 )

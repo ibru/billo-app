@@ -9,31 +9,14 @@ import Foundation
 @Suite("CalendarDayData")
 struct CalendarDayDataTests {
     @Test
-    func when_hasOnlyPastOccurrences_then_hasItemsIsTrue() throws {
+    func when_hasOnlyBills_then_hasItemsIsTrue() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
         let dueDate = makeDate(year: 2025, month: 2, day: 5, calendar: calendar)
         let bill = makeBill(name: "Water", amount: 20, dueDate: dueDate, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
-        let payment = makePayment(amount: 20, paid: dueDate, occurrence: dueDate, bill: bill, in: context)
 
-        let sut = CalendarDayData(date: dueDate, pastOccurrences: [PastBillDisplay(occurrence: occurrence, payments: [payment])])
-
-        #expect(sut.hasItems == true)
-    }
-
-    @Test
-    func when_hasOnlyFutureOccurrences_then_hasItemsIsTrue() throws {
-        let calendar = utcCalendar()
-        let context = try makeContext()
-        let dueDate = makeDate(year: 2025, month: 3, day: 1, calendar: calendar)
-        let bill = makeBill(name: "Future", amount: 10, dueDate: dueDate, in: context)
-        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
-
-        let sut = CalendarDayData(
-            date: dueDate,
-            futureOccurrencesWithPayments: [FutureOccurrenceWithPayments(occurrence: occurrence, payments: [])]
-        )
+        let sut = CalendarDayData(date: dueDate, bills: [BillDisplay(occurrence: occurrence, status: .upcoming)])
 
         #expect(sut.hasItems == true)
     }
@@ -60,7 +43,7 @@ struct CalendarDayDataTests {
     }
 
     @Test
-    func when_totalDueCalculated_then_includesBothFutureAndPastOccurrences() throws {
+    func when_totalDueCalculated_then_sumsUpcomingAndMissedBillAmounts() throws {
         let calendar = utcCalendar()
         let context = try makeContext()
 
@@ -68,16 +51,30 @@ struct CalendarDayDataTests {
         let billA = makeBill(name: "A", amount: 25, dueDate: dueDate, in: context)
         let billB = makeBill(name: "B", amount: 40, dueDate: dueDate, in: context)
 
-        let future = FutureOccurrenceWithPayments(occurrence: BillOccurrence(bill: billA, dueDate: dueDate), payments: [])
-        let past = PastBillDisplay(occurrence: BillOccurrence(bill: billB, dueDate: dueDate), payments: [])
+        let upcoming = BillDisplay(occurrence: BillOccurrence(bill: billA, dueDate: dueDate), status: .upcoming)
+        let missed = BillDisplay(occurrence: BillOccurrence(bill: billB, dueDate: dueDate), status: .missed)
 
-        let sut = CalendarDayData(
-            date: dueDate,
-            futureOccurrencesWithPayments: [future],
-            pastOccurrences: [past]
-        )
+        let sut = CalendarDayData(date: dueDate, bills: [upcoming, missed])
 
         #expect(sut.totalDue == 65)
+    }
+
+    @Test
+    func when_totalDueWithPartiallyPaid_then_usesRemainingAmount() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+
+        let dueDate = makeDate(year: 2025, month: 6, day: 1, calendar: calendar)
+        let bill = makeBill(name: "A", amount: 100, dueDate: dueDate, in: context)
+
+        let partial = BillDisplay(
+            occurrence: BillOccurrence(bill: bill, dueDate: dueDate),
+            status: .partiallyPaid(paid: 60, remaining: 40)
+        )
+
+        let sut = CalendarDayData(date: dueDate, bills: [partial])
+
+        #expect(sut.totalDue == 40)
     }
 }
 

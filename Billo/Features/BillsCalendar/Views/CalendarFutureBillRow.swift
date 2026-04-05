@@ -2,10 +2,11 @@
 
 import SwiftUI
 
-struct CalendarFutureBillRow: View {
-    let occurrence: BillOccurrence
-    let payments: [PaymentEntry]
+struct CalendarBillRow: View {
+    let display: BillDisplay
     let customCategories: [CustomCategory]
+
+    private var occurrence: BillOccurrence { display.occurrence }
 
     private var categoryInfo: CategoryDisplayInfo? {
         CategoryCatalog.displayInfo(
@@ -14,14 +15,8 @@ struct CalendarFutureBillRow: View {
         )
     }
 
-    private var isPrepaid: Bool { !payments.isEmpty }
-
     private var formattedAmount: String {
         occurrence.amount.formatted(.currency(code: occurrence.currencyCode))
-    }
-
-    private var prepaidDate: Date? {
-        payments.max { lhs, rhs in lhs.datePaid < rhs.datePaid }?.datePaid
     }
 
     var body: some View {
@@ -51,19 +46,7 @@ struct CalendarFutureBillRow: View {
                     .font(.subheadline)
                     .foregroundColor(Color(uiColor: .label))
 
-                if let prepaidDate {
-                    let prepaidDateString = prepaidDate.formatted(.dateTime.month(.abbreviated).day())
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(DesignSystem.Color.green)
-                        Text(String(
-                            localized: "Prepaid \(prepaidDateString)",
-                            comment: "Calendar row: prepaid label with payment date"
-                        ))
-                            .foregroundStyle(DesignSystem.Color.green)
-                    }
-                    .font(.caption)
-                }
+                statusUnderAmountView
             }
         }
         .contentShape(Rectangle())
@@ -71,17 +54,56 @@ struct CalendarFutureBillRow: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
+    @ViewBuilder
+    private var statusUnderAmountView: some View {
+        switch display.status {
+        case .upcoming:
+            EmptyView()
+
+        case .partiallyPaid(_, let remaining):
+            let remainingString = remaining.formatted(.currency(code: occurrence.currencyCode))
+            Text(String(
+                localized: "Remaining: \(remainingString)",
+                comment: "Calendar bill row: remaining amount label"
+            ))
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Color.orange)
+
+        case .missed:
+            let dueDateString = occurrence.dueDate.formatted(.dateTime.month(.abbreviated).day())
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(DesignSystem.Color.red)
+                Text(String(
+                    localized: "Was due \(dueDateString)",
+                    comment: "Calendar bill row: was-due label with due date"
+                ))
+                    .foregroundStyle(DesignSystem.Color.red)
+            }
+            .font(.caption)
+        }
+    }
+
     private var accessibilityLabel: String {
         let dueString = occurrence.dueDate.formatted(.dateTime.month(.wide).day().year())
-        if isPrepaid {
+        switch display.status {
+        case .upcoming:
             return String(
-                localized: "\(occurrence.name), prepaid, \(formattedAmount), due \(dueString)",
-                comment: "Accessibility: prepaid bill row (bill name, prepaid, amount, due date)"
+                localized: "\(occurrence.name), \(formattedAmount), due \(dueString)",
+                comment: "Accessibility: unpaid bill row (bill name, amount, due date)"
+            )
+        case .partiallyPaid(let paid, let remaining):
+            let paidString = paid.formatted(.currency(code: occurrence.currencyCode))
+            let remainingString = remaining.formatted(.currency(code: occurrence.currencyCode))
+            return String(
+                localized: "\(occurrence.name), partially paid, \(paidString) of \(formattedAmount), remaining \(remainingString)",
+                comment: "Accessibility: partially-paid bill row (bill name, paid amount, total, remaining)"
+            )
+        case .missed:
+            return String(
+                localized: "Missed: \(occurrence.name), \(formattedAmount), was due \(dueString)",
+                comment: "Accessibility: missed bill row (bill name, amount, due date)"
             )
         }
-        return String(
-            localized: "\(occurrence.name), \(formattedAmount), due \(dueString)",
-            comment: "Accessibility: unpaid bill row (bill name, amount, due date)"
-        )
     }
 }

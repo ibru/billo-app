@@ -8,7 +8,7 @@ enum CalendarSectionsBuilder {
     /// Enables more verbose tracing that logs individual item decisions.
     ///
     /// Enable via:
-    /// - Xcode Scheme → Run → Arguments → Environment Variables:
+    /// - Xcode Scheme -> Run -> Arguments -> Environment Variables:
     ///   - `BILLO_CALENDAR_TRACE_VERBOSE=1`
     /// - or runtime defaults:
     ///   - `UserDefaults.standard.set(true, forKey: "BILLO_CALENDAR_TRACE_VERBOSE")`
@@ -96,8 +96,9 @@ enum CalendarSectionsBuilder {
 
             let monthOccurrences = occurrences.filter { contains($0.dueDate, in: monthInterval) }
             let monthIncomes = incomeOccurrences.filter { contains($0.date, in: monthInterval) }
+            let monthPayments = payments.filter { $0.bill != nil && contains($0.datePaid, in: monthInterval) }
             Logger.log(
-                "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) intervalStart=\(monthInterval.start.ISO8601Format()) intervalEnd=\(monthInterval.end.ISO8601Format()) occurrences=\(monthOccurrences.count) incomes=\(monthIncomes.count)",
+                "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) intervalStart=\(monthInterval.start.ISO8601Format()) intervalEnd=\(monthInterval.end.ISO8601Format()) occurrences=\(monthOccurrences.count) incomes=\(monthIncomes.count) payments=\(monthPayments.count)",
                 level: .debug
             )
 
@@ -113,46 +114,53 @@ enum CalendarSectionsBuilder {
                 }
             }
 
-            var producedUpcomingOrTodayUnpaid = 0
-            var producedPastOrTodayPaid = 0
-            var occurrencesWithPayments = 0
+            var producedBills = 0
+            var skippedFullyPaid = 0
 
             for occurrence in monthOccurrences {
                 let startOfDueDate = calendar.startOfDay(for: occurrence.dueDate)
 
                 let key = CalendarPaymentKey(billID: occurrence.bill.persistentModelID, occurrenceDay: startOfDueDate)
                 let occurrencePayments = paymentsByOccurrence[key] ?? []
+                let totalPaid = occurrencePayments.reduce(Decimal.zero) { $0 + $1.amount }
 
-                let isPast = startOfDueDate < startOfToday
-                let isToday = startOfDueDate == startOfToday
-                let hasPayments = !occurrencePayments.isEmpty
-
-                if isPast || (isToday && hasPayments) {
-                    let display = PastBillDisplay(occurrence: occurrence, payments: occurrencePayments)
-                    items.append(.pastOccurrence(display))
-                    producedPastOrTodayPaid += 1
-                } else {
-                    items.append(.occurrence(occurrence, payments: occurrencePayments))
-                    producedUpcomingOrTodayUnpaid += 1
+                // Fully paid → skip (only the payment on datePaid represents this bill)
+                if totalPaid >= occurrence.amount {
+                    skippedFullyPaid += 1
+                    if isVerboseTraceEnabled {
+                        Logger.log(
+                            "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) bill '\(occurrence.name)' due=\(occurrence.dueDate.ISO8601Format()) SKIPPED (fully paid, totalPaid=\(totalPaid))",
+                            level: .debug
+                        )
+                    }
+                    continue
                 }
 
-                if hasPayments { occurrencesWithPayments += 1 }
+                let status: BillDueStatus
+                if totalPaid > 0 {
+                    status = .partiallyPaid(paid: totalPaid, remaining: occurrence.amount - totalPaid)
+                } else if startOfDueDate < startOfToday {
+                    status = .missed
+                } else {
+                    status = .upcoming
+                }
+
+                let display = BillDisplay(occurrence: occurrence, status: status)
+                items.append(.bill(display))
+                producedBills += 1
 
                 if isVerboseTraceEnabled {
-                    let itemKind = (isPast || (isToday && hasPayments)) ? "pastOccurrence" : "occurrence"
-                    let paymentIDsPreview = occurrencePayments
-                        .prefix(3)
-                        .map { String(describing: $0.persistentModelID) }
-                        .joined(separator: ",")
-
                     Logger.log(
-                        "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) bill '\(occurrence.name)' due=\(occurrence.dueDate.ISO8601Format()) startOfDueDay=\(startOfDueDate.ISO8601Format()) isPast=\(isPast) isToday=\(isToday) payments=\(occurrencePayments.count) paymentIDsPrefix3=[\(paymentIDsPreview)] -> \(itemKind)",
+                        "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) bill '\(occurrence.name)' due=\(occurrence.dueDate.ISO8601Format()) status=\(status) payments=\(occurrencePayments.count)",
                         level: .debug
                     )
                 }
             }
 
-            // Sort by date first, then by type (income → bills → empty), then by id for stability
+            // Add payments to list items
+            items.append(contentsOf: monthPayments.map { .payment($0) })
+
+            // Sort by date first, then by type (income -> bills/payments -> divider -> empty), then by id for stability
             items.sort { lhs, rhs in
                 if lhs.date != rhs.date {
                     return lhs.date < rhs.date
@@ -163,7 +171,7 @@ enum CalendarSectionsBuilder {
                 return lhs.id < rhs.id
             }
             Logger.log(
-                "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) items after sort: total=\(items.count) income=\(monthIncomes.count) pastOrTodayPaid=\(producedPastOrTodayPaid) upcomingOrTodayUnpaid=\(producedUpcomingOrTodayUnpaid) occurrencesWithPayments=\(occurrencesWithPayments)",
+                "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) items after sort: total=\(items.count) income=\(monthIncomes.count) bills=\(producedBills) payments=\(monthPayments.count) skippedFullyPaid=\(skippedFullyPaid)",
                 level: .debug
             )
 
@@ -188,9 +196,18 @@ enum CalendarSectionsBuilder {
                 )
             }
 
-            // Calculate totals for the month
+            // Calculate totals — only non-fully-paid bills count toward totalBillsDue
             let totalIncome = monthIncomes.reduce(Decimal.zero) { $0 + $1.amount }
-            let totalBillsDue = monthOccurrences.reduce(Decimal.zero) { $0 + $1.amount }
+            let totalBillsDue = monthOccurrences.reduce(Decimal.zero) { partial, occurrence in
+                let startOfDueDate = calendar.startOfDay(for: occurrence.dueDate)
+                let key = CalendarPaymentKey(billID: occurrence.bill.persistentModelID, occurrenceDay: startOfDueDate)
+                let occurrencePayments = paymentsByOccurrence[key] ?? []
+                let totalPaid = occurrencePayments.reduce(Decimal.zero) { $0 + $1.amount }
+
+                if totalPaid >= occurrence.amount { return partial }
+                if totalPaid > 0 { return partial + (occurrence.amount - totalPaid) }
+                return partial + occurrence.amount
+            }
             Logger.log(
                 "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) totals: totalIncome=\(totalIncome) totalBillsDue=\(totalBillsDue)",
                 level: .debug
