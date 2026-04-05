@@ -22,7 +22,9 @@ struct BillsCalendarView: View {
 
     @State private var displayedMonth: DateComponents
     @State private var selectedDayData: CalendarDayData?
-    @State private var scrollTarget: String?
+    @State private var scrollRequest: CalendarListScrollRequest?
+    @State private var nextScrollRequestID = 0
+    @State private var listShowsCurrentMonth = true
     @State private var sections: [CalendarMonthSection] = []
     @State private var months: [DateComponents] = []
     @State private var pageIndex: Int = 0
@@ -68,7 +70,7 @@ struct BillsCalendarView: View {
                 Task { await refreshData() }
             }
             .onChange(of: displayedMonth) { _, _ in
-                scrollTarget = sectionId(for: displayedMonth)
+                enqueueScroll(to: sectionId(for: displayedMonth))
                 updateIsAtCurrentMonth()
             }
             .onChange(of: scrollToTodayToken) { _, _ in
@@ -108,7 +110,7 @@ struct BillsCalendarView: View {
                     },
                     onMonthChange: { newMonth in
                         displayedMonth = newMonth
-                        scrollTarget = sectionId(for: newMonth)
+                        enqueueScroll(to: sectionId(for: newMonth))
                         updateIsAtCurrentMonth()
                     }
                 )
@@ -122,7 +124,6 @@ struct BillsCalendarView: View {
                             )
                         )
                 )
-
 
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -146,18 +147,28 @@ struct BillsCalendarView: View {
                                 }
                                 .id(section.id)
                                 .scrollTargetLayout()
+                                .onAppear {
+                                    guard section.id == currentMonthSectionId else { return }
+                                    listShowsCurrentMonth = true
+                                    updateIsAtCurrentMonth()
+                                }
+                                .onDisappear {
+                                    guard section.id == currentMonthSectionId else { return }
+                                    listShowsCurrentMonth = false
+                                    updateIsAtCurrentMonth()
+                                }
                             }
                         }
                         .scrollTargetLayout()
                     }
                     .scrollIndicators(.visible)
-                    .onChange(of: scrollTarget) { _, target in
-                        guard let target else { return }
+                    .onChange(of: scrollRequest) { _, request in
+                        guard let request else { return }
                         withAnimation(.easeInOut) {
-                            proxy.scrollTo(target, anchor: .top)
+                            proxy.scrollTo(request.sectionID, anchor: .top)
                         }
                         // Clear to avoid unintended re-scroll on unrelated state changes
-                        scrollTarget = nil
+                        scrollRequest = nil
                     }
                 }
             }
@@ -174,15 +185,28 @@ struct BillsCalendarView: View {
         withAnimation(.easeInOut) {
             pageIndex = index
             displayedMonth = todayMonth
-            scrollTarget = sectionId(for: todayMonth)
+            enqueueScroll(to: sectionId(for: todayMonth))
         }
     }
 
+    private var currentMonthSectionId: String {
+        sectionId(for: calendar.dateComponents([.year, .month], from: referenceDate))
+    }
+
     private func updateIsAtCurrentMonth() {
-        isAtCurrentMonth = CalendarMonthComparison.isSameMonth(
+        let calendarIsShowingCurrentMonth = CalendarMonthComparison.isSameMonth(
             displayedMonth,
             as: referenceDate,
             calendar: calendar
+        )
+        isAtCurrentMonth = calendarIsShowingCurrentMonth && listShowsCurrentMonth
+    }
+
+    private func enqueueScroll(to sectionID: String) {
+        nextScrollRequestID += 1
+        scrollRequest = CalendarListScrollRequest(
+            id: nextScrollRequestID,
+            sectionID: sectionID
         )
     }
 
@@ -239,7 +263,7 @@ struct BillsCalendarView: View {
         )
 
         if !hasInitialScroll {
-            scrollTarget = sectionId(for: displayedMonth)
+            enqueueScroll(to: sectionId(for: displayedMonth))
             hasInitialScroll = true
         }
 
@@ -492,6 +516,11 @@ private extension View {
             .navigationBarTitleDisplayMode(.inline)
     }
     .billoPreviewEnvironment(preview)
+}
+
+private struct CalendarListScrollRequest: Equatable, Identifiable {
+    let id: Int
+    let sectionID: String
 }
 
 #Preview("Empty State") {
