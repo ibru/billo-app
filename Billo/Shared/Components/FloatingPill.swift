@@ -39,11 +39,12 @@ struct FloatingPillButton<Label: View>: View {
     var body: some View {
         Button(action: action) {
             label
+                .billoFloatingPillPadding(
+                    vertical: verticalPadding,
+                    horizontal: horizontalPadding
+                )
+                .contentShape(Capsule())
         }
-        .billoFloatingPillPadding(
-            vertical: verticalPadding,
-            horizontal: horizontalPadding
-        )
         .billoFloatingGlassEffect()
         .buttonStyle(.plain)
     }
