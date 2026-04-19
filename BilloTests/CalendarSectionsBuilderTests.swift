@@ -452,6 +452,84 @@ struct CalendarSectionsBuilderTests {
     }
 
     @Test
+    func when_paymentIsOrphanedBecauseBillWasDeleted_then_paymentStillAppearsInList() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 6, day: 20, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 6)
+        let end = DateComponents(year: 2025, month: 6)
+
+        let occurrenceDate = makeDate(year: 2025, month: 6, day: 10, calendar: calendar)
+        let orphanPayment = try makeOrphanPaymentEntry(
+            amount: 42,
+            datePaid: occurrenceDate,
+            occurrenceDate: occurrenceDate,
+            billName: "Deleted Internet",
+            calendar: calendar,
+            in: context
+        )
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [],
+            payments: [orphanPayment],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let june = try #require(sections.first { $0.id == "2025-06" })
+        let items = june.items.filter { if case .todayDivider = $0 { false } else { true } }
+        let paymentItems = items.compactMap { extractPayment(from: $0) }
+        #expect(paymentItems.count == 1)
+        #expect(paymentItems.first === orphanPayment)
+    }
+
+    @Test
+    func when_orphanPaymentAndLivePaymentAreInSameMonth_then_bothAppearInList() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 9, day: 20, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 9)
+        let end = DateComponents(year: 2025, month: 9)
+
+        let livePaymentDate = makeDate(year: 2025, month: 9, day: 12, calendar: calendar)
+        let liveBill = makeBill(name: "Live", dueDate: livePaymentDate, in: context)
+        let livePayment = makePayment(
+            amount: 100,
+            paid: livePaymentDate,
+            occurrence: livePaymentDate,
+            bill: liveBill,
+            in: context
+        )
+
+        let orphanDate = makeDate(year: 2025, month: 9, day: 5, calendar: calendar)
+        let orphanPayment = try makeOrphanPaymentEntry(
+            amount: 30,
+            datePaid: orphanDate,
+            occurrenceDate: orphanDate,
+            billName: "Deleted",
+            calendar: calendar,
+            in: context
+        )
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [BillOccurrence(bill: liveBill, dueDate: livePaymentDate)],
+            payments: [livePayment, orphanPayment],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let september = try #require(sections.first { $0.id == "2025-09" })
+        let items = september.items.filter { if case .todayDivider = $0 { false } else { true } }
+        let paymentItems = items.compactMap { extractPayment(from: $0) }
+        #expect(paymentItems.contains(where: { $0 === orphanPayment }))
+        #expect(paymentItems.contains(where: { $0 === livePayment }))
+    }
+
+    @Test
     func when_paymentsMadeInMonth_then_paymentItemsAppearInList() throws {
         let calendar = utcCalendar()
         let context = try makeContext()

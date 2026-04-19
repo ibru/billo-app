@@ -32,9 +32,10 @@ struct CalendarItemRow: View {
             }
 
         case .payment(let payment):
-            if let billID = payment.bill?.persistentModelID {
+            let destination = CalendarPaymentRouting.destination(for: payment)
+            if let destination {
                 if usesStackNavigation {
-                    NavigationLink(value: HomeDetailDestination.bill(billID)) {
+                    NavigationLink(value: destination) {
                         CalendarPaymentRow(payment: payment)
                             .calendarCardStyle(indicatorColor: DesignSystem.Color.green)
                             .foregroundColor(Color(uiColor: .label))
@@ -42,7 +43,7 @@ struct CalendarItemRow: View {
                     .buttonStyle(.plain)
                 } else {
                     Button {
-                        onOpen(.bill(billID))
+                        onOpen(destination)
                     } label: {
                         CalendarPaymentRow(payment: payment)
                             .calendarCardStyle(indicatorColor: DesignSystem.Color.green)

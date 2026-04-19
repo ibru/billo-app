@@ -15,6 +15,9 @@ struct BillsCalendarView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettings
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
+    // Fetch all payments directly so orphaned entries (bill deleted → IssuedOccurrence nullified)
+    // still surface in past months. Going through `bills.flatMap(\.allPaymentEntries)` misses them.
+    @Query(sort: \PaymentEntry.datePaid) private var allStoredPayments: [PaymentEntry]
 
     private var currencyCode: String {
         appSettings.currencyCode ?? AppSettingsModel.defaultCurrency ?? "USD"
@@ -30,8 +33,9 @@ struct BillsCalendarView: View {
     @State private var pageIndex: Int = 0
     @State private var hasInitialScroll = false
     @State private var allOccurrences: [BillOccurrence] = []
-    @State private var allPayments: [PaymentEntry] = []
     @State private var allIncomeOccurrences: [IncomeOccurrence] = []
+
+    private var allPayments: [PaymentEntry] { allStoredPayments }
     @State private var referenceDate: Date = Date()
 
 	    init(
@@ -67,6 +71,9 @@ struct BillsCalendarView: View {
                 Task { await refreshData() }
             }
             .onChange(of: billsModel.incomes) { _, _ in
+                Task { await refreshData() }
+            }
+            .onChange(of: allStoredPayments.count) { _, _ in
                 Task { await refreshData() }
             }
             .onChange(of: displayedMonth) { _, _ in
@@ -220,7 +227,7 @@ struct BillsCalendarView: View {
             Logger.log("Failed to refresh bills: \(error)", level: .error)
         }
 
-        let payments = billsModel.bills.flatMap(\.allPaymentEntries)
+        let payments = allPayments
         let earliest = CalendarNavigationBounds.earliestMonth(
             bills: billsModel.bills,
             payments: payments,
@@ -249,7 +256,6 @@ struct BillsCalendarView: View {
         )
 
         allOccurrences = occurrences
-        allPayments = payments
         allIncomeOccurrences = incomeOccurrences
 
         sections = CalendarSectionsBuilder.build(

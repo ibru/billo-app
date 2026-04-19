@@ -80,8 +80,9 @@ enum CalendarMonthGridBuilder {
             }
         }
 
-        // Add payments (on datePaid, independent of due dates)
-        for payment in payments where payment.bill != nil && contains(payment.datePaid, in: interval) {
+        // Add payments (on datePaid, independent of due dates).
+        // Orphaned payments (bill deleted) keep appearing via their IssuedOccurrence snapshot.
+        for payment in payments where contains(payment.datePaid, in: interval) {
             let key = calendar.startOfDay(for: payment.datePaid)
             updateDayData(for: key) { existing in
                 CalendarDayData(

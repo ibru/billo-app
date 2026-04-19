@@ -213,6 +213,37 @@ struct CalendarMonthGridBuilderTests {
     }
 
     @Test
+    func when_paymentIsOrphanedBecauseBillWasDeleted_then_paymentStillAppearsInDayData() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let month = DateComponents(year: 2025, month: 7)
+        let referenceDate = makeDate(year: 2025, month: 7, day: 28, calendar: calendar)
+
+        let orphanDate = makeDate(year: 2025, month: 7, day: 15, calendar: calendar)
+        let orphanPayment = try makeOrphanPaymentEntry(
+            amount: 25,
+            datePaid: orphanDate,
+            occurrenceDate: orphanDate,
+            billName: "Deleted",
+            calendar: calendar,
+            in: context
+        )
+
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: [],
+            payments: [orphanPayment],
+            referenceDate: referenceDate
+        )
+
+        let dayKey = calendar.startOfDay(for: orphanDate)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.payments.count == 1)
+        #expect(dayData.payments.first === orphanPayment)
+    }
+
+    @Test
     func when_paymentDateIsInMonthButOccurrenceDueDateIsInDifferentMonth_then_paymentAppearsInThatMonthDayData() throws {
         let calendar = utcCalendar()
         let context = try makeContext()

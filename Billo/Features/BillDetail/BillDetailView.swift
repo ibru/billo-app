@@ -60,14 +60,6 @@ struct BillDetailView: View {
             MarkPaidSheet(bill: bill)
                 .environment(billsModel)
         }
-        .confirmationDialog("Delete Bill", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                deleteBill()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure you want to delete this bill and all its payment history?")
-        }
     }
 
     // MARK: - Bill Name Title
@@ -97,37 +89,13 @@ struct BillDetailView: View {
         VStack(spacing: DesignSystem.Spacing.medium) {
             dueBadgeTinted
 
-            dueDateDisplay
+            BillDetailDueDateStack(date: displayDueDate)
 
-            HStack(spacing: DesignSystem.Spacing.extraLarge) {
-                VStack(spacing: DesignSystem.Spacing.small) {
-                    Text("Amount")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    Text(billModel.amount.formattedAsCurrency(code: billModel.currencyCode))
-                        .font(.title2.bold())
-                }
-
-                if let categoryInfo = categoryInfo {
-                    VStack(spacing: DesignSystem.Spacing.small) {
-                        Text("Category")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-
-                        HStack(spacing: DesignSystem.Spacing.extraSmall) {
-                            Image(systemName: DesignSystem.Icon.categoryIcon(for: categoryInfo.iconToken))
-                                .font(.body)
-                                .foregroundStyle(DesignSystem.Color.categoryColor(for: categoryInfo.colorToken))
-
-                            Text(categoryInfo.name)
-                                .font(.title3.weight(.medium))
-                        }
-                    }
-                }
-            }
+            BillDetailAmountCategoryGrid(
+                amount: billModel.amount,
+                currencyCode: billModel.currencyCode,
+                category: categoryInfo
+            )
         }
     }
 
@@ -174,30 +142,6 @@ struct BillDetailView: View {
             .background(dueBadgeColor.opacity(0.12), in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium, style: .continuous))
     }
 
-    private static let weekdayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = .autoupdatingCurrent
-        f.setLocalizedDateFormatFromTemplate("EEEE")
-        return f
-    }()
-
-    @ViewBuilder
-    private var dueDateDisplay: some View {
-        VStack(spacing: 2) {
-            Text(Self.weekdayFormatter.string(from: displayDueDate))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            Text(displayDueDate, format: .dateTime.month(.wide).day())
-                .font(.title.bold())
-
-            Text(displayDueDate, format: .dateTime.year())
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     // MARK: - Action Buttons
 
     @ViewBuilder
@@ -239,6 +183,18 @@ struct BillDetailView: View {
                 .buttonStyle(.bordered)
                 .tint(.red)
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium, style: .continuous))
+                .confirmationDialog(
+                    "Delete Bill",
+                    isPresented: $showingDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete", role: .destructive) {
+                        deleteBill()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Future occurrences will no longer appear. Past payments stay in your history.")
+                }
             }
         }
     }
@@ -253,56 +209,44 @@ struct BillDetailView: View {
         let hasRecurrence = billModel.recurrenceDescription != nil
 
         if hasNotes || hasAccount || hasURL || hasRecurrence {
-            VStack(spacing: 0) {
+            BillDetailCard {
                 if let recurrenceDescription = billModel.recurrenceDescription {
-                    infoRow(label: "Repeats", value: recurrenceDescription, isLast: !hasNotes && !hasAccount && !hasURL)
+                    BillDetailInfoRow(
+                        label: "Repeats",
+                        value: recurrenceDescription,
+                        isLast: !hasNotes && !hasAccount && !hasURL
+                    )
                 }
 
                 if let notes = billModel.notes, !notes.isEmpty {
-                    infoRow(label: "Notes", value: notes, isLast: !hasAccount && !hasURL)
+                    BillDetailInfoRow(
+                        label: "Notes",
+                        value: notes,
+                        isLast: !hasAccount && !hasURL
+                    )
                 }
 
                 if let accountIdentifier = billModel.accountIdentifier, !accountIdentifier.isEmpty {
-                    infoRow(label: "Account ID", value: accountIdentifier, isLast: !hasURL)
+                    BillDetailInfoRow(
+                        label: "Account ID",
+                        value: accountIdentifier,
+                        isLast: !hasURL
+                    )
                 }
 
                 if let providerURL = billModel.providerURL, !providerURL.isEmpty {
                     if let url = URL(string: providerURL) {
                         linkRow(label: "Provider", url: url, displayText: providerURL)
                     } else {
-                        infoRow(label: "Provider", value: providerURL, isLast: true)
+                        BillDetailInfoRow(label: "Provider", value: providerURL, isLast: true)
                     }
                 }
             }
-            .background(DesignSystem.Color.background)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large, style: .continuous))
         }
     }
 
     @ViewBuilder
-    private func infoRow(label: String, value: String, isLast: Bool = false) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(label)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(value)
-                    .font(.subheadline)
-                    .multilineTextAlignment(.trailing)
-            }
-            .padding(.horizontal, DesignSystem.Spacing.medium)
-            .padding(.vertical, DesignSystem.Spacing.mediumSmall)
-
-            if !isLast {
-                Divider()
-                    .padding(.leading, DesignSystem.Spacing.medium)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func linkRow(label: String, url: URL, displayText: String) -> some View {
+    private func linkRow(label: LocalizedStringKey, url: URL, displayText: String) -> some View {
         HStack {
             Text(label)
                 .font(.subheadline)

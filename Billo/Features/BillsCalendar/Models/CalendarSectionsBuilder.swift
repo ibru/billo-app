@@ -96,7 +96,7 @@ enum CalendarSectionsBuilder {
 
             let monthOccurrences = occurrences.filter { contains($0.dueDate, in: monthInterval) }
             let monthIncomes = incomeOccurrences.filter { contains($0.date, in: monthInterval) }
-            let monthPayments = payments.filter { $0.bill != nil && contains($0.datePaid, in: monthInterval) }
+            let monthPayments = payments.filter { contains($0.datePaid, in: monthInterval) }
             Logger.log(
                 "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) intervalStart=\(monthInterval.start.ISO8601Format()) intervalEnd=\(monthInterval.end.ISO8601Format()) occurrences=\(monthOccurrences.count) incomes=\(monthIncomes.count) payments=\(monthPayments.count)",
                 level: .debug

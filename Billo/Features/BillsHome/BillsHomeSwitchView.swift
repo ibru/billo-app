@@ -240,6 +240,17 @@ struct BillsHomeSwitchView: View {
                 )
             }
 
+        case .occurrence(let occurrenceID):
+            if let occurrence = modelContext.model(for: occurrenceID) as? IssuedOccurrence {
+                OccurrenceDetailView(occurrence: occurrence)
+            } else {
+                ContentUnavailableView(
+                    "Occurrence Not Found",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("This occurrence may have been deleted")
+                )
+            }
+
         case .paymentHistory:
             PaymentHistoryView()
 

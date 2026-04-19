@@ -89,42 +89,21 @@ struct BillDetailPaymentHistorySection: View {
 
     var body: some View {
         let payments = Array(billModel.paymentsSortedDescending.prefix(3))
+        let hasMore = billModel.paymentsSortedDescending.count > 3
 
         VStack(spacing: 0) {
             BillDetailSectionHeader(title: "Recent Payments")
 
-            VStack(spacing: 0) {
+            BillDetailCard {
                 ForEach(Array(payments.enumerated()), id: \.element.persistentModelID) { index, payment in
-                    VStack(spacing: 0) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(payment.datePaid, format: .dateTime.month(.abbreviated).day().year())
-                                    .font(.subheadline)
-
-                                if let confirmation = payment.confirmationNumber, !confirmation.isEmpty {
-                                    Text("Ref: \(confirmation)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Text(payment.amount.formattedAsCurrency(code: payment.snapshotCurrencyCode ?? billModel.currencyCode))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(DesignSystem.Color.green)
-                        }
-                        .padding(.horizontal, DesignSystem.Spacing.medium)
-                        .padding(.vertical, DesignSystem.Spacing.mediumSmall)
-
-                        if index < payments.count - 1 {
-                            Divider()
-                                .padding(.leading, DesignSystem.Spacing.medium)
-                        }
-                    }
+                    BillDetailPaymentRow(
+                        payment: payment,
+                        fallbackCurrencyCode: billModel.currencyCode,
+                        isLast: !hasMore && index == payments.count - 1
+                    )
                 }
 
-                if billModel.paymentsSortedDescending.count > 3 {
+                if hasMore {
                     Divider()
                         .padding(.leading, DesignSystem.Spacing.medium)
 
@@ -147,8 +126,6 @@ struct BillDetailPaymentHistorySection: View {
                     }
                 }
             }
-            .background(DesignSystem.Color.background)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large, style: .continuous))
         }
     }
 }

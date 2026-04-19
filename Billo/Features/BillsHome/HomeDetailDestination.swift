@@ -9,6 +9,7 @@ import SwiftData
 
 enum HomeDetailDestination: Hashable {
     case bill(PersistentIdentifier)
+    case occurrence(PersistentIdentifier)
 
     case paymentHistory
     case payment(PersistentIdentifier)
