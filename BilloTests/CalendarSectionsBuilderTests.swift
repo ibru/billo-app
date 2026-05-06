@@ -247,6 +247,162 @@ struct CalendarSectionsBuilderTests {
     }
 
     @Test
+    func when_pastMonthHasFullyPaidBill_then_totalPaidReflectsPaymentSumAndOutstandingIsZero() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 6, day: 5, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 5)
+        let end = DateComponents(year: 2025, month: 6)
+
+        let dueDate = makeDate(year: 2025, month: 5, day: 10, calendar: calendar)
+        let paidBill = makeBill(name: "Paid", amount: 100, dueDate: dueDate, in: context)
+        let occurrence = BillOccurrence(bill: paidBill, dueDate: dueDate)
+        let payment = makePayment(amount: 100, paid: dueDate, occurrence: dueDate, bill: paidBill, in: context)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [occurrence],
+            payments: [payment],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(may.isPast == true)
+        #expect(may.totalPaid == 100)
+        #expect(may.totalBillsDue == 0)
+        #expect(may.netRemaining == -100)
+    }
+
+    @Test
+    func when_pastMonthHasMissedUnpaidBill_then_outstandingReflectsBillAmountAndPaidIsZero() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 6, day: 5, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 5)
+        let end = DateComponents(year: 2025, month: 6)
+
+        let dueDate = makeDate(year: 2025, month: 5, day: 10, calendar: calendar)
+        let unpaidBill = makeBill(name: "Missed", amount: 80, dueDate: dueDate, in: context)
+        let occurrence = BillOccurrence(bill: unpaidBill, dueDate: dueDate)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [occurrence],
+            payments: [],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(may.isPast == true)
+        #expect(may.totalPaid == 0)
+        #expect(may.totalBillsDue == 80)
+        #expect(may.netRemaining == -80)
+    }
+
+    @Test
+    func when_pastMonthHasMixOfPaidAndUnpaidBills_then_paidAndOutstandingAreSeparate() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 6, day: 5, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 5)
+        let end = DateComponents(year: 2025, month: 6)
+
+        let paidDueDate = makeDate(year: 2025, month: 5, day: 5, calendar: calendar)
+        let missedDueDate = makeDate(year: 2025, month: 5, day: 20, calendar: calendar)
+
+        let paidBill = makeBill(name: "Paid", amount: 100, dueDate: paidDueDate, in: context)
+        let missedBill = makeBill(name: "Missed", amount: 40, dueDate: missedDueDate, in: context)
+        let payment = makePayment(amount: 100, paid: paidDueDate, occurrence: paidDueDate, bill: paidBill, in: context)
+        let salary = makeIncome(name: "Salary", amount: 500, startDate: makeDate(year: 2025, month: 5, day: 1, calendar: calendar), in: context)
+        let salaryOccurrence = IncomeOccurrence(from: salary, on: salary.startDate)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [
+                BillOccurrence(bill: paidBill, dueDate: paidBill.dueDate),
+                BillOccurrence(bill: missedBill, dueDate: missedBill.dueDate)
+            ],
+            payments: [payment],
+            incomeOccurrences: [salaryOccurrence],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(may.isPast == true)
+        #expect(may.totalIncome == 500)
+        #expect(may.totalPaid == 100)
+        #expect(may.totalBillsDue == 40)
+        #expect(may.netRemaining == 360)
+    }
+
+    @Test
+    func when_pastMonthHasPartiallyPaidBill_then_paidShowsActualAmountAndOutstandingShowsRemainder() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 6, day: 5, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 5)
+        let end = DateComponents(year: 2025, month: 6)
+
+        let dueDate = makeDate(year: 2025, month: 5, day: 10, calendar: calendar)
+        let bill = makeBill(name: "Partial", amount: 100, dueDate: dueDate, in: context)
+        let occurrence = BillOccurrence(bill: bill, dueDate: dueDate)
+        let payment = makePayment(amount: 30, paid: dueDate, occurrence: dueDate, bill: bill, in: context)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [occurrence],
+            payments: [payment],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(may.isPast == true)
+        #expect(may.totalPaid == 30)
+        #expect(may.totalBillsDue == 70)
+    }
+
+    @Test
+    func when_currentMonthHasFullyPaidBill_then_totalPaidIsZeroAndOutstandingExcludesIt() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 5, day: 15, calendar: calendar)
+        let start = DateComponents(year: 2025, month: 5)
+        let end = DateComponents(year: 2025, month: 5)
+
+        let paidDueDate = makeDate(year: 2025, month: 5, day: 1, calendar: calendar)
+        let unpaidDueDate = makeDate(year: 2025, month: 5, day: 20, calendar: calendar)
+
+        let paidBill = makeBill(name: "Paid", amount: 100, dueDate: paidDueDate, in: context)
+        let unpaidBill = makeBill(name: "Unpaid", amount: 25, dueDate: unpaidDueDate, in: context)
+        let payment = makePayment(amount: 100, paid: paidDueDate, occurrence: paidDueDate, bill: paidBill, in: context)
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [
+                BillOccurrence(bill: paidBill, dueDate: paidBill.dueDate),
+                BillOccurrence(bill: unpaidBill, dueDate: unpaidBill.dueDate)
+            ],
+            payments: [payment],
+            from: start,
+            to: end,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(may.isPast == false)
+        #expect(may.totalPaid == 0, "Current month must keep totalPaid at 0 to preserve original 2-color header behavior")
+        #expect(may.totalBillsDue == 25)
+    }
+
+    @Test
     func when_buildingWithNoBillsOrIncome_then_totalsAreZero() {
         let calendar = utcCalendar()
         let referenceDate = makeDate(year: 2025, month: 7, day: 10, calendar: calendar)

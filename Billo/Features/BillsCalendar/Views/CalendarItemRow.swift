@@ -36,7 +36,7 @@ struct CalendarItemRow: View {
             if let destination {
                 if usesStackNavigation {
                     NavigationLink(value: destination) {
-                        CalendarPaymentRow(payment: payment)
+                        CalendarPaymentRow(payment: payment, customCategories: customCategories)
                             .calendarCardStyle(indicatorColor: DesignSystem.Color.green)
                             .foregroundColor(Color(uiColor: .label))
                     }
@@ -45,14 +45,14 @@ struct CalendarItemRow: View {
                     Button {
                         onOpen(destination)
                     } label: {
-                        CalendarPaymentRow(payment: payment)
+                        CalendarPaymentRow(payment: payment, customCategories: customCategories)
                             .calendarCardStyle(indicatorColor: DesignSystem.Color.green)
                             .foregroundColor(Color(uiColor: .label))
                     }
                     .buttonStyle(.plain)
                 }
             } else {
-                CalendarPaymentRow(payment: payment)
+                CalendarPaymentRow(payment: payment, customCategories: customCategories)
                     .calendarCardStyle(indicatorColor: DesignSystem.Color.green)
             }
 
@@ -105,6 +105,7 @@ struct CalendarItemRow: View {
 /// Payment row for the monthly list, styled like a bill card row.
 struct CalendarPaymentRow: View {
     let payment: PaymentEntry
+    let customCategories: [CustomCategory]
 
     private var currencyCode: String {
         payment.snapshotCurrencyCode ?? "USD"
@@ -114,35 +115,50 @@ struct CalendarPaymentRow: View {
         payment.amount.formatted(.currency(code: currencyCode))
     }
 
+    private var categoryInfo: CategoryDisplayInfo? {
+        guard let identifier = payment.snapshotCategoryIdentifier else { return nil }
+        return CategoryCatalog.displayInfo(for: identifier, customCategories: customCategories)
+    }
+
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             CalendarDateStamp(date: payment.datePaid)
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
-                if let billName = payment.snapshotName {
-                    Text(billName)
-                        .font(.headline.weight(.bold))
-                        .foregroundColor(Color(uiColor: .label))
-                } else {
-                    Text("Unknown Bill")
-                        .font(.headline.weight(.bold))
-                        .foregroundColor(Color(uiColor: .label))
-                }
+                Text(payment.snapshotName ?? String(localized: "Unknown Bill"))
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(Color(uiColor: .label))
 
-                let occurrenceDateString = payment.occurrenceDate.formatted(.dateTime.month(.abbreviated).day())
-                Text(String(
-                    localized: "Paid for \(occurrenceDateString)",
-                    comment: "Calendar payment row: subtitle showing occurrence date"
-                ))
+                if let info = categoryInfo {
+                    HStack(spacing: 6) {
+                        Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                            .foregroundStyle(DesignSystem.Color.categoryColor(for: info.colorToken))
+                        Text(info.name)
+                            .foregroundStyle(.secondary)
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
 
-            Text(payment.amount, format: .currency(code: currencyCode))
-                .font(.subheadline)
-                .foregroundStyle(DesignSystem.Color.green)
+            VStack(alignment: .trailing, spacing: DesignSystem.Spacing.small / 2) {
+                Text(payment.amount, format: .currency(code: currencyCode))
+                    .font(.subheadline)
+                    .foregroundColor(Color(uiColor: .label))
+
+                let occurrenceDateString = payment.occurrenceDate.formatted(.dateTime.month(.abbreviated).day())
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(DesignSystem.Color.green)
+                    Text(String(
+                        localized: "Paid for \(occurrenceDateString)",
+                        comment: "Calendar payment row: paid-for label with occurrence date"
+                    ))
+                        .foregroundStyle(DesignSystem.Color.green)
+                }
+                .font(.caption)
+            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

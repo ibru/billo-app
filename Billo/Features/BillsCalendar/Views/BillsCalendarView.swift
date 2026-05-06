@@ -411,7 +411,7 @@ private struct MonthSectionHeader: View {
     }
 
     private var showBreakdown: Bool {
-        section.totalIncome > 0 || section.totalBillsDue > 0
+        section.totalIncome > 0 || section.totalBillsDue > 0 || section.totalPaid > 0
     }
 
     var body: some View {
@@ -445,15 +445,41 @@ private struct MonthSectionHeader: View {
             }
             .foregroundStyle(DesignSystem.Color.greenIncome)
 
-            Text("/")
-                .foregroundStyle(.secondary)
+            if section.isPast {
+                if section.totalPaid > 0 {
+                    Text("/")
+                        .foregroundStyle(.secondary)
 
-            // Bills: -$amount in red
-            HStack(spacing: 0) {
-                Text("-")
-                Text(section.totalBillsDue, format: .currency(code: currencyCode))
+                    // Paid expenses: -$amount in paid-green (actual payments made in the month)
+                    HStack(spacing: 0) {
+                        Text("-")
+                        Text(section.totalPaid, format: .currency(code: currencyCode))
+                    }
+                    .foregroundStyle(DesignSystem.Color.green)
+                }
+
+                if section.totalBillsDue > 0 {
+                    Text("/")
+                        .foregroundStyle(.secondary)
+
+                    // Outstanding unpaid: -$amount in red (bills due in the month not yet paid)
+                    HStack(spacing: 0) {
+                        Text("-")
+                        Text(section.totalBillsDue, format: .currency(code: currencyCode))
+                    }
+                    .foregroundStyle(DesignSystem.Color.red)
+                }
+            } else {
+                Text("/")
+                    .foregroundStyle(.secondary)
+
+                // Bills due: -$amount in red (outstanding for current/future months)
+                HStack(spacing: 0) {
+                    Text("-")
+                    Text(section.totalBillsDue, format: .currency(code: currencyCode))
+                }
+                .foregroundStyle(DesignSystem.Color.red)
             }
-            .foregroundStyle(DesignSystem.Color.red)
         }
         .font(.caption)
     }
@@ -516,6 +542,16 @@ private extension View {
 
 #Preview("Sample Data") {
     let preview = BilloPreviewContainer.withSampleData()
+
+    return NavigationStack {
+        BillsCalendarView()
+            .navigationBarTitleDisplayMode(.inline)
+    }
+    .billoPreviewEnvironment(preview)
+}
+
+#Preview("Historical Data") {
+    let preview = BilloPreviewContainer.withHistoricalSampleData()
 
     return NavigationStack {
         BillsCalendarView()

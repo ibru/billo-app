@@ -208,8 +208,18 @@ enum CalendarSectionsBuilder {
                 if totalPaid > 0 { return partial + (occurrence.amount - totalPaid) }
                 return partial + occurrence.amount
             }
+
+            // A month is "past" once its last day is strictly before today (i.e. the
+            // exclusive month-end <= startOfToday). Past months populate totalPaid with
+            // actual payments made in the month (rendered in paid-green); totalBillsDue
+            // continues to mean still-outstanding amount (rendered in red).
+            let isPastMonth = monthInterval.end <= startOfToday
+            let totalPaid: Decimal = isPastMonth
+                ? monthPayments.reduce(Decimal.zero) { $0 + $1.amount }
+                : 0
+
             Logger.log(
-                "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) totals: totalIncome=\(totalIncome) totalBillsDue=\(totalBillsDue)",
+                "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) totals: totalIncome=\(totalIncome) totalPaid=\(totalPaid) totalBillsDue=\(totalBillsDue) isPast=\(isPastMonth)",
                 level: .debug
             )
 
@@ -219,7 +229,9 @@ enum CalendarSectionsBuilder {
                     title: monthStart.formatted(.dateTime.month(.wide).year()),
                     items: items,
                     totalIncome: totalIncome,
-                    totalBillsDue: totalBillsDue
+                    totalBillsDue: totalBillsDue,
+                    totalPaid: totalPaid,
+                    isPast: isPastMonth
                 )
             )
 

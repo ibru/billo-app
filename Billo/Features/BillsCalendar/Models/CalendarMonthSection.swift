@@ -10,12 +10,22 @@ struct CalendarMonthSection: Identifiable, Equatable {
     /// Total income expected in this month
     let totalIncome: Decimal
 
-    /// Total bills due in this month
+    /// Total of bill amounts still outstanding for this month
+    /// (unpaid + remaining-after-partial-payment portions of occurrences whose due date falls in the month).
     let totalBillsDue: Decimal
 
-    /// Net remaining after bills (totalIncome - totalBillsDue)
+    /// Total of payments actually made within this month (sum of `PaymentEntry.amount` whose `datePaid` falls in the month).
+    /// Used as the "paid expenses" figure for past months. Always 0 for current and future months.
+    let totalPaid: Decimal
+
+    /// True when the entire month lies before the reference date (start of today).
+    /// Past months display a three-value breakdown: income / paid / outstanding.
+    let isPast: Bool
+
+    /// Net remaining = income − paid − outstanding.
+    /// For non-past months `totalPaid` is 0, so this matches the previous `income − totalBillsDue` behavior.
     var netRemaining: Decimal {
-        totalIncome - totalBillsDue
+        totalIncome - totalPaid - totalBillsDue
     }
 
     var isEmpty: Bool {
@@ -27,12 +37,16 @@ struct CalendarMonthSection: Identifiable, Equatable {
         title: String,
         items: [CalendarListItem],
         totalIncome: Decimal = 0,
-        totalBillsDue: Decimal = 0
+        totalBillsDue: Decimal = 0,
+        totalPaid: Decimal = 0,
+        isPast: Bool = false
     ) {
         self.id = id
         self.title = title
         self.items = items
         self.totalIncome = totalIncome
         self.totalBillsDue = totalBillsDue
+        self.totalPaid = totalPaid
+        self.isPast = isPast
     }
 }
