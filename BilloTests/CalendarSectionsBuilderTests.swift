@@ -318,7 +318,7 @@ struct CalendarSectionsBuilderTests {
         let missedBill = makeBill(name: "Missed", amount: 40, dueDate: missedDueDate, in: context)
         let payment = makePayment(amount: 100, paid: paidDueDate, occurrence: paidDueDate, bill: paidBill, in: context)
         let salary = makeIncome(name: "Salary", amount: 500, startDate: makeDate(year: 2025, month: 5, day: 1, calendar: calendar), in: context)
-        let salaryOccurrence = IncomeOccurrence(from: salary, on: salary.startDate)
+        let salaryOccurrence = IncomeOccurrenceItem(future: salary, on: salary.startDate)
 
         let sections = CalendarSectionsBuilder.build(
             occurrences: [
@@ -437,7 +437,7 @@ struct CalendarSectionsBuilderTests {
         let income = makeIncome(name: "SmallIncome", amount: 2000, startDate: makeDate(year: 2025, month: 8, day: 1, calendar: calendar), in: context)
 
         let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
-        let incomeOccurrence = IncomeOccurrence(from: income, on: income.startDate)
+        let incomeOccurrence = IncomeOccurrenceItem(future: income, on: income.startDate)
 
         let sections = CalendarSectionsBuilder.build(
             occurrences: [occurrence],
@@ -587,7 +587,7 @@ struct CalendarSectionsBuilderTests {
         let bill = makeBill(name: "Rent", amount: 1000, dueDate: sameDay, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: sameDay)
         let income = makeIncome(name: "Salary", amount: 3000, startDate: sameDay, in: context)
-        let incomeOccurrence = IncomeOccurrence(from: income, on: sameDay)
+        let incomeOccurrence = IncomeOccurrenceItem(future: income, on: sameDay)
 
         let sections = CalendarSectionsBuilder.build(
             occurrences: [occurrence],
@@ -712,6 +712,51 @@ struct CalendarSectionsBuilderTests {
         let paymentItems = items.compactMap { extractPayment(from: $0) }
         #expect(paymentItems.count == 1, "Payment should appear in the list")
     }
+
+    @Test
+    func when_frozenPastViewAndComputedFutureViewAreInWindow_then_bothAppearWithTheirOwnAmounts() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let referenceDate = makeDate(year: 2025, month: 4, day: 15, calendar: calendar)
+
+        let income = makeIncome(name: "Salary", amount: 1_500, startDate: makeDate(year: 2025, month: 3, day: 15, calendar: calendar), in: context)
+
+        // Frozen past row: an old amount (1000) for March, simulating a row that
+        // was materialized before the user bumped the income to 1500.
+        let pastDate = makeDate(year: 2025, month: 3, day: 15, calendar: calendar)
+        let snapshotKey = "\(income.stableID):2025-03-15"
+        let pastModel = IncomeOccurrence(
+            occurrenceKey: snapshotKey,
+            date: pastDate,
+            incomeName: income.name,
+            incomeAmount: 1_000,
+            incomeCurrencyCode: income.currencyCode,
+            income: income
+        )
+        context.insert(pastModel)
+        try context.save()
+
+        let frozenPastView = IncomeOccurrenceItem(model: pastModel)
+        let futureView = IncomeOccurrenceItem(
+            future: income,
+            on: makeDate(year: 2025, month: 5, day: 15, calendar: calendar)
+        )
+
+        let sections = CalendarSectionsBuilder.build(
+            occurrences: [],
+            payments: [],
+            incomeOccurrences: [frozenPastView, futureView],
+            from: DateComponents(year: 2025, month: 3),
+            to: DateComponents(year: 2025, month: 5),
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        let march = try #require(sections.first { $0.id == "2025-03" })
+        let may = try #require(sections.first { $0.id == "2025-05" })
+        #expect(march.totalIncome == 1_000) // frozen past amount
+        #expect(may.totalIncome == 1_500)   // computed future amount
+    }
 }
 
 // MARK: - Test Helpers
@@ -730,9 +775,9 @@ private func extractPayment(from item: CalendarListItem) -> PaymentEntry? {
     return nil
 }
 
-private func extractIncome(from item: CalendarListItem) -> IncomeOccurrence? {
-    if case .income(let income) = item {
-        return income
+private func extractIncome(from item: CalendarListItem) -> IncomeOccurrenceItem? {
+    if case .income(let view) = item {
+        return view
     }
     return nil
 }
@@ -748,7 +793,7 @@ private func extractTodayDivider(from item: CalendarListItem) -> (date: Date, se
 
 @MainActor
 private func makeContext() throws -> ModelContext {
-    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, Income.self, RecurrenceRule.self])
+    let schema = Schema([Bill.self, PaymentEntry.self, IssuedOccurrence.self, Income.self, IncomeOccurrence.self, RecurrenceRule.self])
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
     return ModelContext(container)

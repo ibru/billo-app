@@ -33,7 +33,7 @@ struct BillsCalendarView: View {
     @State private var pageIndex: Int = 0
     @State private var hasInitialScroll = false
     @State private var allOccurrences: [BillOccurrence] = []
-    @State private var allIncomeOccurrences: [IncomeOccurrence] = []
+    @State private var allIncomeOccurrences: [IncomeOccurrenceItem] = []
 
     private var allPayments: [PaymentEntry] { allStoredPayments }
     @State private var referenceDate: Date = Date()
@@ -62,6 +62,12 @@ struct BillsCalendarView: View {
                 dayData: $selectedDayData,
                 onMarkPaid: { occurrence in
                     await markPaid(occurrence)
+                },
+                onSkipIncome: {
+                    // `BillsModel.skipIncomeOccurrence` already refreshed the
+                    // model. Just rebuild local state — avoids a second
+                    // full model refresh.
+                    rebuildLocalState()
                 }
             )
             .task {
@@ -217,21 +223,34 @@ struct BillsCalendarView: View {
         )
     }
 
+    /// Full refresh: fetches/materializes via `BillsModel.refresh()` and then
+    /// rebuilds the calendar's local state. Used by `.task` on appear and by
+    /// the various model-state `onChange` observers below.
     @MainActor
     private func refreshData() async {
-        referenceDate = Date()
-
         do {
             try billsModel.refresh()
         } catch {
             Logger.log("Failed to refresh bills: \(error)", level: .error)
         }
+        rebuildLocalState()
+    }
+
+    /// Rebuild-only path: assumes `BillsModel` is already up to date and just
+    /// reads from it to refresh the calendar's local @State. Used by callbacks
+    /// from `DayDetailSheet` whose model-side method (e.g. `skipIncomeOccurrence`)
+    /// already invoked `BillsModel.refresh()` internally — calling
+    /// `refreshData()` here would double-refresh the model.
+    @MainActor
+    private func rebuildLocalState() {
+        referenceDate = Date()
 
         let payments = allPayments
         let earliest = CalendarNavigationBounds.earliestMonth(
             bills: billsModel.bills,
             payments: payments,
             incomes: billsModel.incomes,
+            incomeOccurrences: billsModel.incomeOccurrences,
             calendar: calendar,
             currentDate: referenceDate
         )
@@ -249,8 +268,7 @@ struct BillsCalendarView: View {
             to: latest
         )
 
-        let incomeOccurrences = buildIncomeOccurrences(
-            incomes: billsModel.incomes,
+        let incomeOccurrences = incomeOccurrenceItems(
             from: earliest,
             to: latest
         )
@@ -304,11 +322,10 @@ struct BillsCalendarView: View {
         return occurrences.sorted { $0.dueDate < $1.dueDate }
     }
 
-    private func buildIncomeOccurrences(
-        incomes: [Income],
+    private func incomeOccurrenceItems(
         from start: DateComponents,
         to end: DateComponents
-    ) -> [IncomeOccurrence] {
+    ) -> [IncomeOccurrenceItem] {
         guard let startDate = calendar.date(from: start),
               let endMonthStart = calendar.date(from: end),
               let endMonthInterval = calendar.dateInterval(of: .month, for: endMonthStart) else {
@@ -316,12 +333,14 @@ struct BillsCalendarView: View {
         }
 
         let endDate = endMonthInterval.end // exclusive upper bound (first instant of next month)
-        return IncomeOccurrence.generateOccurrences(
-            from: incomes,
+        // Pass the calendar's captured `referenceDate` so the past/future
+        // boundary inside the model agrees with the one used elsewhere in this
+        // refresh pipeline. Otherwise the model would re-read the wall clock.
+        return billsModel.incomeOccurrenceItems(
             rangeStart: startDate,
             rangeEnd: endDate,
-            calendar: calendar
-        ).sorted { $0.date < $1.date }
+            referenceDate: referenceDate
+        )
     }
 
     private func monthTitle(for components: DateComponents) -> String {
@@ -502,6 +521,7 @@ private struct MonthSectionHeader: View {
 private struct DayDetailPresentationModifier: ViewModifier {
     @Binding var dayData: CalendarDayData?
     let onMarkPaid: (BillOccurrence) async -> Void
+    let onSkipIncome: () async -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -511,7 +531,8 @@ private struct DayDetailPresentationModifier: ViewModifier {
             .sheet(item: $dayData) { dayData in
                 DayDetailSheet(
                     dayData: dayData,
-                    onMarkPaid: onMarkPaid
+                    onMarkPaid: onMarkPaid,
+                    onSkipIncome: onSkipIncome
                 )
             }
 #else
@@ -519,7 +540,8 @@ private struct DayDetailPresentationModifier: ViewModifier {
             .popover(item: $dayData) { dayData in
                 DayDetailSheet(
                     dayData: dayData,
-                    onMarkPaid: onMarkPaid
+                    onMarkPaid: onMarkPaid,
+                    onSkipIncome: onSkipIncome
                 )
             }
 #endif
@@ -529,11 +551,13 @@ private struct DayDetailPresentationModifier: ViewModifier {
 private extension View {
     func dayDetailPresentation(
         dayData: Binding<CalendarDayData?>,
-        onMarkPaid: @escaping (BillOccurrence) async -> Void
+        onMarkPaid: @escaping (BillOccurrence) async -> Void,
+        onSkipIncome: @escaping () async -> Void
     ) -> some View {
         modifier(DayDetailPresentationModifier(
             dayData: dayData,
-            onMarkPaid: onMarkPaid
+            onMarkPaid: onMarkPaid,
+            onSkipIncome: onSkipIncome
         ))
     }
 }

@@ -20,6 +20,7 @@ struct BilloApp: App {
             IssuedOccurrence.self,
             RecurrenceRule.self,
             Income.self,
+            IncomeOccurrence.self,
             CustomCategory.self,
             AppSettings.self
         ])

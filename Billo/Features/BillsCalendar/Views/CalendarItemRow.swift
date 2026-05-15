@@ -56,23 +56,34 @@ struct CalendarItemRow: View {
                     .calendarCardStyle(indicatorColor: DesignSystem.Color.green)
             }
 
-        case .income(let incomeOccurrence):
-            if usesStackNavigation {
-                NavigationLink(value: HomeDetailDestination.income(incomeOccurrence.income.persistentModelID)) {
-                    CalendarIncomeBillStyleRow(incomeOccurrence: incomeOccurrence)
-                        .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
-                        .foregroundColor(Color(uiColor: .label))
+        case .income(let view):
+            // Persisted past rows route to the per-occurrence detail (edit
+            // amount / delete just this / delete all). Future computed rows
+            // route to the parent income's detail (edit going forward).
+            // Orphaned persisted rows (parent income deleted, no nav target)
+            // still route to the occurrence so the user can clean them up.
+            let destination = incomeDestination(for: view)
+            if let destination {
+                if usesStackNavigation {
+                    NavigationLink(value: destination) {
+                        CalendarIncomeBillStyleRow(incomeOccurrence: view)
+                            .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
+                            .foregroundColor(Color(uiColor: .label))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        onOpen(destination)
+                    } label: {
+                        CalendarIncomeBillStyleRow(incomeOccurrence: view)
+                            .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
+                            .foregroundColor(Color(uiColor: .label))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             } else {
-                Button {
-                    onOpen(.income(incomeOccurrence.income.persistentModelID))
-                } label: {
-                    CalendarIncomeBillStyleRow(incomeOccurrence: incomeOccurrence)
-                        .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
-                        .foregroundColor(Color(uiColor: .label))
-                }
-                .buttonStyle(.plain)
+                CalendarIncomeBillStyleRow(incomeOccurrence: view)
+                    .calendarCardStyle(indicatorColor: DesignSystem.Color.greenIncome)
             }
         case .todayDivider(let date, _):
             CalendarTodayDividerRow8(date: date)
@@ -99,6 +110,20 @@ struct CalendarItemRow: View {
         case .missed:
             return DesignSystem.Color.red
         }
+    }
+
+    /// Persisted past rows go to the per-occurrence detail so the user can
+    /// edit *just this row's* amount or delete just this occurrence. Future
+    /// computed rows go to the parent `Income` (no per-occurrence row yet).
+    /// Returns `nil` when there's no navigation target at all.
+    private func incomeDestination(for view: IncomeOccurrenceItem) -> HomeDetailDestination? {
+        if let occurrenceID = view.occurrenceID {
+            return .incomeOccurrence(occurrenceID)
+        }
+        if let incomeID = view.incomeID {
+            return .income(incomeID)
+        }
+        return nil
     }
 }
 
@@ -170,7 +195,7 @@ struct CalendarPaymentRow: View {
 }
 
 struct CalendarIncomeBillStyleRow: View {
-    let incomeOccurrence: IncomeOccurrence
+    let incomeOccurrence: IncomeOccurrenceItem
 
     private var formattedAmount: String {
         incomeOccurrence.amount.formatted(.currency(code: incomeOccurrence.currencyCode))

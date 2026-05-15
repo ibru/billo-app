@@ -43,7 +43,7 @@ struct BillsListSections {
     @MainActor
     static func build(
         from bills: [Bill],
-        incomes: [Income] = [],
+        incomeOccurrenceItems: [IncomeOccurrenceItem],
         referenceDate: Date,
         calendar: Calendar,
         monthsAhead: Int = 3
@@ -51,20 +51,7 @@ struct BillsListSections {
         let horizon = calendar.date(byAdding: .month, value: monthsAhead, to: referenceDate) ?? referenceDate
 
         let allOccurrences = makeOccurrences(from: bills, until: horizon, calendar: calendar)
-
-        // Start income generation from the earlier of current week or month start
-        // to ensure weekly and monthly overviews include all relevant income
-        let weekStart = calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start ?? referenceDate
-        let monthStart = calendar.dateInterval(of: .month, for: referenceDate)?.start ?? referenceDate
-        let incomeRangeStart = min(weekStart, monthStart)
-
-        // Generate income occurrences ONCE for entire window
-        let allIncomeOccurrences = IncomeOccurrence.generateOccurrences(
-            from: incomes,
-            rangeStart: incomeRangeStart,
-            rangeEnd: horizon,
-            calendar: calendar
-        )
+        let allIncomeOccurrences = incomeOccurrenceItems
 
         let unpaidOccurrences = allOccurrences.filter { occurrence in
             occurrence.status(relativeTo: referenceDate, calendar: calendar) != .paid
@@ -173,7 +160,7 @@ struct BillsListSections {
     @MainActor
     private static func calculateMonthlyTotals(
         bills: [Bill],
-        incomeOccurrences: [IncomeOccurrence],
+        incomeOccurrences: [IncomeOccurrenceItem],
         referenceDate: Date,
         calendar: Calendar
     ) -> MonthlyTotals {
@@ -274,7 +261,7 @@ struct WeeklyOverview {
     @MainActor
     static func build(
         from occurrences: [BillOccurrence],
-        incomeOccurrences: [IncomeOccurrence] = [],
+        incomeOccurrences: [IncomeOccurrenceItem] = [],
         referenceDate: Date,
         calendar: Calendar
     ) -> WeeklyOverview {

@@ -23,7 +23,7 @@ enum CalendarSectionsBuilder {
     static func build(
         occurrences: [BillOccurrence],
         payments: [PaymentEntry],
-        incomeOccurrences: [IncomeOccurrence] = [],
+        incomeOccurrences: [IncomeOccurrenceItem] = [],
         from startMonth: DateComponents,
         to endMonth: DateComponents,
         referenceDate: Date,

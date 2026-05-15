@@ -127,15 +127,12 @@ struct BillSnapshot {
         return rule.generateOccurrences(from: dueDate, until: endDate, calendar: calendar)
     }
 
-    func occurrenceKey(for occurrenceDate: Date, calendar: Calendar) -> String {
-        var utcCalendar = Calendar(identifier: .gregorian)
-        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        let components = utcCalendar.dateComponents([.year, .month, .day], from: occurrenceDate)
-        let year = components.year ?? 0
-        let month = components.month ?? 0
-        let day = components.day ?? 0
-        let dateKey = String(format: "%04d-%02d-%02d", year, month, day)
-        return "\(stableID):\(dateKey)"
+    /// Builds the canonical `"<stableID>:<YYYY-MM-DD>"` occurrence key. Delegates
+    /// to the shared `OccurrenceKey.make(...)` so the identity rule (UTC-day of
+    /// the underlying instant) stays in one place — see `Date.utcDayKey` for
+    /// the timezone-drift contract.
+    func occurrenceKey(for occurrenceDate: Date) -> String {
+        OccurrenceKey.make(stableID: stableID, date: occurrenceDate)
     }
 }
 
@@ -253,19 +250,14 @@ extension Bill {
         let categoryIdentifier: CategoryIdentifier?
     }
 
-    func occurrenceKey(for occurrenceDate: Date, calendar: Calendar) -> String {
-        var utcCalendar = Calendar(identifier: .gregorian)
-        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        let components = utcCalendar.dateComponents([.year, .month, .day], from: occurrenceDate)
-        let year = components.year ?? 0
-        let month = components.month ?? 0
-        let day = components.day ?? 0
-        let dateKey = String(format: "%04d-%02d-%02d", year, month, day)
-        return "\(stableID):\(dateKey)"
+    /// Same identity contract as `BillSnapshot.occurrenceKey(for:)` — delegates
+    /// to `OccurrenceKey.make(...)`. See `Date.utcDayKey` for the UTC-day rule.
+    func occurrenceKey(for occurrenceDate: Date) -> String {
+        OccurrenceKey.make(stableID: stableID, date: occurrenceDate)
     }
 
     func issuedOccurrence(for occurrenceDate: Date, calendar: Calendar) -> IssuedOccurrence? {
-        let key = occurrenceKey(for: occurrenceDate, calendar: calendar)
+        let key = occurrenceKey(for: occurrenceDate)
         return safeIssuedOccurrences.first { $0.occurrenceKey == key }
     }
 

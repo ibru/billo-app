@@ -103,7 +103,7 @@ struct DotIndicatorGenerationTests {
         let date = makeDate(year: 2025, month: 11, day: 1, calendar: calendar)
 
         let income = makeIncome(name: "Salary", amount: 3000, startDate: date, in: context)
-        let incomeOccurrence = IncomeOccurrence(from: income, on: date)
+        let incomeOccurrence = IncomeOccurrenceItem(future: income, on: date)
 
         let dayData = CalendarDayData(date: date, incomeOccurrences: [incomeOccurrence])
 
@@ -122,8 +122,8 @@ struct DotIndicatorGenerationTests {
         let income1 = makeIncome(name: "Salary", amount: 3000, startDate: date, in: context)
         let income2 = makeIncome(name: "Freelance", amount: 500, startDate: date, in: context)
         let incomeOccurrences = [
-            IncomeOccurrence(from: income1, on: date),
-            IncomeOccurrence(from: income2, on: date)
+            IncomeOccurrenceItem(future: income1, on: date),
+            IncomeOccurrenceItem(future: income2, on: date)
         ]
 
         let dayData = CalendarDayData(date: date, incomeOccurrences: incomeOccurrences)
@@ -144,7 +144,7 @@ struct DotIndicatorGenerationTests {
         let occurrence = BillOccurrence(bill: bill, dueDate: date)
 
         let income = makeIncome(name: "Salary", amount: 4000, startDate: date, in: context)
-        let incomeOccurrence = IncomeOccurrence(from: income, on: date)
+        let incomeOccurrence = IncomeOccurrenceItem(future: income, on: date)
 
         let dayData = CalendarDayData(
             date: date,
@@ -183,7 +183,7 @@ struct DotIndicatorGenerationTests {
 
         // Income
         let income = makeIncome(name: "Bonus", amount: 500, startDate: date, in: context)
-        let incomeOccurrence = IncomeOccurrence(from: income, on: date)
+        let incomeOccurrence = IncomeOccurrenceItem(future: income, on: date)
 
         let dayData = CalendarDayData(
             date: date,
@@ -242,7 +242,7 @@ struct DotIndicatorGenerationTests {
         let date = makeDate(year: 2025, month: 1, day: 10, calendar: calendar)
 
         let income = makeIncome(name: "Salary", amount: 1, startDate: date, in: context)
-        let incomeOccurrence = IncomeOccurrence(from: income, on: date)
+        let incomeOccurrence = IncomeOccurrenceItem(future: income, on: date)
 
         let bill = makeBill(name: "Bill", amount: 100, dueDate: date, in: context)
         let occurrence = BillOccurrence(bill: bill, dueDate: date)

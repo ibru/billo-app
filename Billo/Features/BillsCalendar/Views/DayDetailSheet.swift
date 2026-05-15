@@ -6,8 +6,16 @@ import SwiftUI
 struct DayDetailSheet: View {
     let dayData: CalendarDayData
     let onMarkPaid: (BillOccurrence) async -> Void
+    /// Called after a successful skip so the presenting calendar can rebuild
+    /// its local state. `BillsModel.skipIncomeOccurrence` mutates the model's
+    /// `incomeOccurrences` array contents (sets `isExcluded`) without
+    /// changing element identities or count, so the calendar's existing
+    /// `onChange(of: bills/incomes/payment count)` observers wouldn't notice.
+    let onSkipIncome: () async -> Void
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
+    @Environment(BillsModel.self) private var billsModel
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -17,6 +25,21 @@ struct DayDetailSheet: View {
                     Section("Income") {
                         ForEach(dayData.incomeOccurrences, id: \.id) { incomeOccurrence in
                             DaySheetIncomeRow(incomeOccurrence: incomeOccurrence)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    if let occurrenceID = incomeOccurrence.occurrenceID {
+                                        Button(role: .destructive) {
+                                            skipOccurrence(occurrenceID)
+                                        } label: {
+                                            Label(
+                                                String(
+                                                    localized: "Skip",
+                                                    comment: "Day detail: swipe action to skip a single past income occurrence"
+                                                ),
+                                                systemImage: "xmark.circle"
+                                            )
+                                        }
+                                    }
+                                }
                         }
                     }
                 }
@@ -58,6 +81,24 @@ struct DayDetailSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    private func skipOccurrence(_ occurrenceID: PersistentIdentifier) {
+        guard let occurrence = modelContext.model(for: occurrenceID) as? IncomeOccurrence else {
+            Logger.log("Could not resolve IncomeOccurrence for skip", level: .warning)
+            return
+        }
+        Task {
+            do {
+                try await billsModel.skipIncomeOccurrence(occurrence)
+                await onSkipIncome()
+                dismiss()
+            } catch {
+                // Don't dismiss on failure — the row would disappear and the user
+                // would assume success. Leave the sheet open so they can retry.
+                Logger.log("Failed to skip income occurrence: \(error)", level: .error)
+            }
+        }
+    }
+
     private func billSection(for display: BillDisplay) -> BillSection {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -77,7 +118,7 @@ struct DayDetailSheet: View {
 }
 
 private struct DaySheetIncomeRow: View {
-    let incomeOccurrence: IncomeOccurrence
+    let incomeOccurrence: IncomeOccurrenceItem
 
     private var formattedAmount: String {
         incomeOccurrence.amount.formatted(.currency(code: incomeOccurrence.currencyCode))

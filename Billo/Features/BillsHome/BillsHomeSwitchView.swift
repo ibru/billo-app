@@ -279,6 +279,17 @@ struct BillsHomeSwitchView: View {
                 )
             }
 
+        case .incomeOccurrence(let occurrenceID):
+            if let occurrence = modelContext.model(for: occurrenceID) as? IncomeOccurrence {
+                IncomeOccurrenceDetailView(occurrence: occurrence)
+            } else {
+                ContentUnavailableView(
+                    "Income Occurrence Not Found",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("This occurrence may have been deleted")
+                )
+            }
+
         case .charts:
             ChartsView()
 

@@ -16,7 +16,7 @@ func makeIssuedOccurrence(
     }
 
     let issued = IssuedOccurrence(
-        occurrenceKey: bill.occurrenceKey(for: dueDate, calendar: calendar),
+        occurrenceKey: bill.occurrenceKey(for: dueDate),
         dueDate: dueDate,
         billName: bill.name,
         billAmount: bill.amount,

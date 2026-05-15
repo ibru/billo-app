@@ -3,58 +3,47 @@
 import Foundation
 import SwiftData
 
-/// Represents a single occurrence of an income on a specific date.
-/// Value type for proper Equatable conformance in CalendarDayData.
-struct IncomeOccurrence: Identifiable, Hashable {
-    /// Deterministic ID following BillOccurrence.OccurrenceID pattern.
-    /// Uses TimeInterval (not hashValue) for stability across launches.
-    struct OccurrenceID: Hashable {
-        let incomeID: PersistentIdentifier
-        let dateTime: TimeInterval
+/// Persisted snapshot of a single income occurrence on a given date.
+///
+/// Mirrors the `IssuedOccurrence` pattern (`Bill` history): once a past income
+/// occurrence has been materialized, edits to the live `Income` no longer rewrite
+/// it, and deleting the `Income` nullifies the relationship so the row survives
+/// in the historical ledger.
+///
+/// `isExcluded` is a soft-skip flag set by user-initiated "mark as not received"
+/// actions; the materializer treats existing rows (skipped or not) as already
+/// materialized, so a skipped occurrence cannot be resurrected by a refresh.
+@Model
+final class IncomeOccurrence {
+    var occurrenceKey: String = ""        // "<income.stableID>:<UTC YYYY-MM-DD>"
+    var date: Date = Date()
+    var incomeName: String = ""           // snapshot at materialization time
+    var incomeAmount: Decimal = 0
+    var incomeCurrencyCode: String = "USD"
+    var isExcluded: Bool = false
+    var excludedDate: Date?
+    var createdDate: Date = Date()
 
-        init(incomeID: PersistentIdentifier, date: Date) {
-            self.incomeID = incomeID
-            self.dateTime = date.timeIntervalSinceReferenceDate
-        }
-    }
+    // CloudKit requires all relationships to be optional with explicit inverses.
+    // Inverse declared on Income.materializedOccurrences with deleteRule: .nullify,
+    // so deleting the Income preserves this snapshot.
+    var income: Income?
 
-    let id: OccurrenceID
-    let income: Income
-    let date: Date
-
-    var name: String { income.name }
-    var amount: Decimal { income.amount }
-    var currencyCode: String { income.currencyCode }
-
-    init(from income: Income, on date: Date) {
-        self.income = income
+    init(
+        occurrenceKey: String,
+        date: Date,
+        incomeName: String,
+        incomeAmount: Decimal,
+        incomeCurrencyCode: String,
+        income: Income?
+    ) {
+        self.occurrenceKey = occurrenceKey
         self.date = date
-        self.id = OccurrenceID(incomeID: income.persistentModelID, date: date)
-    }
-
-    static func == (lhs: IncomeOccurrence, rhs: IncomeOccurrence) -> Bool {
-        lhs.id == rhs.id
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-}
-
-// MARK: - Generating Occurrences
-
-extension IncomeOccurrence {
-    /// Generate IncomeOccurrence values from an array of incomes for a given date range.
-    /// This is used by BillsListSections and calendar views.
-    static func generateOccurrences(
-        from incomes: [Income],
-        rangeStart: Date,
-        rangeEnd: Date,
-        calendar: Calendar
-    ) -> [IncomeOccurrence] {
-        incomes.flatMap { income in
-            income.generateOccurrences(from: rangeStart, until: rangeEnd, calendar: calendar)
-                .map { IncomeOccurrence(from: income, on: $0) }
-        }
+        self.incomeName = incomeName
+        self.incomeAmount = incomeAmount
+        self.incomeCurrencyCode = incomeCurrencyCode
+        self.income = income
+        self.createdDate = Date()
+        self.isExcluded = false
     }
 }

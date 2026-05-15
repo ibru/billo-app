@@ -100,6 +100,33 @@ struct CalendarNavigationBoundsTests {
     }
 
     @Test
+    func when_onlyOrphanIncomeOccurrencesExist_then_earliestMonthReachesBackToThem() throws {
+        let calendar = utcCalendar()
+        // Source income has been deleted; only the persisted snapshot remains.
+        let orphanDate = makeDate(year: 2024, month: 9, day: 1, calendar: calendar)
+        let orphan = IncomeOccurrence(
+            occurrenceKey: "deleted-income-stable-id:2024-09-01",
+            date: orphanDate,
+            incomeName: "Old salary",
+            incomeAmount: 1_000,
+            incomeCurrencyCode: "USD",
+            income: nil
+        )
+
+        let components = CalendarNavigationBounds.earliestMonth(
+            bills: [],
+            payments: [],
+            incomes: [],
+            incomeOccurrences: [orphan],
+            calendar: calendar,
+            currentDate: makeDate(year: 2025, month: 1, day: 1, calendar: calendar)
+        )
+
+        #expect(components.year == 2024)
+        #expect(components.month == 9)
+    }
+
+    @Test
     func when_futureMonthLimitChanged_then_latestMonthReflectsNewLimit() {
         let calendar = utcCalendar()
         let referenceDate = makeDate(year: 2025, month: 6, day: 1, calendar: calendar)

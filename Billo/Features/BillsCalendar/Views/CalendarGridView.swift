@@ -472,7 +472,7 @@ private struct CalendarDayCell: View {
                 let fiveDaysAgoStart = calendar.startOfDay(for: fiveDaysAgo)
                 if calendar.isDate(fiveDaysAgoStart, equalTo: monthStart, toGranularity: .month) {
                     let issued = IssuedOccurrence(
-                        occurrenceKey: sampleBill.occurrenceKey(for: fiveDaysAgoStart, calendar: calendar),
+                        occurrenceKey: sampleBill.occurrenceKey(for: fiveDaysAgoStart),
                         dueDate: fiveDaysAgoStart,
                         billName: sampleBill.name,
                         billAmount: sampleBill.amount,
@@ -502,7 +502,7 @@ private struct CalendarDayCell: View {
                     let income = Income(name: "Salary", amount: 5000, startDate: tenDaysStart)
                     data[tenDaysStart] = CalendarDayData(
                         date: tenDaysStart,
-                        incomeOccurrences: [IncomeOccurrence(from: income, on: tenDaysStart)]
+                        incomeOccurrences: [IncomeOccurrenceItem(future: income, on: tenDaysStart)]
                     )
                 }
             }
@@ -537,7 +537,7 @@ private struct CalendarDayCell: View {
                         bills: [
                             BillDisplay(occurrence: BillOccurrence(bill: streamingBill, dueDate: d), status: .upcoming)
                         ],
-                        incomeOccurrences: [IncomeOccurrence(from: salary, on: d)]
+                        incomeOccurrences: [IncomeOccurrenceItem(future: salary, on: d)]
                     )
                 }
             }
@@ -549,8 +549,8 @@ private struct CalendarDayCell: View {
                     data[d] = CalendarDayData(
                         date: d,
                         incomeOccurrences: [
-                            IncomeOccurrence(from: salary, on: d),
-                            IncomeOccurrence(from: freelance, on: d)
+                            IncomeOccurrenceItem(future: salary, on: d),
+                            IncomeOccurrenceItem(future: freelance, on: d)
                         ]
                     )
                 }

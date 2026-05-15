@@ -26,7 +26,7 @@ struct PaymentRecorder: Sendable {
         if let existingIssued = bill.issuedOccurrence(for: normalizedOccurrenceDate, calendar: calendar) {
             issuedOccurrence = existingIssued
         } else {
-            let key = bill.occurrenceKey(for: normalizedOccurrenceDate, calendar: calendar)
+            let key = bill.occurrenceKey(for: normalizedOccurrenceDate)
             let issued = IssuedOccurrence(
                 occurrenceKey: key,
                 dueDate: normalizedOccurrenceDate,

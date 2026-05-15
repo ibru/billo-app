@@ -125,19 +125,26 @@ struct IncomeEditView: View {
                 try billsModel.refresh()
                 dismiss()
             } catch {
+                // Stay in the form so the user can correct + retry. Mirrors
+                // DayDetailSheet.skipOccurrence: dismiss only on success.
                 Logger.log("Failed to save income: \(error)", level: .error)
             }
 
         case .editing(let income):
-            income.name = name.trimmingCharacters(in: .whitespaces)
-            income.amount = amount
-            income.startDate = startDate
-            income.recurrenceRule = buildRecurrenceRule()
-            income.lastUpdatedDate = Date()
+            let draft = IncomeDraft(
+                name: name.trimmingCharacters(in: .whitespaces),
+                amount: amount,
+                startDate: startDate,
+                recurrenceRule: buildRecurrenceRule()
+            )
 
             Task {
-                try? await billsModel.updateIncome(income)
-                dismiss()
+                do {
+                    try await billsModel.updateIncome(income, draft: draft)
+                    dismiss()
+                } catch {
+                    Logger.log("Failed to update income: \(error)", level: .error)
+                }
             }
         }
     }

@@ -151,7 +151,7 @@ private func insertBillWithSnapshot(
     let bill = Bill(name: name, amount: currentAmount, dueDate: dueDate, stableID: stableID, calendar: calendar)
     context.insert(bill)
 
-    let key = bill.occurrenceKey(for: bill.dueDate, calendar: calendar)
+    let key = bill.occurrenceKey(for: bill.dueDate)
     let issued = IssuedOccurrence(
         occurrenceKey: key,
         dueDate: bill.dueDate,

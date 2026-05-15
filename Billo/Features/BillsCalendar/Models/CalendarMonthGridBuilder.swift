@@ -10,7 +10,7 @@ enum CalendarMonthGridBuilder {
         calendar: Calendar,
         occurrences: [BillOccurrence],
         payments: [PaymentEntry],
-        incomeOccurrences: [IncomeOccurrence] = [],
+        incomeOccurrences: [IncomeOccurrenceItem] = [],
         referenceDate: Date
     ) -> CalendarMonthGridData {
         guard let monthStart = calendar.date(from: components),

@@ -183,6 +183,39 @@ struct IncomeTests {
         }
     }
 
+    @Suite("stableID") @MainActor
+    struct StableID {
+        @Test func whenTwoIncomesAreCreated_thenTheyHaveDistinctStableIDs() {
+            let firstIncome = makeIncome(name: "Salary", startDate: Date())
+            let secondIncome = makeIncome(name: "Salary", startDate: Date())
+
+            #expect(firstIncome.stableID != secondIncome.stableID)
+            #expect(firstIncome.stableID.isEmpty == false)
+        }
+
+        @Test func whenIncomeIsRoundTrippedThroughContext_thenStableIDPersists() throws {
+            let schema = Schema([
+                Bill.self,
+                PaymentEntry.self,
+                IssuedOccurrence.self,
+                Income.self,
+                IncomeOccurrence.self,
+                RecurrenceRule.self
+            ])
+            let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            let context = ModelContext(container)
+
+            let income = makeIncome(name: "Salary", startDate: Date())
+            let originalStableID = income.stableID
+            context.insert(income)
+            try context.save()
+
+            let fetched = try #require(try context.fetch(FetchDescriptor<Income>()).first)
+            #expect(fetched.stableID == originalStableID)
+        }
+    }
+
     @Suite("validation") @MainActor
     struct Validation {
         @Test func whenAmountIsZero_thenThrowsNonPositiveAmountError() {

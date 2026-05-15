@@ -27,7 +27,7 @@ struct CalendarDayData: Identifiable, Equatable {
     let date: Date
     let bills: [BillDisplay]
     let payments: [PaymentEntry]
-    let incomeOccurrences: [IncomeOccurrence]
+    let incomeOccurrences: [IncomeOccurrenceItem]
 
     var id: Date { date }
 
@@ -58,7 +58,7 @@ struct CalendarDayData: Identifiable, Equatable {
         date: Date,
         bills: [BillDisplay] = [],
         payments: [PaymentEntry] = [],
-        incomeOccurrences: [IncomeOccurrence] = []
+        incomeOccurrences: [IncomeOccurrenceItem] = []
     ) {
         self.date = date
         self.bills = bills

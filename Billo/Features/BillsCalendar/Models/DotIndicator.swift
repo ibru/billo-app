@@ -31,7 +31,7 @@ enum DotIndicatorGenerator {
         for incomeOccurrence in dayData.incomeOccurrences {
             dots.append(
                 DotIndicator(
-                    id: "inc-\(incomeOccurrence.id.incomeID)-\(incomeOccurrence.id.dateTime)",
+                    id: "inc-\(incomeOccurrence.id.key)",
                     color: .income
                 )
             )

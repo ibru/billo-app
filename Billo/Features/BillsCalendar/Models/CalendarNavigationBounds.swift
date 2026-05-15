@@ -9,6 +9,7 @@ enum CalendarNavigationBounds {
         bills: [Bill],
         payments: [PaymentEntry],
         incomes: [Income] = [],
+        incomeOccurrences: [IncomeOccurrence] = [],
         calendar: Calendar,
         currentDate: Date = Date()
     ) -> DateComponents {
@@ -32,6 +33,16 @@ enum CalendarNavigationBounds {
             let incomeMonth = calendar.startOfMonth(for: earliestIncome.startDate)
             if incomeMonth < earliest {
                 earliest = incomeMonth
+            }
+        }
+
+        // Persisted IncomeOccurrence rows survive Income deletion (deleteRule: .nullify).
+        // Without considering them here, the calendar can't scroll back to months whose
+        // income source was deleted — exactly the history this PR was meant to preserve.
+        if let earliestOccurrence = incomeOccurrences.min(by: { $0.date < $1.date }) {
+            let occurrenceMonth = calendar.startOfMonth(for: earliestOccurrence.date)
+            if occurrenceMonth < earliest {
+                earliest = occurrenceMonth
             }
         }
 

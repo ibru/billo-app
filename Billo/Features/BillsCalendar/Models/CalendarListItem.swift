@@ -6,7 +6,7 @@ import SwiftData
 enum CalendarListItem: Identifiable, Equatable {
     case bill(BillDisplay)
     case payment(PaymentEntry)
-    case income(IncomeOccurrence)
+    case income(IncomeOccurrenceItem)
     case todayDivider(date: Date, sectionId: String)
     case emptyMonth(sectionId: String)
 
@@ -16,8 +16,8 @@ enum CalendarListItem: Identifiable, Equatable {
             return display.id
         case .payment(let payment):
             return "pay-\(payment.persistentModelID)"
-        case .income(let incomeOccurrence):
-            return "inc-\(incomeOccurrence.id.incomeID)-\(incomeOccurrence.id.dateTime)"
+        case .income(let view):
+            return "inc-\(view.id.key)"
         case .todayDivider(let date, let sectionId):
             return "today-\(sectionId)-\(date.timeIntervalSinceReferenceDate)"
         case .emptyMonth(let sectionId):
@@ -31,8 +31,8 @@ enum CalendarListItem: Identifiable, Equatable {
             return display.occurrence.dueDate
         case .payment(let payment):
             return payment.datePaid
-        case .income(let incomeOccurrence):
-            return incomeOccurrence.date
+        case .income(let view):
+            return view.date
         case .todayDivider(let date, _):
             return date
         case .emptyMonth:

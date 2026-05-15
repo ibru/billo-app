@@ -268,6 +268,52 @@ struct CalendarMonthGridBuilderTests {
         let dayData = try #require(grid[dayKey])
         #expect(dayData.payments.count == 1)
     }
+
+    @Test
+    func when_pastMonthAmountWasFrozen_then_gridShowsFrozenAmount() throws {
+        let calendar = utcCalendar()
+        let context = try makeContext()
+        let month = DateComponents(year: 2025, month: 3)
+        // Reference date is *after* the frozen month so the grid renders past data.
+        let referenceDate = makeDate(year: 2025, month: 4, day: 10, calendar: calendar)
+
+        // Live income now pays 1500 — but the frozen March row remembers 1000.
+        let income = Income(
+            name: "Salary",
+            amount: 1_500,
+            startDate: makeDate(year: 2025, month: 3, day: 15, calendar: calendar)
+        )
+        context.insert(income)
+
+        let frozenDate = makeDate(year: 2025, month: 3, day: 15, calendar: calendar)
+        let snapshot = IncomeSnapshot(income: income)
+        let frozenKey = snapshot.occurrenceKey(for: frozenDate)
+        let frozenModel = IncomeOccurrence(
+            occurrenceKey: frozenKey,
+            date: frozenDate,
+            incomeName: income.name,
+            incomeAmount: 1_000, // frozen
+            incomeCurrencyCode: income.currencyCode,
+            income: income
+        )
+        context.insert(frozenModel)
+        try context.save()
+
+        let frozenView = IncomeOccurrenceItem(model: frozenModel)
+        let grid = CalendarMonthGridBuilder.build(
+            month: month,
+            calendar: calendar,
+            occurrences: [],
+            payments: [],
+            incomeOccurrences: [frozenView],
+            referenceDate: referenceDate
+        )
+
+        let dayKey = calendar.startOfDay(for: frozenDate)
+        let dayData = try #require(grid[dayKey])
+        #expect(dayData.totalIncome == 1_000)
+        #expect(dayData.incomeOccurrences.first?.amount == 1_000)
+    }
 }
 
 // MARK: - Helpers
@@ -285,7 +331,15 @@ private func makeDate(year: Int, month: Int, day: Int, calendar: Calendar) -> Da
 
 private func makeContext() throws -> ModelContext {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(for: Bill.self, PaymentEntry.self, IssuedOccurrence.self, configurations: config)
+    let container = try ModelContainer(
+        for: Bill.self,
+        PaymentEntry.self,
+        IssuedOccurrence.self,
+        Income.self,
+        IncomeOccurrence.self,
+        RecurrenceRule.self,
+        configurations: config
+    )
     return ModelContext(container)
 }
 

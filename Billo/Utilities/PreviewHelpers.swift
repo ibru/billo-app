@@ -34,6 +34,7 @@ struct BilloPreviewContainer {
             IssuedOccurrence.self,
             RecurrenceRule.self,
             Income.self,
+            IncomeOccurrence.self,
             CustomCategory.self,
             AppSettings.self
         ])
@@ -105,7 +106,7 @@ struct BilloPreviewContainer {
 
         // Mark one bill as paid
         if let paidBill = sampleBills.last {
-            let key = paidBill.occurrenceKey(for: paidBill.dueDate, calendar: calendar)
+            let key = paidBill.occurrenceKey(for: paidBill.dueDate)
             let issued = IssuedOccurrence(
                 occurrenceKey: key,
                 dueDate: paidBill.dueDate,
@@ -182,6 +183,7 @@ struct BilloPreviewContainer {
             IssuedOccurrence.self,
             RecurrenceRule.self,
             Income.self,
+            IncomeOccurrence.self,
             CustomCategory.self,
             AppSettings.self
         ])
@@ -377,6 +379,7 @@ struct BilloPreviewContainer {
             IssuedOccurrence.self,
             RecurrenceRule.self,
             Income.self,
+            IncomeOccurrence.self,
             CustomCategory.self,
             AppSettings.self
         ])
@@ -438,7 +441,7 @@ private func insertPayment(
     calendar: Calendar
 ) {
     let issued = IssuedOccurrence(
-        occurrenceKey: bill.occurrenceKey(for: bill.dueDate, calendar: calendar),
+        occurrenceKey: bill.occurrenceKey(for: bill.dueDate),
         dueDate: bill.dueDate,
         billName: bill.name,
         billAmount: bill.amount,

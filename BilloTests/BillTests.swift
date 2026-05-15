@@ -200,26 +200,52 @@ struct BillTests {
     }
 
     @Suite("Occurrence Key") @MainActor
-    struct OccurrenceKey {
-        @Test func whenOccurrenceKeyGeneratedAcrossTimeZones_thenUsesUTCDateOnly() throws {
+    struct OccurrenceKeyTests {
+        @Test func whenBillAndSnapshotKeyTheSameDate_thenTheyAgree() throws {
+            // The two methods should produce the same key for the same date —
+            // both delegate to `OccurrenceKey.make(stableID:date:)`.
             let (bill, _, _, _) = try makeSUT()
-            var utcCalendar = Calendar(identifier: .gregorian)
-            utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-            var tokyoCalendar = Calendar(identifier: .gregorian)
-            tokyoCalendar.timeZone = TimeZone(identifier: "Asia/Tokyo") ?? .gmt
-            var laCalendar = Calendar(identifier: .gregorian)
-            laCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .gmt
+            var utc = Calendar(identifier: .gregorian)
+            utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+            let date = try #require(
+                utc.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 12))
+            )
 
-            let occurrenceDate = utcCalendar.date(
-                from: DateComponents(year: 2025, month: 1, day: 1, hour: 23, minute: 30)
-            ) ?? Date()
+            let billKey = bill.occurrenceKey(for: date)
+            let snapshotKey = BillSnapshot(bill: bill).occurrenceKey(for: date)
 
-            let keyUTC = bill.occurrenceKey(for: occurrenceDate, calendar: utcCalendar)
-            let keyTokyo = bill.occurrenceKey(for: occurrenceDate, calendar: tokyoCalendar)
-            let keyLA = bill.occurrenceKey(for: occurrenceDate, calendar: laCalendar)
-            let snapshotKey = BillSnapshot(bill: bill).occurrenceKey(for: occurrenceDate, calendar: tokyoCalendar)
+            #expect(billKey == snapshotKey)
+        }
 
-            #expect(Set([keyUTC, keyTokyo, keyLA, snapshotKey]).count == 1)
+        @Test func whenTwoDatesShareUTCDay_thenBillKeysAgree() throws {
+            // Locks in the UTC-day identity contract: two `Date` instants that
+            // fall on the same UTC day (even if many hours apart) produce the
+            // same key. This is what makes the key stable across CloudKit-
+            // synced devices in different timezones.
+            let (bill, _, _, _) = try makeSUT()
+            var utc = Calendar(identifier: .gregorian)
+            utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+            let earlyUTC = try #require(
+                utc.date(from: DateComponents(year: 2025, month: 1, day: 15, hour: 2))
+            )
+            let lateUTC = try #require(
+                utc.date(from: DateComponents(year: 2025, month: 1, day: 15, hour: 23))
+            )
+
+            #expect(bill.occurrenceKey(for: earlyUTC) == bill.occurrenceKey(for: lateUTC))
+        }
+
+        @Test func whenLocalMidnightIsEastOfUTC_thenBillKeyTrailsLocalCalendarDay() throws {
+            // Mirrors `IncomeOccurrenceTests.whenLocalMidnightIsEastOfUTC...`:
+            // documents the timezone-drift contract on the bill side as well.
+            let (bill, _, _, _) = try makeSUT()
+            var prague = Calendar(identifier: .gregorian)
+            prague.timeZone = try #require(TimeZone(identifier: "Europe/Prague"))
+            let pragueMidnight = try #require(
+                prague.date(from: DateComponents(year: 2025, month: 1, day: 15, hour: 0))
+            )
+
+            #expect(bill.occurrenceKey(for: pragueMidnight).hasSuffix(":2025-01-14"))
         }
     }
 
