@@ -17,6 +17,13 @@ struct BillEditView: View {
 
     let mode: Mode
 
+    /// For recurring bills, the date the edit screen was seeded with (the next
+    /// unpaid occurrence). Used to detect whether the user actually changed the date.
+    private let initialSeedDueDate: Date
+    /// The bill's recurrence rule as it was before editing — used to tell a genuine
+    /// recurrence change apart from the picker's on-appear day re-derivation.
+    private let originalRuleSnapshot: RecurrenceRuleSnapshot?
+
     @State private var name: String = ""
     @State private var amount: Decimal = 0
     @State private var dueDate: Date = Date()
@@ -25,7 +32,7 @@ struct BillEditView: View {
     @State private var accountIdentifier: String = ""
     @State private var providerURL: String = ""
     @State private var isSaving: Bool = false
-    @State private var saveErrorMessage: String?
+    @State private var activeAlert: BillEditAlert?
 
     @State private var selectedRecurrencePreset: RecurrencePreset = .none
     @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
@@ -39,9 +46,17 @@ struct BillEditView: View {
         self.mode = mode
 
         if case .editing(let bill) = mode {
+            // Recurring bills open on their NEXT unpaid occurrence (matching the detail
+            // view), not the raw recurrence anchor. Non-recurring bills open on dueDate.
+            let seedDate = bill.recurrenceRule == nil
+                ? bill.dueDate
+                : bill.nextDisplayDueDate(referenceDate: Date(), calendar: .current)
+            self.initialSeedDueDate = seedDate
+            self.originalRuleSnapshot = bill.recurrenceRule.map { RecurrenceRuleSnapshot(rule: $0) }
+
             _name = State(initialValue: bill.name)
             _amount = State(initialValue: bill.amount)
-            _dueDate = State(initialValue: bill.dueDate)
+            _dueDate = State(initialValue: seedDate)
             _selectedCategoryIdentifier = State(initialValue: bill.categoryIdentifier)
             _notes = State(initialValue: bill.notes ?? "")
             _accountIdentifier = State(initialValue: bill.accountIdentifier ?? "")
@@ -56,6 +71,9 @@ struct BillEditView: View {
                 _draftSelectedEndConditionType = State(initialValue: rule.endConditionType)
                 _draftEndDate = State(initialValue: rule.endDate ?? Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date())
             }
+        } else {
+            self.initialSeedDueDate = Date()
+            self.originalRuleSnapshot = nil
         }
     }
 
@@ -139,60 +157,127 @@ struct BillEditView: View {
                     .disabled(name.isEmpty || amount <= 0 || isSaving)
                 }
             }
-            .alert("Error", isPresented: .constant(saveErrorMessage != nil)) {
-                Button("OK") {
-                    saveErrorMessage = nil
-                }
-            } message: {
-                if let saveErrorMessage {
-                    Text(saveErrorMessage)
+            .alert(
+                activeAlert?.title ?? "",
+                isPresented: Binding(
+                    get: { activeAlert != nil },
+                    set: { if !$0 { activeAlert = nil } }
+                ),
+                presenting: activeAlert
+            ) { alert in
+                alertActions(for: alert)
+            } message: { alert in
+                Text(alert.message)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func alertActions(for alert: BillEditAlert) -> some View {
+        switch alert {
+        case .saveError:
+            Button("OK", role: .cancel) { activeAlert = nil }
+        case .rescheduleWarning:
+            Button("Reschedule Anyway", role: .destructive) {
+                if case .editing(let bill) = mode {
+                    performEdit(bill: bill)
                 }
             }
+            Button("Cancel", role: .cancel) { activeAlert = nil }
         }
     }
 
     private func save() {
         guard isSaving == false else { return }
+
+        guard case .editing(let bill) = mode else {
+            performAdd()
+            return
+        }
+
+        // Warn before a reschedule that would strand overdue, still-owed occurrences
+        // (they'd drop from forward-only discovery). No warning when nothing is stranded.
+        if resolveOutcome().isScheduleChange {
+            let stranded = bill.overdueUnpaidOccurrences(asOf: Date(), calendar: .current)
+            if stranded.isEmpty == false {
+                activeAlert = .rescheduleWarning(strandedDates: stranded)
+                return
+            }
+        }
+
+        performEdit(bill: bill)
+    }
+
+    /// Single source of truth for how this edit affects the schedule.
+    private func resolveOutcome() -> BillEditReschedule.Outcome {
+        BillEditReschedule.resolve(
+            seededDueDate: initialSeedDueDate,
+            editedDueDate: dueDate,
+            originalRule: originalRuleSnapshot,
+            candidateRule: buildRecurrenceRule(),
+            calendar: .current
+        )
+    }
+
+    private func performAdd() {
+        guard isSaving == false else { return }
         isSaving = true
-        saveErrorMessage = nil
+        activeAlert = nil
         Task {
             defer { isSaving = false }
             do {
-                switch mode {
-                case .adding:
-                    let bill = Bill(
-                        name: name,
-                        amount: amount,
-                        currencyCode: globalCurrencyCode,
-                        dueDate: dueDate,
-                        notes: notes.isEmpty ? nil : notes,
-                        accountIdentifier: accountIdentifier.isEmpty ? nil : accountIdentifier,
-                        providerURL: providerURL.isEmpty ? nil : providerURL,
-                        categoryIdentifier: selectedCategoryIdentifier
-                    )
-                    bill.recurrenceRule = buildRecurrenceRule()
-
-                    try await billsModel.addBill(bill)
-
-                case .editing(let bill):
-                    let preEditSnapshot = BillSnapshot(bill: bill)
-                    bill.name = name
-                    bill.amount = amount
-                    bill.dueDate = Calendar.current.startOfDay(for: dueDate)
-                    bill.notes = notes.isEmpty ? nil : notes
-                    bill.accountIdentifier = accountIdentifier.isEmpty ? nil : accountIdentifier
-                    bill.providerURL = providerURL.isEmpty ? nil : providerURL
-                    bill.categoryIdentifier = selectedCategoryIdentifier
-                    bill.lastUpdatedDate = Date()
-
-                    bill.recurrenceRule = buildRecurrenceRule()
-
-                    try await billsModel.updateBill(bill, preEditSnapshot: preEditSnapshot)
-                }
-
+                let bill = Bill(
+                    name: name,
+                    amount: amount,
+                    currencyCode: globalCurrencyCode,
+                    dueDate: dueDate,
+                    notes: notes.isEmpty ? nil : notes,
+                    accountIdentifier: accountIdentifier.isEmpty ? nil : accountIdentifier,
+                    providerURL: providerURL.isEmpty ? nil : providerURL,
+                    categoryIdentifier: selectedCategoryIdentifier
+                )
+                bill.recurrenceRule = buildRecurrenceRule()
+                try await billsModel.addBill(bill)
                 dismiss()
             } catch {
-                saveErrorMessage = error.localizedDescription
+                activeAlert = .saveError(error.localizedDescription)
+                Logger.log("Failed to save bill: \(error)", level: .error)
+            }
+        }
+    }
+
+    private func performEdit(bill: Bill) {
+        guard isSaving == false else { return }
+        isSaving = true
+        activeAlert = nil
+        Task {
+            defer { isSaving = false }
+            do {
+                // Snapshot BEFORE mutation so past-due freezing uses the OLD schedule.
+                let preEditSnapshot = BillSnapshot(bill: bill)
+                let outcome = resolveOutcome()
+
+                bill.name = name
+                bill.amount = amount
+                bill.notes = notes.isEmpty ? nil : notes
+                bill.accountIdentifier = accountIdentifier.isEmpty ? nil : accountIdentifier
+                bill.providerURL = providerURL.isEmpty ? nil : providerURL
+                bill.categoryIdentifier = selectedCategoryIdentifier
+                bill.lastUpdatedDate = Date()
+
+                if case .scheduleChange(let newDueDate, let newRule) = outcome {
+                    // Re-anchor to the DISPLAYED date so any new schedule takes effect
+                    // forward, never retroactively from the old anchor.
+                    bill.dueDate = newDueDate
+                    bill.recurrenceRule = newRule
+                }
+                // else metadata-only: leave dueDate + recurrenceRule untouched, so the
+                // picker's on-appear day re-derivation can never corrupt the rule.
+
+                try await billsModel.updateBill(bill, preEditSnapshot: preEditSnapshot)
+                dismiss()
+            } catch {
+                activeAlert = .saveError(error.localizedDescription)
                 Logger.log("Failed to save bill: \(error)", level: .error)
             }
         }
@@ -219,6 +304,31 @@ extension BillEditView.Mode {
         switch self {
         case .adding: return String(localized: "Add Bill")
         case .editing: return String(localized: "Edit Bill")
+        }
+    }
+}
+
+/// Single source of alert state for the edit screen — folds the save-error alert and
+/// the reschedule warning into one optional so only one alert is ever presented.
+private enum BillEditAlert {
+    case saveError(String)
+    case rescheduleWarning(strandedDates: [Date])
+
+    var title: String {
+        switch self {
+        case .saveError:
+            return String(localized: "Error")
+        case .rescheduleWarning:
+            return String(localized: "Reschedule Recurring Bill?")
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .saveError(let message):
+            return message
+        case .rescheduleWarning(let dates):
+            return BillEditReschedule.rescheduleWarningMessage(for: dates)
         }
     }
 }

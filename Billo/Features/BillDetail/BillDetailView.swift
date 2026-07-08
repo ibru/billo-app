@@ -266,9 +266,7 @@ struct BillDetailView: View {
     /// The next unpaid occurrence date for display. Falls back to the bill's
     /// base due date for non-recurring bills or when all occurrences are paid.
     private var displayDueDate: Date {
-        let calendar = Calendar.current
-        let unpaid = bill.unpaidOccurrences(aroundDate: Date(), calendar: calendar)
-        return unpaid.first ?? billModel.dueDate
+        bill.nextDisplayDueDate(referenceDate: Date(), calendar: Calendar.current)
     }
 
     private var categoryInfo: CategoryDisplayInfo? {

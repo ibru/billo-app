@@ -550,6 +550,46 @@ struct BillsModelTests {
             #expect(issued.count == 4)
             #expect(Set(issuedDays) == Set(expectedDays))
         }
+
+        @Test func whenMonthlyReschedulingForwardToNewDay_thenPaidPastPreservedAndFutureUsesNewDay() async throws {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            calendar.locale = Locale(identifier: "en_US")
+            let today = makeDate(year: 2025, month: 7, day: 1)
+            let (sut, _, modelContext, _, _) = try makeSUT(billCount: 0, referenceDate: today, calendar: calendar)
+
+            let anchor = makeDate(year: 2025, month: 2, day: 2)
+            let bill = Bill(name: "Gym", amount: 100, dueDate: anchor, calendar: calendar)
+            bill.recurrenceRule = RecurrenceRule(pattern: .monthly, frequency: 1, dayOfMonth: 2)
+            modelContext.insert(bill)
+            try modelContext.save()
+            try sut.refresh()
+
+            // Pay every past occurrence (Feb–Jun on the 2nd).
+            for month in 2...6 {
+                try await sut.markPaid(BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: month, day: 2), calendar: calendar))
+            }
+
+            // Simulate the edit screen's schedule-change branch: reschedule Jul 2 → Jul 15.
+            let preEditSnapshot = BillSnapshot(bill: bill)
+            bill.dueDate = calendar.startOfDay(for: makeDate(year: 2025, month: 7, day: 15))
+            bill.recurrenceRule = RecurrenceRule(pattern: .monthly, frequency: 1, dayOfMonth: 15)
+            try await sut.updateBill(bill, preEditSnapshot: preEditSnapshot)
+
+            // Recurrence rule now targets the 15th.
+            #expect(bill.recurrenceRule?.dayOfMonth == 15)
+
+            // Paid past occurrences remain fully paid on the 2nd.
+            for month in 2...6 {
+                #expect(bill.isFullyPaid(for: makeDate(year: 2025, month: month, day: 2), calendar: calendar))
+            }
+
+            // Future occurrences now fall on the 15th; the 2nd is no longer generated forward.
+            let futureUnpaid = bill.unpaidOccurrences(aroundDate: today, calendar: calendar)
+            #expect(futureUnpaid.first == makeDate(year: 2025, month: 7, day: 15))
+            #expect(futureUnpaid.contains(makeDate(year: 2025, month: 8, day: 15)))
+            #expect(futureUnpaid.contains(makeDate(year: 2025, month: 7, day: 2)) == false)
+        }
     }
 
     @MainActor

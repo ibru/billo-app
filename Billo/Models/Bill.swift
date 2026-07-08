@@ -170,6 +170,26 @@ struct RecurrenceRuleSnapshot {
             calendar: calendar
         )
     }
+
+    /// True if a candidate rule differs from this snapshot in STRUCTURE — pattern,
+    /// frequency, or end condition — deliberately ignoring `dayOfWeek`/`dayOfMonth`.
+    /// Those day fields are driven by the anchor date, so a genuine day edit surfaces
+    /// as a due-date change instead; the edit screen uses this to tell a real
+    /// recurrence-rule edit apart from a metadata-only edit (and to avoid being
+    /// misled by the picker's on-appear day re-derivation).
+    static func structurallyDiffer(_ snapshot: RecurrenceRuleSnapshot?, _ rule: RecurrenceRule?) -> Bool {
+        switch (snapshot, rule) {
+        case (nil, nil):
+            return false
+        case (nil, _), (_, nil):
+            return true
+        case let (snapshot?, rule?):
+            return snapshot.pattern != rule.pattern
+                || snapshot.frequency != rule.frequency
+                || snapshot.endConditionType != rule.endConditionType
+                || snapshot.endDate != rule.endDate
+        }
+    }
 }
 
 // MARK: - Bill Model
@@ -417,6 +437,26 @@ extension Bill {
 
         Logger.log("Unpaid occurrences for \(name): \(result.count)", level: .debug)
         return result
+    }
+
+    /// The date to surface as the bill's "due date" in UI: the earliest unpaid
+    /// occurrence around `referenceDate`, falling back to the base `dueDate` for
+    /// non-recurring bills or when everything is paid. Single source of truth for
+    /// both the detail header and the edit screen's initial value.
+    @MainActor
+    func nextDisplayDueDate(referenceDate: Date, calendar: Calendar) -> Date {
+        unpaidOccurrences(aroundDate: referenceDate, calendar: calendar).first ?? dueDate
+    }
+
+    /// Strictly-past occurrences that still owe money (fully unpaid *or* partially
+    /// paid) as of `referenceDate`. These are the occurrences that would silently
+    /// drop out of forward-only discovery if the recurrence anchor is moved forward,
+    /// so the edit screen warns before rescheduling past them. Due-today is excluded.
+    @MainActor
+    func overdueUnpaidOccurrences(asOf referenceDate: Date, calendar: Calendar) -> [Date] {
+        let todayStart = calendar.startOfDay(for: referenceDate)
+        return unpaidOccurrences(aroundDate: referenceDate, calendar: calendar)
+            .filter { $0 < todayStart }
     }
 
     private func windowForFrequency() -> (lookback: Int, lookahead: Int) {
