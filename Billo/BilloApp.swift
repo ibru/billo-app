@@ -24,14 +24,28 @@ struct BilloApp: App {
             CustomCategory.self,
             AppSettings.self
         ])
+#if SCREENSHOTS
+        // Screenshots run against a throwaway in-memory store seeded with
+        // realistic demo data; CloudKit stays out of the way.
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: true,
+            cloudKitDatabase: .none
+        )
+#else
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
             cloudKitDatabase: .automatic
         )
+#endif
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+#if SCREENSHOTS
+            ScreenshotMockData.seed(into: container.mainContext)
+#endif
+            return container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -72,7 +86,11 @@ struct BilloApp: App {
                             let context = sharedModelContainer.mainContext
 
                         // Set up notification system
+#if SCREENSHOTS
+                        let center: UNNotificationCenterProtocol = ScreenshotNoopNotificationCenter()
+#else
                         let center = UNUserNotificationCenter.current()
+#endif
                         let preferences = NotificationPreferencesStore()
                         let coordinator = NotificationCoordinator(
                             notificationCenter: center,
@@ -121,7 +139,13 @@ struct BilloApp: App {
 
                         let flow = AppFlowModel()
                         let storeKit = StoreKitManager()
+#if SCREENSHOTS
+                        // Pro unlocked without touching StoreKit, so screenshots
+                        // never show locked features or entitlement loading states.
+                        storeKit.isPro = true
+#else
                         storeKit.start()
+#endif
 
                         if settings.currencyCode != nil {
                             flow.completeOnboarding()

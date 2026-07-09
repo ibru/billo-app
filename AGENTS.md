@@ -24,6 +24,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - Unit tests (default: Mac Catalyst): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=macOS,arch=arm64,variant=Mac Catalyst,name=My Mac' test`
 - Unit tests (iOS Simulator): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' test`
 - Focused tests: append `-only-testing:BilloTests/<TestClass>`
+- Screenshots run (in-memory DB pre-seeded with realistic US demo data): use the `BilloScreenshots` scheme. It launches the main app with the `Screenshots` build configuration, which sets the `SCREENSHOTS` compile condition — see `Billo/App/ScreenshotMockData.swift` and the `#if SCREENSHOTS` branches in `BilloApp.swift`.
 - No external dependencies: Project uses only native Apple frameworks (SwiftUI, SwiftData, StoreKit 2, Charts)
 
 ## Architecture & Patterns
