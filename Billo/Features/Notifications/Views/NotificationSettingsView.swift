@@ -52,6 +52,7 @@ struct NotificationSettingsView: View {
             }
         }
         .navigationTitle("Notification Settings")
+        .analyticsScreen(.notificationSettings)
         .alert(
             "Notifications Disabled",
             isPresented: Binding(
@@ -242,6 +243,7 @@ struct NotificationSettingsView: View {
                 )
             )
     }
+    .environment(AnalyticsModel())
 }
 
 // MARK: - Preview Helpers

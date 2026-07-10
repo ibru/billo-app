@@ -78,6 +78,33 @@ struct NotificationSettingsModelTests {
         #expect(scheduler.scheduleCallCount == 1)
     }
 
+    // MARK: - Analytics capture
+
+    @Test
+    func whenTogglingOnAndPermissionDenied_thenCapturesPermissionResponseButNoToggle() async {
+        var captured: [AnalyticsEvent] = []
+        let (sut, coordinator, _, _) = makeSUT(analyticsCapture: { captured.append($0) })
+        coordinator.authorizationStatusToReturn = .denied
+        coordinator.requestAuthorizationResult = false
+
+        await sut.toggleRemindersAsync(to: true)
+
+        #expect(captured.map(\.name) == ["notification permission responded"])
+        #expect(captured.first?.properties["granted"] as? Bool == false)
+    }
+
+    @Test
+    func whenRemindersActuallyToggle_thenCapturesFinalState() async {
+        var captured: [AnalyticsEvent] = []
+        let (sut, _, preferences, _) = makeSUT(analyticsCapture: { captured.append($0) })
+        preferences.remindersEnabled = true
+
+        await sut.toggleRemindersAsync(to: false)
+
+        #expect(captured.map(\.name) == ["notification reminders toggled"])
+        #expect(captured.first?.properties["enabled"] as? Bool == false)
+    }
+
     @Test
     func whenTogglingOff_thenDisablesPreference() async {
         let (sut, _, preferences, scheduler) = makeSUT()
@@ -187,7 +214,9 @@ struct NotificationSettingsModelTests {
 // MARK: - makeSUT
 
 @MainActor
-private func makeSUT() -> (
+private func makeSUT(
+    analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in }
+) -> (
     NotificationSettingsModel,
     NotificationCoordinatorSpy,
     NotificationPreferencesSpy,
@@ -203,7 +232,8 @@ private func makeSUT() -> (
         refreshScheduler: scheduler,
         taskRunner: { task in
             Task { await task() }
-        }
+        },
+        analyticsCapture: analyticsCapture
     )
     return (sut, coordinator, preferences, scheduler)
 }

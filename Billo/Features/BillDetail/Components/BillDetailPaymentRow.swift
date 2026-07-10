@@ -42,5 +42,6 @@ struct BillDetailPaymentRow: View {
                     .padding(.leading, DesignSystem.Spacing.medium)
             }
         }
+        .replayMaskSensitive()
     }
 }

@@ -35,7 +35,8 @@ struct NotificationActionHandler: Sendable {
         notificationIdentifier: String,
         modelContainer: ModelContainer,
         notificationCoordinator: NotificationCoordinating,
-        notificationPreferences: NotificationPreferencesReading
+        notificationPreferences: NotificationPreferencesReading,
+        analyticsCapture: (@MainActor (AnalyticsEvent) -> Void)? = nil
     ) async {
         // 1. Parse identifier
         guard let parsed = NotificationIdentifier.parse(notificationIdentifier) else {
@@ -76,11 +77,12 @@ struct NotificationActionHandler: Sendable {
         let recorder = PaymentRecorder()
 
         do {
+            let datePaid = Date()
             _ = try await recorder.recordPayment(
                 for: bill,
                 occurrenceDate: occurrenceDate,
                 amount: expectedAmount,
-                datePaid: Date(),
+                datePaid: datePaid,
                 confirmationNumber: nil,
                 calendar: calendar,
                 context: context,
@@ -90,6 +92,24 @@ struct NotificationActionHandler: Sendable {
                 allBills: bills,
                 currentDate: { Date() }
             )
+
+            let daysFromDue = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: occurrenceDate),
+                to: calendar.startOfDay(for: datePaid)
+            ).day ?? 0
+            // Use the occurrence snapshot when one exists so the event's
+            // category/currency match what the payment was recorded against,
+            // even if the bill was re-categorized after the occurrence issued.
+            let snapshot = bill.snapshot(for: occurrenceDate, calendar: calendar)
+            analyticsCapture?(.paymentRecorded(
+                source: .notificationAction,
+                category: (snapshot?.categoryIdentifier ?? bill.categoryIdentifier)?.analyticsKey ?? "none",
+                currencyCode: snapshot?.currencyCode ?? bill.currencyCode,
+                daysFromDue: daysFromDue,
+                isPartial: false,
+                hasConfirmationNumber: false
+            ))
         } catch {
             Logger.log("Failed to record payment: \(error)", level: .error)
             return

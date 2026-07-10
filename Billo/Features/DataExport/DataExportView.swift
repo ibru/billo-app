@@ -11,6 +11,7 @@ import SwiftUI
 	        )
 	        .navigationTitle("Data Export")
 	        .platformInlineNavigationTitle()
+	        .analyticsScreen(.dataExport)
 	    }
 	}
 
@@ -18,4 +19,5 @@ import SwiftUI
     NavigationStack {
         DataExportView()
     }
+    .environment(AnalyticsModel())
 }

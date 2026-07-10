@@ -47,5 +47,6 @@ struct AppRootView: View {
         .environment(preview.appSettingsModel)
         .environment(flow)
         .environment(storeKit)
+        .environment(AnalyticsModel())
 }
 #endif

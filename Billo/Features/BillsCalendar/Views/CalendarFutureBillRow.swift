@@ -46,6 +46,7 @@ struct CalendarBillRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+        .replayMaskSensitive()
     }
 
     @ViewBuilder

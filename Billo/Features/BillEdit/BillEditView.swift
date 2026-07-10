@@ -81,16 +81,22 @@ struct BillEditView: View {
         appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
+    private var analyticsScreenValue: AnalyticsScreen {
+        if case .adding = mode { .billAdd } else { .billEdit }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Basic Information") {
                     TextField("Name", text: $name)
+                        .replayMaskSensitive()
 
                     LabeledContent("Amount") {
                         TextField("Amount", value: $amount, format: .number)
                             .multilineTextAlignment(.trailing)
                             .platformDecimalKeyboard()
+                            .replayMaskSensitive()
                     }
 
                     DatePicker("Due Date", selection: $dueDate, displayedComponents: .date)
@@ -127,16 +133,20 @@ struct BillEditView: View {
                 Section("Optional Details") {
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
+                        .replayMaskSensitive()
 
                     TextField("Account ID", text: $accountIdentifier)
+                        .replayMaskSensitive()
 
                     TextField("Provider URL", text: $providerURL)
                         .platformURLKeyboard()
                         .platformNeverAutocapitalization()
+                        .replayMaskSensitive()
                 }
             }
             .navigationTitle(mode.title)
             .platformInlineNavigationTitle()
+            .analyticsScreen(analyticsScreenValue)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {

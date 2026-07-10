@@ -48,6 +48,10 @@ struct IncomeEditView: View {
         }
     }
 
+    private var analyticsScreenValue: AnalyticsScreen {
+        if case .adding = mode { .incomeAdd } else { .incomeEdit }
+    }
+
     private var globalCurrencyCode: String {
         appSettingsModel.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
@@ -57,11 +61,13 @@ struct IncomeEditView: View {
             Form {
                 Section("Basic Information") {
                     TextField("Name", text: $name)
+                        .replayMaskSensitive()
 
                     LabeledContent("Amount") {
                         TextField("Amount", value: $amount, format: .number)
                             .multilineTextAlignment(.trailing)
                             .platformDecimalKeyboard()
+                            .replayMaskSensitive()
                     }
 
                     DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
@@ -91,6 +97,7 @@ struct IncomeEditView: View {
             }
             .navigationTitle(mode.title)
             .platformInlineNavigationTitle()
+            .analyticsScreen(analyticsScreenValue)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -111,23 +118,24 @@ struct IncomeEditView: View {
     private func save() {
         switch mode {
         case .adding:
-            do {
-                let income = try Income.create(
-                    name: name,
-                    amount: amount,
-                    currencyCode: globalCurrencyCode,
-                    startDate: startDate,
-                    recurrenceRule: buildRecurrenceRule()
-                )
+            Task {
+                do {
+                    let income = try Income.create(
+                        name: name,
+                        amount: amount,
+                        currencyCode: globalCurrencyCode,
+                        startDate: startDate,
+                        recurrenceRule: buildRecurrenceRule()
+                    )
 
-                modelContext.insert(income)
-                try modelContext.save()
-                try billsModel.refresh()
-                dismiss()
-            } catch {
-                // Stay in the form so the user can correct + retry. Mirrors
-                // DayDetailSheet.skipOccurrence: dismiss only on success.
-                Logger.log("Failed to save income: \(error)", level: .error)
+                    // Centralized add path (insert + save + refresh + analytics).
+                    try await billsModel.addIncome(income)
+                    dismiss()
+                } catch {
+                    // Stay in the form so the user can correct + retry. Mirrors
+                    // DayDetailSheet.skipOccurrence: dismiss only on success.
+                    Logger.log("Failed to save income: \(error)", level: .error)
+                }
             }
 
         case .editing(let income):

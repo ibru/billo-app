@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsCurrencyPickerView: View {
     @Environment(AppSettingsModel.self) private var appSettingsModel
+    @Environment(AnalyticsModel.self) private var analytics
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
@@ -57,6 +58,7 @@ struct SettingsCurrencyPickerView: View {
 	            }
 	        }
 	        .navigationTitle("Currency")
+	        .analyticsScreen(.currencyPicker)
 	        .searchable(text: $searchText, prompt: Text("Search currencies"))
 	        .disabled(isUpdating)
 	        .overlay {
@@ -107,6 +109,7 @@ struct SettingsCurrencyPickerView: View {
             }
             do {
                 try await appSettingsModel.setCurrency(code)
+                analytics.capture(.currencyChanged(currencyCode: code, source: "settings"))
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -122,4 +125,5 @@ struct SettingsCurrencyPickerView: View {
         SettingsCurrencyPickerView()
     }
     .environment(preview.appSettingsModel)
+    .environment(AnalyticsModel())
 }

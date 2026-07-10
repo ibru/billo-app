@@ -47,7 +47,7 @@ struct BillRescheduleTests {
             let bill = model.bills[0]
 
             for month in 2...6 {
-                try await model.markPaid(BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: month, day: 2), calendar: calendar))
+                try await model.markPaid(BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: month, day: 2), calendar: calendar), source: .sheet)
             }
 
             #expect(bill.nextDisplayDueDate(referenceDate: today, calendar: calendar) == makeDate(year: 2025, month: 7, day: 2))
@@ -104,7 +104,8 @@ struct BillRescheduleTests {
             // Partial payment on the May 2 overdue occurrence.
             try await model.markPaid(
                 BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: 5, day: 2), calendar: calendar),
-                amount: 40
+                amount: 40,
+                source: .sheet
             )
 
             let overdue = bill.overdueUnpaidOccurrences(asOf: today, calendar: calendar)
@@ -123,7 +124,7 @@ struct BillRescheduleTests {
             let bill = model.bills[0]
 
             for month in 2...6 {
-                try await model.markPaid(BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: month, day: 2), calendar: calendar))
+                try await model.markPaid(BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: month, day: 2), calendar: calendar), source: .sheet)
             }
 
             #expect(bill.overdueUnpaidOccurrences(asOf: today, calendar: calendar).isEmpty)

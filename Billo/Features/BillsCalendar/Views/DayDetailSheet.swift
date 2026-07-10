@@ -71,6 +71,7 @@ struct DayDetailSheet: View {
             }
             .navigationTitle(dayData.date.formatted(.dateTime.month(.wide).day()))
             .platformInlineNavigationTitle()
+            .analyticsScreen(.calendarDaySheet)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -150,5 +151,6 @@ private struct DaySheetIncomeRow: View {
             localized: "Income: \(incomeOccurrence.name), \(formattedAmount)",
             comment: "Accessibility: day details income row label (name, amount)"
         ))
+        .replayMaskSensitive()
     }
 }

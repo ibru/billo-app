@@ -10,6 +10,7 @@ struct BillsHomeSwitchView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(NotificationCoordinator.self) private var notificationCoordinator
     @Environment(NotificationPreferencesStore.self) private var preferencesStore
+    @Environment(AnalyticsModel.self) private var analytics
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -91,7 +92,10 @@ struct BillsHomeSwitchView: View {
                                     refreshBills: false
                                 )
                             }
-                        )
+                        ),
+                        analyticsCapture: { [weak analytics] event in
+                            analytics?.capture(event)
+                        }
                     )
                 )
                 .toolbar {
@@ -167,9 +171,11 @@ struct BillsHomeSwitchView: View {
 
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
+                        let target = nextViewMode
                         withAnimation {
-                            viewModeBinding.wrappedValue = nextViewMode
+                            viewModeBinding.wrappedValue = target
                         }
+                        analytics.capture(.viewModeChanged(to: target.rawValue))
                     } label: {
                         Image(systemName: nextViewMode.iconName)
                     }

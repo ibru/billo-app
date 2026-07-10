@@ -64,6 +64,7 @@ struct CategoryQuickPicker: View {
                     Image(systemName: selectedDisplay.systemImageName)
                         .foregroundStyle(selectedDisplay.color)
                     Text(selectedDisplay.name)
+                        .replayMaskSensitive()
                 } else {
                     Text("None")
                 }

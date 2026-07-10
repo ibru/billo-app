@@ -14,6 +14,7 @@ enum PaywallResult: Hashable, Sendable {
 
 struct PaywallView: View {
     @Environment(StoreKitManager.self) private var storeKit
+    @Environment(AnalyticsModel.self) private var analytics
     @Environment(\.dismiss) private var dismiss
 
     let context: PaywallContext
@@ -103,8 +104,10 @@ struct PaywallView: View {
                 }
             }
         }
+        .analyticsScreen(.paywall, properties: ["context": analyticsContext])
         .task {
             Logger.log("Paywall shown (context: \(String(describing: context)))", level: .info)
+            analytics.capture(.paywallShown(context: analyticsContext))
             await storeKit.loadProductsIfNeeded()
             syncToggleWithSelection()
         }
@@ -212,6 +215,7 @@ struct PaywallView: View {
                         selectedPlan = .weekly
                         syncToggleWithSelection()
                         Logger.log("Paywall plan selected: weekly", level: .debug)
+                        analytics.capture(.paywallPlanSelected(planId: "weekly", context: analyticsContext))
                     }
                 )
 
@@ -224,6 +228,7 @@ struct PaywallView: View {
                         selectedPlan = .yearly
                         syncToggleWithSelection()
                         Logger.log("Paywall plan selected: yearly", level: .debug)
+                        analytics.capture(.paywallPlanSelected(planId: "yearly", context: analyticsContext))
                     }
                 )
             }
@@ -244,6 +249,7 @@ struct PaywallView: View {
                     isFreeTrialToggleOn = newValue
                     selectedPlan = newValue ? .weekly : .yearly
                     Logger.log("Paywall free trial toggle: \(newValue ? "on" : "off")", level: .debug)
+                    analytics.capture(.paywallFreeTrialToggled(enabled: newValue, context: analyticsContext))
                 }
             ))
             .labelsHidden()
@@ -325,10 +331,27 @@ struct PaywallView: View {
 
             Button("Restore") {
                 Logger.log("Paywall restore tapped", level: .info)
+                analytics.capture(.paywallRestoreAttempted(context: analyticsContext))
                 Task {
                     do {
                         try await storeKit.restorePurchases()
+                        // A clean sync with no active entitlement is not a success.
+                        if storeKit.isPro {
+                            analytics.capture(.paywallRestoreSucceeded(context: analyticsContext))
+                        } else {
+                            analytics.capture(.paywallRestoreFailed(
+                                context: analyticsContext,
+                                error: "no_purchases_found"
+                            ))
+                        }
                     } catch {
+                        // Stable key only — localizedDescription is locale-dependent
+                        // (unaggregatable) and an uncontrolled string channel.
+                        // The detailed error stays in the on-device log/alert.
+                        analytics.capture(.paywallRestoreFailed(
+                            context: analyticsContext,
+                            error: "sync_failed"
+                        ))
                         errorMessage = error.localizedDescription
                     }
                 }
@@ -366,7 +389,9 @@ struct PaywallView: View {
     private func purchaseSelected() async {
         guard let product = storeKit.products.first(where: { $0.id == selectedProductID }) else { return }
 
+        let planId = selectedPlan.analyticsPlanId
         Logger.log("Paywall purchase started (productID: \(product.id))", level: .info)
+        analytics.capture(.paywallPurchaseAttempted(planId: planId, context: analyticsContext))
         isPurchasing = true
         defer { isPurchasing = false }
 
@@ -374,13 +399,34 @@ struct PaywallView: View {
         switch result {
         case .success:
             Logger.log("Paywall purchase success (productID: \(product.id))", level: .info)
+            analytics.capture(.paywallPurchaseSucceeded(planId: planId, context: analyticsContext))
             finish(.purchased)
 
         case .failure(let error):
             Logger.log("Paywall purchase failed (productID: \(product.id), error: \(error))", level: .warning)
+            switch error {
+            case .cancelled:
+                analytics.capture(.paywallPurchaseCancelled(planId: planId, context: analyticsContext))
+            case .pending:
+                analytics.capture(.paywallPurchasePending(planId: planId, context: analyticsContext))
+            case .unverified, .unknown, .failed:
+                // Stable, locale-independent reason key; detailed message
+                // stays in the on-device log/alert.
+                analytics.capture(.paywallPurchaseFailed(
+                    planId: planId,
+                    context: analyticsContext,
+                    error: error.analyticsReason
+                ))
+            }
             if error != .cancelled {
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    private var analyticsContext: String {
+        switch context {
+        case .firstLaunch: "first_launch"
         }
     }
 
@@ -390,6 +436,7 @@ struct PaywallView: View {
             break
         case .dismissed:
             Logger.log("Paywall dismissed", level: .info)
+            analytics.capture(.paywallClosed(context: analyticsContext))
         }
 
         onFinished(result)
@@ -495,6 +542,13 @@ private enum SelectedPlan: Hashable {
             return "Save yearly"
         }
     }
+
+    var analyticsPlanId: String {
+        switch self {
+        case .weekly: "weekly"
+        case .yearly: "yearly"
+        }
+    }
 }
 
 private struct BenefitRow: View {
@@ -581,5 +635,6 @@ private struct SubscriptionOptionRow: View {
     let storeKit = StoreKitManager()
     return PaywallView(context: .firstLaunch, isDismissible: true, dismissOnFinish: true, onFinished: { _ in })
         .environment(storeKit)
+        .environment(AnalyticsModel())
 }
 #endif

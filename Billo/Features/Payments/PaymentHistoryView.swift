@@ -56,6 +56,7 @@ struct PaymentHistoryView: View {
             }
         }
         .navigationTitle("Payment History")
+        .analyticsScreen(.paymentHistory)
     }
 
     @ViewBuilder

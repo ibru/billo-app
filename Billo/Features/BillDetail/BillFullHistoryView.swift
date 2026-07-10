@@ -37,6 +37,7 @@ struct BillFullHistoryView: View {
             Section {
                 Text(billModel.name)
                     .font(.title3)
+                    .replayMaskSensitive()
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
@@ -93,6 +94,7 @@ struct BillFullHistoryView: View {
         .contentMargins(.top, DesignSystem.Spacing.small, for: .scrollContent)
         .navigationTitle("History")
         .platformInlineNavigationTitle()
+        .analyticsScreen(.billFullHistory)
     }
 
     @ViewBuilder
@@ -118,6 +120,7 @@ struct BillFullHistoryView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DesignSystem.Color.green)
         }
+        .replayMaskSensitive()
     }
 
     @ViewBuilder
@@ -147,6 +150,7 @@ struct BillFullHistoryView: View {
                     )
                 )
         }
+        .replayMaskSensitive()
     }
 
     // MARK: - Helpers

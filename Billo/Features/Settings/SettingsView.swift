@@ -44,5 +44,6 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .analyticsScreen(.settings)
     }
 }

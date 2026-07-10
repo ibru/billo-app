@@ -47,6 +47,7 @@ struct OccurrenceDetailView: View {
         .background(DesignSystem.Color.groupedBackground)
         .navigationTitle(occurrence.billName)
         .platformInlineNavigationTitle()
+        .analyticsScreen(.occurrenceDetail)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(occurrence.billName)
@@ -54,6 +55,7 @@ struct OccurrenceDetailView: View {
                     .lineLimit(1)
                     .opacity(showInlineTitle ? 1 : 0)
                     .animation(.easeInOut(duration: 0.15), value: showInlineTitle)
+                    .replayMaskSensitive()
             }
         }
     }
@@ -76,6 +78,7 @@ struct OccurrenceDetailView: View {
                         }
                 }
             )
+            .replayMaskSensitive()
     }
 
     // MARK: - Deleted-bill banner
@@ -155,6 +158,7 @@ struct OccurrenceDetailView: View {
                 content.tint.opacity(0.12),
                 in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium, style: .continuous)
             )
+            .replayMaskSensitive()
     }
 
     // MARK: - Info card

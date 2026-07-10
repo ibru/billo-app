@@ -69,6 +69,7 @@ struct PaymentRowView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(payment.amount.formatted(.currency(code: currencyCode)))
+        .replayMaskSensitive()
     }
 
     @ViewBuilder

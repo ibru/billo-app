@@ -70,6 +70,7 @@ struct BillsCalendarView: View {
                     rebuildLocalState()
                 }
             )
+            .analyticsScreen(.billsCalendar)
             .task {
                 await refreshData()
             }
@@ -399,7 +400,7 @@ struct BillsCalendarView: View {
 
     private func markPaid(_ occurrence: BillOccurrence) async {
         do {
-            try await billsModel.markPaid(occurrence)
+            try await billsModel.markPaid(occurrence, source: .calendar)
         } catch {
             Logger.log("Failed to mark paid: \(error)", level: .error)
         }
@@ -445,6 +446,7 @@ private struct MonthSectionHeader: View {
                         breakdownView
                         remainingLabel
                     }
+                    .replayMaskSensitive()
                 }
         }
         .padding(.horizontal, DesignSystem.Spacing.medium)

@@ -8,6 +8,9 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
     weak var modelContainer: ModelContainer?
     weak var notificationCoordinator: NotificationCoordinator?
     var notificationPreferences: NotificationPreferencesStore?
+    /// Late-bound like the refs above; a response arriving before app setup
+    /// finishes simply goes untracked (same behavior the model refs have).
+    var analyticsCapture: (@MainActor @Sendable (AnalyticsEvent) -> Void)?
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -16,6 +19,18 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
     ) {
         Task { @MainActor in
             defer { completionHandler() }
+
+            let kind = Self.analyticsKind(
+                forCategory: response.notification.request.content.categoryIdentifier
+            )
+            switch response.actionIdentifier {
+            case UNNotificationDefaultActionIdentifier:
+                analyticsCapture?(.notificationOpened(kind: kind))
+            case UNNotificationDismissActionIdentifier:
+                analyticsCapture?(.notificationDismissed(kind: kind))
+            default:
+                break
+            }
 
             guard response.actionIdentifier == NotificationAction.markPaid,
                   let container = modelContainer,
@@ -29,8 +44,17 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
                 notificationIdentifier: response.notification.request.identifier,
                 modelContainer: container,
                 notificationCoordinator: coordinator,
-                notificationPreferences: preferences
+                notificationPreferences: preferences,
+                analyticsCapture: analyticsCapture
             )
+        }
+    }
+
+    private static func analyticsKind(forCategory categoryIdentifier: String) -> String {
+        switch categoryIdentifier {
+        case NotificationCategory.billReminder: "bill_reminder"
+        case NotificationCategory.dailyDigest: "daily_digest"
+        default: "unknown"
         }
     }
 

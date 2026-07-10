@@ -469,6 +469,7 @@ extension View {
             .environment(preview.notificationCoordinator)
             .environment(preview.preferencesStore)
             .environment(preview.appSettingsModel)
+            .environment(AnalyticsModel())
             .modelContainer(preview.container)
             .preferredColorScheme(colorScheme)
     }

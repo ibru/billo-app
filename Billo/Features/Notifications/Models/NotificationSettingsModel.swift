@@ -14,6 +14,7 @@ final class NotificationSettingsModel {
     @ObservationIgnored private let refreshScheduler: NotificationRefreshScheduling
     /// Injectable runner to control how async work is scheduled; tests can override to run immediately without blocking.
     @ObservationIgnored private let taskRunner: (@escaping @Sendable () async -> Void) -> Void
+    @ObservationIgnored private let analyticsCapture: (AnalyticsEvent) -> Void
 
     // Observation tick to notify view when preferences are mutated through the model.
     private var changeTick: Int = 0
@@ -28,13 +29,15 @@ final class NotificationSettingsModel {
         refreshScheduler: NotificationRefreshScheduling = NoopNotificationRefreshScheduler(),
         taskRunner: @escaping (@escaping @Sendable () async -> Void) -> Void = { task in
             Task { await task() }
-        }
+        },
+        analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in }
     ) {
         self.preferences = preferences
         self.coordinator = coordinator
         self.openSettingsHandler = openSettingsHandler
         self.refreshScheduler = refreshScheduler
         self.taskRunner = taskRunner
+        self.analyticsCapture = analyticsCapture
     }
 
     // MARK: - Derived State
@@ -99,12 +102,16 @@ final class NotificationSettingsModel {
 
         notifyChange()
         if preferences.remindersEnabled != wasEnabled {
+            // Final state only — enabling can fail on denied permission,
+            // in which case nothing changed and nothing is captured.
+            analyticsCapture(.notificationRemindersToggled(enabled: preferences.remindersEnabled))
             refreshScheduler.scheduleRefresh()
         }
     }
 
     func setReminderOffsets(_ offsets: [Int]) {
         preferences.setReminderOffsets(offsets)
+        analyticsCapture(.notificationScheduleAdjusted(field: "reminder_offsets"))
         notifyChange()
         refreshScheduler.scheduleRefresh()
     }
@@ -122,38 +129,52 @@ final class NotificationSettingsModel {
         }
 
         preferences.setReminderOffsets(current)
+        analyticsCapture(.notificationScheduleAdjusted(field: "reminder_offsets"))
         notifyChange()
         refreshScheduler.scheduleRefresh()
     }
 
     func setReminderTime(_ time: DateComponents) {
         preferences.setReminderTime(time)
+        analyticsCapture(.notificationScheduleAdjusted(field: "reminder_time"))
         notifyChange()
         refreshScheduler.scheduleRefresh()
     }
 
     func setDigestEnabled(_ enabled: Bool) {
         preferences.setDigestEnabled(enabled)
+        analyticsCapture(.notificationDigestToggled(enabled: enabled))
         notifyChange()
         refreshScheduler.scheduleRefresh()
     }
 
     func setDigestLookaheadDays(_ days: Int) {
         preferences.setDigestLookaheadDays(days)
+        analyticsCapture(.notificationScheduleAdjusted(field: "digest_lookahead"))
         notifyChange()
         refreshScheduler.scheduleRefresh()
     }
 
     func setDigestTime(_ time: DateComponents) {
         preferences.setDigestTime(time)
+        analyticsCapture(.notificationScheduleAdjusted(field: "digest_time"))
         notifyChange()
         refreshScheduler.scheduleRefresh()
     }
 
     func setBadgeMode(_ mode: BadgeMode) {
         preferences.setBadgeMode(mode)
+        analyticsCapture(.notificationBadgeModeChanged(mode: Self.analyticsValue(for: mode)))
         notifyChange()
         refreshScheduler.scheduleRefresh()
+    }
+
+    private static func analyticsValue(for mode: BadgeMode) -> String {
+        switch mode {
+        case .never: "never"
+        case .dueAndOverdue: "due_and_overdue"
+        case .daysBefore(let days): "days_before_\(days)"
+        }
     }
 
     func openSettings() {
@@ -188,6 +209,7 @@ final class NotificationSettingsModel {
             } catch {
                 granted = false
             }
+            analyticsCapture(.notificationPermissionResponded(granted: granted))
             authorizationStatus = await coordinator.currentAuthorizationStatus()
 
             if granted && NotificationToggleLogic.isAuthorized(for: authorizationStatus) {

@@ -27,6 +27,7 @@ struct BillDetailInfoRow: View {
                     .padding(.leading, DesignSystem.Spacing.medium)
             }
         }
+        .replayMaskSensitive()
     }
 }
 

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		49007E002ED5B1DA009FD9E1 /* SFSymbols in Frameworks */ = {isa = PBXBuildFile; productRef = 49007E012ED5B1DA009FD9E2 /* SFSymbols */; };
+		49A0E1002EF5B1DA009FD9E1 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 49A0E1012EF5B1DA009FD9E2 /* PostHog */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				49007E002ED5B1DA009FD9E1 /* SFSymbols in Frameworks */,
+				49A0E1002EF5B1DA009FD9E1 /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -109,6 +111,7 @@
 			name = Billo;
 			packageProductDependencies = (
 				49007E012ED5B1DA009FD9E2 /* SFSymbols */,
+				49A0E1012EF5B1DA009FD9E2 /* PostHog */,
 			);
 			productName = Billo;
 			productReference = 49007DB62ED5B1D8009FD9ED /* Billo.app */;
@@ -167,6 +170,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				49007E022ED5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "SFSymbols" */,
+				49A0E1022EF5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 49007DB72ED5B1D8009FD9ED /* Products */;
@@ -655,6 +659,14 @@
 				version = 1.5.0;
 			};
 		};
+		49A0E1022EF5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.59.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -662,6 +674,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 49007E022ED5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "SFSymbols" */;
 			productName = SFSymbols;
+		};
+		49A0E1012EF5B1DA009FD9E2 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 49A0E1022EF5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

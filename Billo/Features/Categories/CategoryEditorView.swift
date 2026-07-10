@@ -33,6 +33,7 @@ struct CategoryEditorView: View {
                         Text("Category name", comment: "Placeholder for the custom category name field")
                     }
                     .font(.title3)
+                    .replayMaskSensitive()
                 }
             }
 

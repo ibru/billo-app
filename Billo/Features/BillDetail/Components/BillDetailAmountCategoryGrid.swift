@@ -18,6 +18,7 @@ struct BillDetailAmountCategoryGrid: View {
                 categoryBlock(category)
             }
         }
+        .replayMaskSensitive()
     }
 
     @ViewBuilder

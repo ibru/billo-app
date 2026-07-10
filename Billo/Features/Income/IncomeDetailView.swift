@@ -21,6 +21,7 @@ struct IncomeDetailView: View {
                         .foregroundStyle(DesignSystem.Color.greenIncome)
                         .fontWeight(.semibold)
                 }
+                .replayMaskSensitive()
 
                 HStack {
                     Label("Start Date", systemImage: "calendar")
@@ -64,6 +65,7 @@ struct IncomeDetailView: View {
             }
         }
         .navigationTitle(income.name)
+        .analyticsScreen(.incomeDetail)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Edit") {

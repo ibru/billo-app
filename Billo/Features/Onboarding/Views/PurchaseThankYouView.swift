@@ -6,6 +6,7 @@ import SwiftUI
 struct PurchaseThankYouView: View {
     @Environment(\.requestReview) private var requestReview
     @Environment(AppFlowModel.self) private var flow
+    @Environment(AnalyticsModel.self) private var analytics
 
     let onContinue: () -> Void
 
@@ -87,6 +88,7 @@ struct PurchaseThankYouView: View {
         didTriggerReview = true
         flow.markRatingPrompted()
         Logger.log("Rating prompt requested", level: .info)
+        analytics.capture(.ratingPromptRequested)
         requestReview()
     }
 }
@@ -120,5 +122,6 @@ private struct ThankYouBenefitRow: View {
     let flow = AppFlowModel(persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-thanks") ?? .standard))
     return PurchaseThankYouView(onContinue: {})
         .environment(flow)
+        .environment(AnalyticsModel())
 }
 #endif

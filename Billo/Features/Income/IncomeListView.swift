@@ -24,6 +24,7 @@ struct IncomeListView: View {
 	            }
 	        }
 	        .navigationTitle("Income")
+	        .analyticsScreen(.incomeList)
 	        .toolbar {
 	            ToolbarItem(placement: .primaryAction) {
 	                Button {
@@ -110,5 +111,6 @@ struct IncomeRowView: View {
             localized: "Income: \(income.name), \(formattedAmount), \(frequencyLabel)",
             comment: "Accessibility: income row label (name, amount, recurrence)"
         ))
+        .replayMaskSensitive()
     }
 }

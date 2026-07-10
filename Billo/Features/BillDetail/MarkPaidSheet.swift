@@ -29,6 +29,7 @@ struct MarkPaidSheet: View {
                         TextField("Amount", value: $amount, format: .number)
                             .multilineTextAlignment(.trailing)
                             .platformDecimalKeyboard()
+                            .replayMaskSensitive()
                     }
 
                     DatePicker("Date Paid", selection: $datePaid, displayedComponents: .date)
@@ -58,6 +59,7 @@ struct MarkPaidSheet: View {
                                     Text("Balance: \(remaining.formattedAsCurrency(code: bill.currencyCode))")
                                         .font(.caption)
                                         .foregroundStyle(DesignSystem.Color.orange)
+                                        .replayMaskSensitive()
                                 }
                             }
 
@@ -70,10 +72,12 @@ struct MarkPaidSheet: View {
                     }
 
                     TextField("Confirmation Number (optional)", text: $confirmationNumber)
+                        .replayMaskSensitive()
                 }
             }
             .navigationTitle("Mark as Paid")
             .platformInlineNavigationTitle()
+            .analyticsScreen(.markPaidSheet)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -137,6 +141,7 @@ struct MarkPaidSheet: View {
                 Text("\(remaining.formattedAsCurrency(code: bill.currencyCode)) left")
                     .font(.caption)
                     .foregroundStyle(DesignSystem.Color.orange)
+                    .replayMaskSensitive()
             }
         }
     }
@@ -155,7 +160,8 @@ struct MarkPaidSheet: View {
                     occurrence,
                     amount: amount,
                     date: datePaid,
-                    confirmationNumber: confirmation
+                    confirmationNumber: confirmation,
+                    source: .sheet
                 )
                 // markPaid already calls refresh() internally
                 dismiss()

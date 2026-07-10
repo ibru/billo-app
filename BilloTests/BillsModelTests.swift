@@ -73,7 +73,7 @@ struct BillsModelTests {
 
             let occurrence = makeOccurrence(for: bills[0])
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             #expect(bills[0].status(relativeTo: referenceDate, calendar: calendar) == .paid)
         }
@@ -84,7 +84,7 @@ struct BillsModelTests {
 
             let occurrence = makeOccurrence(for: bills[0])
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             let payments = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
             #expect(payments.count == 1)
@@ -98,7 +98,7 @@ struct BillsModelTests {
 
             let occurrence = makeOccurrence(for: bills[0])
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             #expect(bills[0].allPaymentEntries.count == 1)
             #expect(bills[0].allPaymentEntries.first?.amount == bills[0].amount)
@@ -111,7 +111,7 @@ struct BillsModelTests {
             let bill = bills[0]
             let occurrence = makeOccurrence(for: bill)
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             let issuedOccurrences = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
             let issued = issuedOccurrences.first
@@ -136,7 +136,7 @@ struct BillsModelTests {
             let bill = bills[0]
             let occurrence = makeOccurrence(for: bill)
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             bill.amount = 150
             try await sut.updateBill(bill)
@@ -152,7 +152,7 @@ struct BillsModelTests {
             let occurrence = makeOccurrence(for: bills[0])
             let customAmount = Decimal(75)
 
-            try await sut.markPaid(occurrence, amount: customAmount)
+            try await sut.markPaid(occurrence, amount: customAmount, source: .sheet)
 
             #expect(bills[0].allPaymentEntries.first?.amount == customAmount)
         }
@@ -163,7 +163,7 @@ struct BillsModelTests {
 
             let occurrence = makeOccurrence(for: bills[0])
 
-            try await sut.markPaid(occurrence, confirmationNumber: "CONF123")
+            try await sut.markPaid(occurrence, confirmationNumber: "CONF123", source: .sheet)
 
             #expect(bills[0].allPaymentEntries.first?.confirmationNumber == "CONF123")
         }
@@ -174,7 +174,7 @@ struct BillsModelTests {
 
             let occurrence = makeOccurrence(for: bills[0])
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             let allOccurrences = sut.sections.occurrencesBySection.values.flatMap { $0 }
             #expect(allOccurrences.isEmpty)
@@ -189,7 +189,7 @@ struct BillsModelTests {
 
             #expect(sut.sections.monthlyTotals.remaining == bills[0].amount)
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             #expect(sut.sections.monthlyTotals.totalPaid == bills[0].amount)
             #expect(sut.sections.monthlyTotals.remaining == 0)
@@ -201,7 +201,7 @@ struct BillsModelTests {
 
             let occurrence = makeOccurrence(for: bills[0])
 
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             #expect(coordinator.cancelRemindersCalls.contains(where: { $0.contains(occurrence.id) }))
             #expect(coordinator.updateBadgeCalls.last == 0)
@@ -217,7 +217,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             try await sut.markUnpaid(occurrence)
 
@@ -229,7 +229,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
             #expect(bills[0].safeIssuedOccurrences.isEmpty == false)
 
             try await sut.markUnpaid(occurrence)
@@ -242,7 +242,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             try await sut.markUnpaid(occurrence)
 
@@ -256,7 +256,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
             #expect(sut.sections.monthlyTotals.remaining == 0)
 
             try await sut.markUnpaid(occurrence)
@@ -270,7 +270,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence) // create payment first
+            try await sut.markPaid(occurrence, source: .sheet) // create payment first
             let initialRefreshCount = coordinator.refreshAllNotificationsCalls.count
 
             try await sut.markUnpaid(occurrence)
@@ -357,7 +357,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             let paymentsBefore = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
             #expect(paymentsBefore.count == 1)
@@ -374,7 +374,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
             let initialRefreshCount = coordinator.refreshAllNotificationsCalls.count
 
             let payment = bills[0].allPaymentEntries.first!
@@ -388,7 +388,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             let issuedBefore = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
             #expect(issuedBefore.count == 1)
@@ -419,7 +419,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bill, dueDate: pastDueDate)
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             let issuedBefore = try modelContext.fetch(FetchDescriptor<IssuedOccurrence>())
             #expect(issuedBefore.count == 1)
@@ -440,8 +440,8 @@ struct BillsModelTests {
             let occurrence = makeOccurrence(for: bill)
 
             // Make two partial payments
-            try await sut.markPaid(occurrence, amount: 50)
-            try await sut.markPaid(occurrence, amount: 30)
+            try await sut.markPaid(occurrence, amount: 50, source: .sheet)
+            try await sut.markPaid(occurrence, amount: 30, source: .sheet)
 
             let paymentsBefore = try modelContext.fetch(FetchDescriptor<PaymentEntry>())
             #expect(paymentsBefore.count == 2)
@@ -462,7 +462,7 @@ struct BillsModelTests {
             try sut.refresh()
 
             let occurrence = makeOccurrence(for: bills[0])
-            try await sut.markPaid(occurrence)
+            try await sut.markPaid(occurrence, source: .sheet)
 
             // After marking paid, sections should have no occurrences
             #expect(sut.sections.occurrencesBySection.values.flatMap { $0 }.isEmpty)
@@ -472,6 +472,143 @@ struct BillsModelTests {
 
             // After deleting payment, the occurrence should reappear
             #expect(sut.sections.occurrencesBySection.values.flatMap { $0 }.count == 1)
+        }
+    }
+
+    @MainActor
+    @Suite("analytics capture")
+    struct AnalyticsCapture {
+        @Test func whenAddingBill_thenCapturesBillCreated() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, _, _, _, _) = try makeSUT(billCount: 0, analyticsCapture: { captured.append($0) })
+
+            let bill = Bill(name: "Internet", amount: Decimal(60), dueDate: makeDate(day: 20))
+            bill.categoryIdentifier = .predefined(.utilities)
+            try await sut.addBill(bill)
+
+            #expect(captured.count == 1)
+            #expect(captured.first?.name == "bill created")
+            #expect(captured.first?.properties["category"] as? String == "default.utilities")
+            #expect(captured.first?.properties["is_recurring"] as? Bool == false)
+            #expect(captured.first?.properties["amount"] == nil)
+        }
+
+        @Test func whenMarkingPaidLate_thenCapturesPaymentRecordedWithSourceAndDaysFromDue() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1, analyticsCapture: { captured.append($0) })
+            try sut.refresh()
+
+            // Bill 1 is due one day after the reference date; pay 3 days after due.
+            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let paidDate = Calendar.current.date(byAdding: .day, value: 3, to: bills[0].dueDate)!
+            try await sut.markPaid(occurrence, date: paidDate, source: .listSwipe)
+
+            let event = captured.first { $0.name == "payment recorded" }
+            #expect(event != nil)
+            #expect(event?.properties["source"] as? String == "list_swipe")
+            #expect(event?.properties["days_from_due"] as? Int == 3)
+            #expect(event?.properties["is_partial"] as? Bool == false)
+        }
+
+        @Test func whenDeletingBillWithPayments_thenCapturesBillDeletedWithHadPayments() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1, analyticsCapture: { captured.append($0) })
+            try sut.refresh()
+
+            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            try await sut.markPaid(occurrence, source: .sheet)
+            try await sut.deleteBill(bills[0])
+
+            let event = captured.first { $0.name == "bill deleted" }
+            #expect(event?.properties["had_payments"] as? Bool == true)
+        }
+
+        @Test func whenReschedulingBill_thenCapturesBillUpdatedWithRescheduledFlag() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1, analyticsCapture: { captured.append($0) })
+            try sut.refresh()
+
+            let bill = bills[0]
+            let preEditSnapshot = BillSnapshot(bill: bill)
+            bill.dueDate = Calendar.current.date(byAdding: .day, value: 10, to: bill.dueDate)!
+            try await sut.updateBill(bill, preEditSnapshot: preEditSnapshot)
+
+            let event = captured.first { $0.name == "bill updated" }
+            #expect(event?.properties["rescheduled"] as? Bool == true)
+        }
+
+        @Test func whenSkippingIncomeOccurrence_thenCapturesSkipped() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, _, modelContext, _, _) = try makeSUT(billCount: 0, analyticsCapture: { captured.append($0) })
+
+            let occurrence = IncomeOccurrence(
+                occurrenceKey: "salary-2025-01-01",
+                date: makeDate(day: 1),
+                incomeName: "Salary",
+                incomeAmount: 3000,
+                incomeCurrencyCode: "USD",
+                income: nil
+            )
+            modelContext.insert(occurrence)
+            try modelContext.save()
+
+            try await sut.skipIncomeOccurrence(occurrence)
+
+            #expect(captured.map(\.name) == ["income occurrence skipped"])
+        }
+
+        @Test func whenDeletingIncomeOccurrence_thenCapturesDeletedNotSkipped() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, _, modelContext, _, _) = try makeSUT(billCount: 0, analyticsCapture: { captured.append($0) })
+
+            let occurrence = IncomeOccurrence(
+                occurrenceKey: "salary-2025-01-01",
+                date: makeDate(day: 1),
+                incomeName: "Salary",
+                incomeAmount: 3000,
+                incomeCurrencyCode: "USD",
+                income: nil
+            )
+            modelContext.insert(occurrence)
+            try modelContext.save()
+
+            try await sut.deleteIncomeOccurrence(occurrence)
+
+            #expect(captured.map(\.name) == ["income occurrence deleted"])
+        }
+
+        @Test func whenDeletingPaymentWithNoCategory_thenCapturesNoneCategory() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1, analyticsCapture: { captured.append($0) })
+            try sut.refresh()
+
+            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            try await sut.markPaid(occurrence, source: .sheet)
+            let payment = bills[0].allPaymentEntries.first!
+
+            try await sut.deletePaymentEntry(payment)
+
+            let event = captured.first { $0.name == "payment deleted" }
+            #expect(event?.properties["category"] as? String == "none")
+        }
+
+        @Test func whenAddingIncome_thenCapturesIncomeCreated() async throws {
+            var captured: [AnalyticsEvent] = []
+            let (sut, _, _, _, _) = try makeSUT(billCount: 0, analyticsCapture: { captured.append($0) })
+
+            let income = try Income.create(
+                name: "Salary",
+                amount: 3000,
+                currencyCode: "USD",
+                startDate: makeDate(day: 1),
+                recurrenceRule: RecurrenceRule(pattern: .monthly, frequency: 1, dayOfMonth: 1)
+            )
+            try await sut.addIncome(income)
+
+            let event = captured.first { $0.name == "income created" }
+            #expect(event?.properties["is_recurring"] as? Bool == true)
+            #expect(event?.properties["recurrence_pattern"] as? String == "monthly")
+            #expect(event?.properties["amount"] == nil)
         }
     }
 
@@ -594,7 +731,7 @@ struct BillsModelTests {
 
             // Pay every past occurrence (Feb–Jun on the 2nd).
             for month in 2...6 {
-                try await sut.markPaid(BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: month, day: 2), calendar: calendar))
+                try await sut.markPaid(BillOccurrence(bill: bill, dueDate: makeDate(year: 2025, month: month, day: 2), calendar: calendar), source: .sheet)
             }
 
             // Simulate the edit screen's schedule-change branch: reschedule Jul 2 → Jul 15.
@@ -1553,7 +1690,8 @@ private func makeSUT(
         cal.timeZone = TimeZone(identifier: "UTC")!
         cal.locale = Locale(identifier: "en_US")
         return cal
-    }()
+    }(),
+    analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in }
 ) throws -> (
     BillsModel,
     [Bill],
@@ -1601,7 +1739,8 @@ private func makeSUT(
         calendar: calendar,
         currentDate: { referenceDate },
         notificationCoordinator: coordinator,
-        notificationPreferences: preferences
+        notificationPreferences: preferences,
+        analyticsCapture: analyticsCapture
     )
 
     return (sut, bills, modelContext, coordinator, preferences)

@@ -13,6 +13,7 @@ struct CategoryPickerSheet: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AnalyticsModel.self) private var analytics
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
     @State private var saveErrorMessage: String?
@@ -45,6 +46,7 @@ struct CategoryPickerSheet: View {
                 }
             }
             .navigationTitle(Text("Category", comment: "Navigation title of the full category picker"))
+            .analyticsScreen(.categoryPicker)
             .platformInlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -114,6 +116,7 @@ struct CategoryPickerSheet: View {
                     checkmark
                 }
             }
+            .replayMaskSensitive()
         }
     }
 
@@ -134,6 +137,7 @@ struct CategoryPickerSheet: View {
 
         do {
             try modelContext.save()
+            analytics.capture(.customCategoryDeleted)
             if selection == option.id {
                 selection = nil
             }
@@ -152,6 +156,7 @@ struct CategoryPickerSheet: View {
 
         do {
             try modelContext.save()
+            analytics.capture(.customCategoryCreated)
             selection = .custom(category.id)
             dismiss()
         } catch {

@@ -102,6 +102,54 @@ struct NotificationActionHandlerTests {
             "Should use snapshot amount (200) for the encoded occurrence timestamp, regardless of action timezone"
         )
     }
+
+    @Test func whenMarkPaidActionSucceeds_thenCapturesPaymentRecordedWithNotificationSource() async throws {
+        let calendar = makeUTCCalendar()
+        let (sut, container, coordinatorSpy, prefs) = try makeSUT(calendar: calendar)
+
+        let dueDate = makeDate(year: 2025, month: 1, day: 15)
+        try insertBill(
+            amount: 100,
+            dueDate: dueDate,
+            stableID: "bill-1",
+            calendar: calendar,
+            in: container
+        )
+
+        let timestamp = Int(dueDate.timeIntervalSinceReferenceDate)
+        let identifier = makeNotificationIdentifier(billStableID: "bill-1", timestamp: timestamp)
+
+        var captured: [AnalyticsEvent] = []
+        await sut.handleMarkPaid(
+            notificationIdentifier: identifier,
+            modelContainer: container,
+            notificationCoordinator: coordinatorSpy,
+            notificationPreferences: prefs,
+            analyticsCapture: { captured.append($0) }
+        )
+
+        #expect(captured.count == 1)
+        #expect(captured.first?.name == "payment recorded")
+        #expect(captured.first?.properties["source"] as? String == "notification_action")
+    }
+
+    @Test func whenBillNotFound_thenCapturesNothing() async throws {
+        let calendar = makeUTCCalendar()
+        let (sut, container, coordinatorSpy, prefs) = try makeSUT(calendar: calendar)
+
+        let identifier = makeNotificationIdentifier(billStableID: "deleted-bill", timestamp: 0)
+
+        var captured: [AnalyticsEvent] = []
+        await sut.handleMarkPaid(
+            notificationIdentifier: identifier,
+            modelContainer: container,
+            notificationCoordinator: coordinatorSpy,
+            notificationPreferences: prefs,
+            analyticsCapture: { captured.append($0) }
+        )
+
+        #expect(captured.isEmpty)
+    }
 }
 
 // MARK: - makeSUT & Factories

@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import PostHog
 
 @main
 struct BilloApp: App {
@@ -57,6 +58,7 @@ struct BilloApp: App {
     @State private var appSettingsModel: AppSettingsModel?
     @State private var appFlowModel: AppFlowModel?
     @State private var storeKitManager: StoreKitManager?
+    @State private var analyticsModel: AnalyticsModel?
     @State private var didInitialNotificationRefresh = false
     private let notificationDelegate = NotificationDelegate()
     private let appNotificationRefresher = AppNotificationRefresher()
@@ -72,7 +74,7 @@ struct BilloApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel, let appFlowModel, let storeKitManager {
+                if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel, let appFlowModel, let storeKitManager, let analyticsModel {
                     AppRootView()
                         .environment(billsModel)
                         .environment(notificationCoordinator)
@@ -80,10 +82,38 @@ struct BilloApp: App {
                         .environment(appSettingsModel)
                         .environment(appFlowModel)
                         .environment(storeKitManager)
+                        .environment(analyticsModel)
+                        .bindAnalyticsContext(
+                            analytics: analyticsModel,
+                            billsModel: billsModel,
+                            storeKitManager: storeKitManager,
+                            preferences: preferencesStore
+                        )
                 } else {
                     ProgressView()
                         .task {
                             let context = sharedModelContainer.mainContext
+
+                        // Set up analytics first so services can capture events.
+                        let analytics: AnalyticsModel = {
+                            guard Self.analyticsEnabled else {
+                                return AnalyticsModel(client: NoopAnalyticsClient())
+                            }
+
+                            let config = PostHogConfig(projectToken: PostHogKeys.projectToken, host: PostHogKeys.host)
+                            config.captureScreenViews = false
+                            config.sessionReplay = true
+                            config.sessionReplayConfig.screenshotMode = true
+                            config.sessionReplayConfig.captureNetworkTelemetry = false
+                            config.sessionReplayConfig.maskAllImages = false
+                            // Show static UI in replays; sensitive financial values
+                            // (amounts, names, notes) are masked per-view via
+                            // `.replayMaskSensitive()`.
+                            config.sessionReplayConfig.maskAllTextInputs = false
+                            PostHogSDK.shared.setup(config)
+
+                            return AnalyticsModel(client: PostHogAnalyticsClient())
+                        }()
 
                         // Set up notification system
 #if SCREENSHOTS
@@ -104,11 +134,13 @@ struct BilloApp: App {
                         notificationDelegate.modelContainer = sharedModelContainer
                         notificationDelegate.notificationCoordinator = coordinator
                         notificationDelegate.notificationPreferences = preferences
+                        notificationDelegate.analyticsCapture = { event in analytics.capture(event) }
 
                         let bills = BillsModel(
                             modelContext: context,
                             notificationCoordinator: coordinator,
-                            notificationPreferences: preferences
+                            notificationPreferences: preferences,
+                            analyticsCapture: { event in analytics.capture(event) }
                         )
 
                         // Set up app settings
@@ -164,6 +196,7 @@ struct BilloApp: App {
                             appSettingsModel = settings
                             appFlowModel = flow
                             storeKitManager = storeKit
+                            analyticsModel = analytics
                         }
                 }
             }
@@ -207,6 +240,23 @@ struct BilloApp: App {
         )
     }
 
+    /// Analytics is opt-in for developers and always off for tests, previews,
+    /// and the screenshots scheme. Release builds send events unconditionally.
+    private static var analyticsEnabled: Bool {
+        #if SCREENSHOTS
+        return false
+        #else
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return false }
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" { return false }
+
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["BILLO_ENABLE_ANALYTICS"] == "1"
+        #else
+        return true
+        #endif
+        #endif
+    }
+
     private func registerNotificationCategories() {
         let markPaidAction = UNNotificationAction(
             identifier: NotificationAction.markPaid,
@@ -225,7 +275,9 @@ struct BilloApp: App {
             identifier: NotificationCategory.dailyDigest,
             actions: [],
             intentIdentifiers: [],
-            options: []
+            // Opt into dismiss callbacks so `notification dismissed(daily_digest)`
+            // analytics can actually fire; no user-visible behavior change.
+            options: [.customDismissAction]
         )
 
         UNUserNotificationCenter.current().setNotificationCategories([

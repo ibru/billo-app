@@ -21,6 +21,7 @@ struct FirstLaunchCurrencyStepView: View {
     let preview = BilloPreviewContainer.empty()
     return FirstLaunchCurrencyStepView(onContinue: {})
         .environment(preview.appSettingsModel)
+        .environment(AnalyticsModel())
 }
 #endif
 

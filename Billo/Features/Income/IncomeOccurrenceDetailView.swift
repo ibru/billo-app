@@ -58,6 +58,7 @@ struct IncomeOccurrenceDetailView: View {
         .background(DesignSystem.Color.groupedBackground)
         .navigationTitle(occurrence.incomeName)
         .platformInlineNavigationTitle()
+        .analyticsScreen(.incomeOccurrenceDetail)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if isPersistingAmount {
@@ -171,6 +172,7 @@ struct IncomeOccurrenceDetailView: View {
                 }
                 .padding(.horizontal, DesignSystem.Spacing.medium)
                 .padding(.vertical, DesignSystem.Spacing.mediumSmall)
+                .replayMaskSensitive()
             }
         }
     }

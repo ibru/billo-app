@@ -4,6 +4,7 @@ import SwiftUI
 
 struct CurrencyOnboardingView: View {
     @Environment(AppSettingsModel.self) private var appSettingsModel
+    @Environment(AnalyticsModel.self) private var analytics
 
     @State private var selectedCurrencyCode: String?
     @State private var showingCurrencyPicker = false
@@ -35,6 +36,7 @@ struct CurrencyOnboardingView: View {
         }
         .padding(.horizontal, DesignSystem.Spacing.large)
         .padding(.bottom, DesignSystem.Spacing.large)
+        .analyticsScreen(.onboardingCurrency)
         .alert("Error", isPresented: .constant(errorMessage != nil)) {
             Button("OK") { errorMessage = nil }
         } message: {
@@ -149,6 +151,7 @@ struct CurrencyOnboardingView: View {
                     defer { isLoading = false }
                     do {
                         try await appSettingsModel.setCurrency(code)
+                        analytics.capture(.currencyChanged(currencyCode: code, source: "onboarding"))
                     } catch {
                         errorMessage = error.localizedDescription
                     }
@@ -182,10 +185,12 @@ struct CurrencyOnboardingView: View {
     let preview = BilloPreviewContainer.empty()
     return CurrencyOnboardingView()
         .environment(preview.appSettingsModel)
+        .environment(AnalyticsModel())
 }
 
 #Preview("No Device Currency") {
     let preview = BilloPreviewContainer.empty()
     return CurrencyOnboardingView()
         .environment(preview.appSettingsModel)
+        .environment(AnalyticsModel())
 }

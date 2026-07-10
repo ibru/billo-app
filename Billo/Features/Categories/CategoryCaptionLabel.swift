@@ -16,5 +16,6 @@ struct CategoryCaptionLabel: View {
                 .foregroundStyle(.secondary)
         }
         .font(.caption)
+        .replayMaskSensitive()
     }
 }

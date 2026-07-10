@@ -41,6 +41,18 @@ final class StoreKitManager {
                 return message
             }
         }
+
+        /// Stable, locale-independent key for analytics — never the
+        /// localized message (unaggregatable and an uncontrolled string).
+        var analyticsReason: String {
+            switch self {
+            case .cancelled: "cancelled"
+            case .pending: "pending"
+            case .unverified: "unverified"
+            case .unknown: "unknown"
+            case .failed: "purchase_failed"
+            }
+        }
     }
 
     var isPro: Bool = false

@@ -42,6 +42,7 @@ struct BillDetailView: View {
         .background(DesignSystem.Color.groupedBackground)
         .navigationTitle(billModel.name)
         .platformInlineNavigationTitle()
+        .analyticsScreen(.billDetail)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(billModel.name)
@@ -49,6 +50,7 @@ struct BillDetailView: View {
                     .lineLimit(1)
                     .opacity(showInlineTitle ? 1 : 0)
                     .animation(.easeInOut(duration: 0.15), value: showInlineTitle)
+                    .replayMaskSensitive()
             }
         }
         .sheet(isPresented: $showingEditSheet) {
@@ -80,6 +82,7 @@ struct BillDetailView: View {
                         }
                 }
             )
+            .replayMaskSensitive()
     }
 
     // MARK: - Header Section
@@ -259,6 +262,7 @@ struct BillDetailView: View {
         }
         .padding(.horizontal, DesignSystem.Spacing.medium)
         .padding(.vertical, DesignSystem.Spacing.mediumSmall)
+        .replayMaskSensitive()
     }
 
     // MARK: - Helpers

@@ -14,6 +14,7 @@ final class BillsModel {
     @ObservationIgnored private let notificationPreferences: NotificationPreferencesReading
     @ObservationIgnored private let badgeCalculator: BadgeCalculator
     @ObservationIgnored private let incomeProjector: IncomeOccurrenceProjector
+    @ObservationIgnored private let analyticsCapture: (AnalyticsEvent) -> Void
 
     private(set) var bills: [Bill] = []
     private(set) var incomes: [Income] = []
@@ -28,13 +29,15 @@ final class BillsModel {
         calendar: Calendar = .current,
         currentDate: @escaping () -> Date = { Date() },
         notificationCoordinator: NotificationCoordinating,
-        notificationPreferences: NotificationPreferencesReading
+        notificationPreferences: NotificationPreferencesReading,
+        analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in }
     ) {
         self.modelContext = modelContext
         self.calendar = calendar
         self.currentDate = currentDate
         self.notificationCoordinator = notificationCoordinator
         self.notificationPreferences = notificationPreferences
+        self.analyticsCapture = analyticsCapture
         self.badgeCalculator = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
         self.incomeProjector = IncomeOccurrenceProjector(calendar: calendar)
     }
@@ -141,17 +144,19 @@ final class BillsModel {
         _ occurrence: BillOccurrence,
         amount: Decimal? = nil,
         date: Date? = nil,
-        confirmationNumber: String? = nil
+        confirmationNumber: String? = nil,
+        source: PaymentEventSource
     ) async throws {
         let paidAmount = amount ?? occurrence.amount
+        let datePaid = date ?? currentDate()
         Logger.log("Marking paid: \(occurrence.name), occurrence: \(occurrence.dueDate), amount: \(paidAmount)", level: .info)
         let recorder = PaymentRecorder()
 
         _ = try await recorder.recordPayment(
             for: occurrence.bill,
             occurrenceDate: occurrence.dueDate,
-            amount: amount ?? occurrence.amount,
-            datePaid: date ?? currentDate(),
+            amount: paidAmount,
+            datePaid: datePaid,
             confirmationNumber: confirmationNumber,
             calendar: calendar,
             context: modelContext,
@@ -162,14 +167,43 @@ final class BillsModel {
             currentDate: currentDate
         )
 
+        analyticsCapture(.paymentRecorded(
+            source: source,
+            category: occurrence.categoryIdentifier?.analyticsKey ?? "none",
+            currencyCode: occurrence.currencyCode,
+            daysFromDue: daysBetween(occurrence.dueDate, and: datePaid),
+            isPartial: paidAmount < occurrence.amount,
+            hasConfirmationNumber: confirmationNumber?.isEmpty == false
+        ))
+
         try refresh()
         await refreshNotifications()
+    }
+
+    /// Whole days from `dueDate` to `paidDate`; negative = paid early.
+    private func daysBetween(_ dueDate: Date, and paidDate: Date) -> Int {
+        calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: dueDate),
+            to: calendar.startOfDay(for: paidDate)
+        ).day ?? 0
     }
 
     func addBill(_ bill: Bill) async throws {
         Logger.log("Adding bill: \(bill.name)", level: .info)
         modelContext.insert(bill)
         try modelContext.save()
+
+        analyticsCapture(.billCreated(
+            category: bill.categoryIdentifier?.analyticsKey ?? "none",
+            isRecurring: bill.recurrenceRule != nil,
+            recurrencePattern: bill.recurrenceRule?.pattern.rawValue ?? "none",
+            currencyCode: bill.currencyCode,
+            hasNotes: bill.notes?.isEmpty == false,
+            hasProviderURL: bill.providerURL?.isEmpty == false,
+            hasAccount: bill.accountIdentifier?.isEmpty == false
+        ))
+
         try refresh()
         await refreshNotifications()
     }
@@ -192,6 +226,14 @@ final class BillsModel {
         }
         try modelContext.save()
 
+        // Only count it as an unmark when payments were actually removed —
+        // a no-op call must not inflate the metric.
+        if payments.isEmpty == false {
+            analyticsCapture(.paymentUnmarked(
+                category: occurrence.categoryIdentifier?.analyticsKey ?? "none"
+            ))
+        }
+
         // Refresh data first, then recalculate badge with fresh state
         try refresh()
         await refreshNotifications()
@@ -203,6 +245,8 @@ final class BillsModel {
     func deletePaymentEntry(_ payment: PaymentEntry) async throws {
         Logger.log("Deleting payment entry: \(payment.amount) paid on \(payment.datePaid)", level: .info)
 
+        let categoryKey = payment.issuedOccurrence?.billCategoryRawValue
+            .flatMap(CategoryIdentifier.init(rawValue:))?.analyticsKey ?? "none"
         let issued = payment.issuedOccurrence
         let remainingPayments = issued?.safePaymentEntries.filter { $0 !== payment } ?? []
 
@@ -218,14 +262,27 @@ final class BillsModel {
         }
 
         try modelContext.save()
+
+        analyticsCapture(.paymentDeleted(category: categoryKey))
+
         try refresh()
         await refreshNotifications()
     }
 
     func deleteBill(_ bill: Bill) async throws {
         Logger.log("Deleting bill: \(bill.name)", level: .info)
+
+        let event = AnalyticsEvent.billDeleted(
+            category: bill.categoryIdentifier?.analyticsKey ?? "none",
+            isRecurring: bill.recurrenceRule != nil,
+            hadPayments: bill.allPaymentEntries.isEmpty == false
+        )
+
         modelContext.delete(bill)
         try modelContext.save()
+
+        analyticsCapture(event)
+
         try refresh()
         await refreshNotifications()
     }
@@ -235,6 +292,13 @@ final class BillsModel {
             try issuePastDueOccurrencesIfNeeded(for: bill, preEditSnapshot: preEditSnapshot)
         }
         try modelContext.save()
+
+        analyticsCapture(.billUpdated(
+            category: bill.categoryIdentifier?.analyticsKey ?? "none",
+            isRecurring: bill.recurrenceRule != nil,
+            rescheduled: preEditSnapshot.map { $0.dueDate != bill.dueDate } ?? false
+        ))
+
         try refresh()
         await refreshNotifications()
     }
@@ -245,6 +309,13 @@ final class BillsModel {
         Logger.log("Adding income: \(income.name), amount: \(income.amount)", level: .info)
         modelContext.insert(income)
         try modelContext.save()
+
+        analyticsCapture(.incomeCreated(
+            isRecurring: income.recurrenceRule != nil,
+            recurrencePattern: income.recurrenceRule?.pattern.rawValue ?? "none",
+            currencyCode: income.currencyCode
+        ))
+
         try refresh()
     }
 
@@ -263,8 +334,13 @@ final class BillsModel {
             context: modelContext
         )
 
+        let event = AnalyticsEvent.incomeDeleted(isRecurring: income.recurrenceRule != nil)
+
         modelContext.delete(income)
         try modelContext.save()
+
+        analyticsCapture(event)
+
         try refresh()
     }
 
@@ -307,6 +383,13 @@ final class BillsModel {
         income.materializationStartDate = calendar.startOfDay(for: now)
 
         try modelContext.save()
+
+        analyticsCapture(.incomeUpdated(
+            isRecurring: income.recurrenceRule != nil,
+            recurrencePattern: income.recurrenceRule?.pattern.rawValue ?? "none",
+            currencyCode: income.currencyCode
+        ))
+
         try refresh()
     }
 
@@ -315,9 +398,15 @@ final class BillsModel {
             "Skipping income occurrence: \(occurrence.incomeName) on \(occurrence.date)",
             level: .info
         )
-        // Mark every row sharing this occurrenceKey as excluded so the operation
-        // is logically per-key. Without this, a CloudKit duplicate at the same key
-        // would leave the un-skipped twin visible after a refresh.
+        try excludeOccurrences(sharingKeyWith: occurrence)
+        analyticsCapture(.incomeOccurrenceSkipped)
+        try refresh()
+    }
+
+    /// Marks every row sharing the occurrence's key as excluded so the operation
+    /// is logically per-key. Without this, a CloudKit duplicate at the same key
+    /// would leave the un-skipped twin visible after a refresh.
+    private func excludeOccurrences(sharingKeyWith occurrence: IncomeOccurrence) throws {
         let key = occurrence.occurrenceKey
         let descriptor = FetchDescriptor<IncomeOccurrence>(
             predicate: #Predicate<IncomeOccurrence> { $0.occurrenceKey == key }
@@ -329,7 +418,6 @@ final class BillsModel {
             row.excludedDate = now
         }
         try modelContext.save()
-        try refresh()
     }
 
     /// Corrects the amount on a single past income occurrence. Only mutates
@@ -351,6 +439,7 @@ final class BillsModel {
         )
         occurrence.incomeAmount = amount
         try modelContext.save()
+        analyticsCapture(.incomeOccurrenceAmountEdited)
         try refresh()
     }
 
@@ -369,7 +458,9 @@ final class BillsModel {
             "Deleting income occurrence: \(occurrence.incomeName) on \(occurrence.date)",
             level: .info
         )
-        try await skipIncomeOccurrence(occurrence)
+        try excludeOccurrences(sharingKeyWith: occurrence)
+        analyticsCapture(.incomeOccurrenceDeleted)
+        try refresh()
     }
 
     private func calculateUnpaidCount() -> Int {

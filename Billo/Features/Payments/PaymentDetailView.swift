@@ -24,6 +24,7 @@ struct PaymentDetailView: View {
                     Text(payment.amount, format: .currency(code: currencyCode))
                         .foregroundStyle(DesignSystem.Color.green)
                 }
+                .replayMaskSensitive()
 
                 HStack {
                     Text("Paid on")
@@ -39,17 +40,20 @@ struct PaymentDetailView: View {
                         Text(confirmation)
                             .foregroundStyle(.secondary)
                     }
+                    .replayMaskSensitive()
                 }
 
                 if let notes = payment.notes, !notes.isEmpty {
                     Text(notes)
                         .foregroundStyle(.secondary)
+                        .replayMaskSensitive()
                 }
             }
 
             if let billName = payment.snapshotName {
                 Section("Bill") {
                     Text(billName)
+                        .replayMaskSensitive()
                     Text("Due date: \(payment.occurrenceDate.formatted(date: .abbreviated, time: .omitted))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -66,6 +70,7 @@ struct PaymentDetailView: View {
         }
         .navigationTitle("Payment")
         .platformInlineNavigationTitle()
+        .analyticsScreen(.paymentDetail)
         .confirmationDialog(
             "Delete Payment",
             isPresented: $showDeleteConfirmation,

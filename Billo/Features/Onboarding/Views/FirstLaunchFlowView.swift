@@ -6,11 +6,13 @@ struct FirstLaunchFlowView: View {
     @Environment(AppFlowModel.self) private var flow
     @Environment(AppSettingsModel.self) private var appSettingsModel
     @Environment(StoreKitManager.self) private var storeKit
+    @Environment(AnalyticsModel.self) private var analytics
 
     let paywallPolicy: FirstLaunchPaywallPolicy
     let onFinish: () -> Void
 
     @State private var path: [FirstLaunchStep] = []
+    @State private var didTrackStart = false
 
     private var firstStep: FirstLaunchStep { orderedSteps[0] }
 
@@ -22,6 +24,11 @@ struct FirstLaunchFlowView: View {
                     stepView(for: step)
                         .navigationBarBackButtonHidden(true)
                 }
+        }
+        .onAppear {
+            guard !didTrackStart else { return }
+            didTrackStart = true
+            analytics.capture(.onboardingStarted)
         }
     }
 
@@ -57,6 +64,7 @@ struct FirstLaunchFlowView: View {
     }
 
     private func goToNext(after step: FirstLaunchStep) {
+        analytics.capture(.onboardingStepContinued(step: String(describing: step)))
         guard let next = nextStep(after: step) else {
             Logger.log("First-launch flow finished (no next step)", level: .info)
             onFinish()
@@ -73,17 +81,23 @@ struct FirstLaunchFlowView: View {
         switch step {
         case .marketing1:
             FirstLaunchMarketingStep1View(onContinue: { goToNext(after: .marketing1) })
+                .analyticsScreen(.onboardingMarketing1)
 
         case .marketing2:
             FirstLaunchMarketingStep2View(onContinue: { goToNext(after: .marketing2) })
+                .analyticsScreen(.onboardingMarketing2)
 
         case .marketing3:
             FirstLaunchMarketingStep3View(onContinue: { goToNext(after: .marketing3) })
+                .analyticsScreen(.onboardingMarketing3)
 
         case .marketing4:
             FirstLaunchMarketingStep4View(onContinue: { goToNext(after: .marketing4) })
+                .analyticsScreen(.onboardingMarketing4)
 
         case .currency:
+            // Screen tracked inside CurrencyOnboardingView (which this step
+            // embeds) — adding it here too would double-count the step.
             FirstLaunchCurrencyStepView(onContinue: {
                 handleCurrencyFinished()
             })
@@ -97,16 +111,23 @@ struct FirstLaunchFlowView: View {
             )
 
         case .thankYou:
-            PurchaseThankYouView(onContinue: onFinish)
+            PurchaseThankYouView(onContinue: {
+                analytics.capture(.onboardingCompleted(outcome: "purchased"))
+                onFinish()
+            })
+            .analyticsScreen(.purchaseThankYou)
         }
     }
 
     private func handleCurrencyFinished() {
-        guard appSettingsModel.currencyCode != nil else { return }
+        guard let currencyCode = appSettingsModel.currencyCode else { return }
+
+        analytics.capture(.onboardingCurrencySelected(currencyCode: currencyCode))
 
         Logger.log("First-launch currency set, evaluating paywall", level: .info)
         if storeKit.isPro {
             flow.markFirstLaunchPaywallShown()
+            analytics.capture(.onboardingCompleted(outcome: "already_pro"))
             onFinish()
             return
         }
@@ -121,6 +142,7 @@ struct FirstLaunchFlowView: View {
             path.append(.paywall)
         } else {
             Logger.log("First-launch paywall skipped by policy", level: .info)
+            analytics.capture(.onboardingCompleted(outcome: "skipped_by_policy"))
             onFinish()
         }
     }
@@ -130,10 +152,13 @@ struct FirstLaunchFlowView: View {
 
         switch result {
         case .purchased:
+            // `onboarding completed(purchased)` fires from the thank-you
+            // Continue button — the flow isn't complete yet here.
             Logger.log("First-launch paywall result: purchased", level: .info)
             path.append(.thankYou)
         case .dismissed:
             Logger.log("First-launch paywall result: dismissed", level: .info)
+            analytics.capture(.onboardingCompleted(outcome: "dismissed"))
             onFinish()
         }
     }
@@ -152,5 +177,6 @@ struct FirstLaunchFlowView: View {
         .environment(preview.appSettingsModel)
         .environment(flow)
         .environment(storeKit)
+        .environment(AnalyticsModel())
 }
 #endif

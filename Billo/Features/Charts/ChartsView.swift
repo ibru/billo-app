@@ -15,8 +15,10 @@ struct ChartsView: View {
 
     var body: some View {
         content
+            .replayMaskSensitive()
             .navigationTitle("Charts")
             .platformInlineNavigationTitle()
+            .analyticsScreen(.charts)
             .task {
                 await loadData()
             }
@@ -148,4 +150,5 @@ private struct MonthSwitcherHeader: View {
     NavigationStack {
         ChartsView()
     }
+    .environment(AnalyticsModel())
 }

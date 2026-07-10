@@ -41,6 +41,7 @@ struct BillsListView: View {
                         totals: billsModel.sections.monthlyTotals,
                         currencyCode: currencyCode
                     )
+                    .replayMaskSensitive()
 
                     billSections()
 
@@ -49,6 +50,7 @@ struct BillsListView: View {
             }
         }
         .background(DesignSystem.Color.groupedBackground)
+        .analyticsScreen(.billsList)
         .task {
             do {
                 try billsModel.refresh(monthsAhead: monthsAhead)
@@ -122,7 +124,7 @@ struct BillsListView: View {
     private func markPaid(_ occurrence: BillOccurrence) {
         Task {
             do {
-                try await billsModel.markPaid(occurrence)
+                try await billsModel.markPaid(occurrence, source: .listSwipe)
             } catch {
                 Logger.log("Failed to mark bill as paid: \(error)", level: .error)
             }
@@ -356,6 +358,7 @@ struct BillRowView: View {
         }
         .frame(minHeight: CountdownBadgeView.estimatedSize)
         .contentShape(Rectangle())
+        .replayMaskSensitive()
     }
 }
 
@@ -461,6 +464,7 @@ private struct BillSectionHeader: View {
                 }
                 .monospacedDigit()
                 .fontWeight(.bold)
+                .replayMaskSensitive()
             }
         }
         .frame(maxWidth: .infinity)
