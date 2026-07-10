@@ -281,8 +281,7 @@ struct BillRowView: View {
     }
 
     private var categoryColor: Color {
-        guard let info = categoryInfo else { return .secondary }
-        return DesignSystem.Color.categoryColor(for: info.colorToken)
+        categoryInfo?.color ?? .secondary
     }
 
     private var amountColor: Color {
@@ -305,7 +304,7 @@ struct BillRowView: View {
                     isOverdue: badgeConfiguration.isOverdue
                 )
             } else if section == .later, let info = categoryInfo {
-                Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                Image(systemName: info.systemImageName)
                     .font(.title2)
                     .foregroundStyle(categoryColor)
                     .frame(minWidth: CountdownBadgeView.estimatedSize, minHeight: CountdownBadgeView.estimatedSize)
@@ -320,7 +319,7 @@ struct BillRowView: View {
                     if let info = categoryInfo {
                         HStack(spacing: DesignSystem.Spacing.extraSmall) {
                             if section != .later {
-                                Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
+                                Image(systemName: info.systemImageName)
                                     .foregroundStyle(categoryColor)
                             }
                             Text(info.name)

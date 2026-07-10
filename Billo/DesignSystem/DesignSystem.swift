@@ -73,13 +73,34 @@ enum DesignSystem {
         /// Neutral dark (#2E2F33)
         static let neutralDark = paletteColor(0x2E2F33)
 
-        // MARK: Category Colors
-        static let categoryUtility = paletteColor(0x5856D6)   // Indigo
-        static let categorySubscriptions = paletteColor(0xFF6B6B)  // Coral
-        static let categoryHousing = paletteColor(0x34C759)   // Green
-        static let categoryInsurance = paletteColor(0x5AC8FA)  // Sky blue
-        static let categoryLoans = paletteColor(0xFF9500)     // Amber
-        static let categoryOther = paletteColor(0x8E8E93)     // Gray
+        // MARK: Category Palette
+        /// Hex strings for category colors. Single source for the predefined
+        /// category colors and the custom-category swatch grid; persisted
+        /// values (`CustomCategory.colorHex`) reference these strings.
+        enum CategoryPalette {
+            static let utilities = "#5856D6"       // Indigo
+            static let subscriptions = "#FF6B6B"   // Coral
+            static let housing = "#34C759"         // Green
+            static let insurance = "#5AC8FA"       // Sky blue
+            static let loans = "#FF9500"           // Amber
+            static let transportation = "#007AFF"  // Blue
+            static let phoneInternet = "#30B0C7"   // Teal
+            static let health = "#FF2D55"          // Pink
+            static let entertainment = "#AF52DE"   // Purple
+            static let groceries = "#9BC53D"       // Lime
+            static let education = "#A2845E"       // Brown
+            static let family = "#FFCC00"          // Yellow
+            static let pets = "#00C7BE"            // Mint
+            static let taxesFees = "#C9366F"       // Raspberry
+            static let other = "#8E8E93"           // Gray
+
+            /// Swatches offered when creating a custom category.
+            static let swatches: [String] = [
+                utilities, transportation, insurance, phoneInternet, pets,
+                housing, groceries, family, loans, subscriptions,
+                health, taxesFees, entertainment, education, other
+            ]
+        }
 
         // MARK: - Helpers
         private static func paletteColor(_ hex: UInt32, alpha: Double = 1) -> SwiftUI.Color {
@@ -121,37 +142,6 @@ enum DesignSystem {
             }
         }
 
-        static func categoryColor(for token: String) -> SwiftUI.Color {
-            switch DesignSystem.canonicalCategoryToken(from: token) {
-            case "utility": return categoryUtility
-            case "subscriptions": return categorySubscriptions
-            case "housing": return categoryHousing
-            case "insurance": return categoryInsurance
-            case "loans": return categoryLoans
-            default: return categoryOther
-            }
-        }
-    }
-
-    // MARK: - Icons
-    enum Icon {
-        static let categoryUtility = "bolt.fill"
-        static let categorySubscriptions = "arrow.triangle.2.circlepath"
-        static let categoryHousing = "house.fill"
-        static let categoryInsurance = "shield.fill"
-        static let categoryLoans = "creditcard.fill"
-        static let categoryOther = "ellipsis.circle.fill"
-
-        static func categoryIcon(for token: String) -> String {
-            switch DesignSystem.canonicalCategoryToken(from: token) {
-            case "utility": return categoryUtility
-            case "subscriptions": return categorySubscriptions
-            case "housing": return categoryHousing
-            case "insurance": return categoryInsurance
-            case "loans": return categoryLoans
-            default: return categoryOther
-            }
-        }
     }
 }
 
@@ -177,43 +167,39 @@ extension View {
         let shadow = DesignSystem.Shadow.subtle
         return self.shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
     }
+
+    /// Red tint for destructive controls. The app-wide green tint
+    /// (`BilloApp`) overrides the destructive role's implicit red, so every
+    /// destructive button/swipe action must re-tint through this single
+    /// modifier instead of ad-hoc `.tint(.red)` calls.
+    func destructiveTint() -> some View {
+        tint(DesignSystem.Color.red)
+    }
 }
 
-// MARK: - Helpers
+// MARK: - Hex Colors
 
-extension DesignSystem {
-    static func canonicalCategoryToken(from rawToken: String) -> String {
-        let normalized = normalizeCategoryToken(rawToken)
+extension SwiftUI.Color {
+    /// Parses a `"#RRGGBB"` hex string (leading `#` optional). Unparseable
+    /// input falls back to the neutral category gray so a corrupt persisted
+    /// value can never crash rendering.
+    init(hex: String) {
+        let sanitized = hex
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "#", with: "")
 
-        switch normalized {
-        case "utility", "utilities", "energy", "water":
-            return "utility"
-        case "subscription", "subscriptions", "streaming", "services":
-            return "subscriptions"
-        case "housing", "rent", "mortgage", "home":
-            return "housing"
-        case "insurance", "assurance":
-            return "insurance"
-        case "loan", "loans", "debt", "creditcard":
-            return "loans"
-        case "other", "misc", "miscellaneous":
-            return "other"
-        default:
-            return normalized.isEmpty ? "other" : normalized
+        guard sanitized.count == 6, let value = UInt32(sanitized, radix: 16) else {
+            // CategoryPalette.other (#8E8E93), inlined to keep the fallback non-recursive
+            self.init(.sRGB, red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255, opacity: 1)
+            return
         }
-    }
 
-    fileprivate static func normalizeCategoryToken(_ rawToken: String) -> String {
-        let trimmed = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "" }
-
-        let folded = trimmed.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        let lowercase = folded.lowercased()
-        let sanitized = lowercase
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "-", with: "")
-            .replacingOccurrences(of: "_", with: "")
-
-        return sanitized
+        self.init(
+            .sRGB,
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255,
+            opacity: 1
+        )
     }
 }

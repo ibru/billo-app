@@ -27,6 +27,33 @@ struct BillsModelTests {
 
             #expect(sut.sections.occurrencesBySection.isEmpty == false)
         }
+
+        @Test func whenBillsCategorized_thenRefreshCachesUsageCounts() throws {
+            let (sut, bills, context, _, _) = try makeSUT(billCount: 3)
+            bills[0].categoryIdentifier = .predefined(.utilities)
+            bills[1].categoryIdentifier = .predefined(.utilities)
+            bills[2].categoryIdentifier = .custom("custom-1")
+            try context.save()
+
+            try sut.refresh()
+
+            #expect(sut.categoryUsageCounts == [
+                .predefined(.utilities): 2,
+                .custom("custom-1"): 1
+            ])
+        }
+
+        @Test func whenBillDeleted_thenRefreshDropsItsUsageCount() async throws {
+            let (sut, bills, context, _, _) = try makeSUT(billCount: 2)
+            bills[0].categoryIdentifier = .predefined(.pets)
+            bills[1].categoryIdentifier = .predefined(.pets)
+            try context.save()
+            try sut.refresh()
+
+            try await sut.deleteBill(bills[0])
+
+            #expect(sut.categoryUsageCounts == [.predefined(.pets): 1])
+        }
     }
 
     @MainActor

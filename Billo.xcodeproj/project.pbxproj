@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		49007E002ED5B1DA009FD9E1 /* SFSymbols in Frameworks */ = {isa = PBXBuildFile; productRef = 49007E012ED5B1DA009FD9E2 /* SFSymbols */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		49007DC82ED5B1DA009FD9ED /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				49007E002ED5B1DA009FD9E1 /* SFSymbols in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,6 +108,7 @@
 			);
 			name = Billo;
 			packageProductDependencies = (
+				49007E012ED5B1DA009FD9E2 /* SFSymbols */,
 			);
 			productName = Billo;
 			productReference = 49007DB62ED5B1D8009FD9ED /* Billo.app */;
@@ -159,6 +165,9 @@
 			);
 			mainGroup = 49007DAD2ED5B1D8009FD9ED;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				49007E022ED5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "SFSymbols" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 49007DB72ED5B1D8009FD9ED /* Products */;
 			projectDirPath = "";
@@ -636,6 +645,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		49007E022ED5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "SFSymbols" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/simonbs/SFSymbols";
+			requirement = {
+				kind = exactVersion;
+				version = 1.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		49007E012ED5B1DA009FD9E2 /* SFSymbols */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 49007E022ED5B1DA009FD9E3 /* XCRemoteSwiftPackageReference "SFSymbols" */;
+			productName = SFSymbols;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 49007DAE2ED5B1D8009FD9ED /* Project object */;
 }

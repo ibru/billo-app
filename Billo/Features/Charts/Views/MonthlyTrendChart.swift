@@ -31,7 +31,7 @@ struct MonthlyTrendChart: View {
         }
 
         let pointsSummary = data.points
-            .map { "\($0.monthLabel): \($0.totalDue.formatted(.currency(code: currencyCode)))" }
+            .map { "\($0.monthLabel): \($0.total.formatted(.currency(code: currencyCode)))" }
             .joined(separator: ", ")
 
         return String(
@@ -63,7 +63,7 @@ struct MonthlyTrendChart: View {
         Chart(data.points) { point in
             BarMark(
                 x: .value("Month", point.monthLabel),
-                y: .value("Amount", point.totalDue)
+                y: .value("Amount", point.total)
             )
             .foregroundStyle(DesignSystem.Color.red.gradient)
         }
@@ -85,12 +85,12 @@ struct MonthlyTrendChart: View {
 #Preview {
     MonthlyTrendChart(data: MonthlyTrendData(
         points: [
-            MonthlyTrendPoint(month: Date(), monthLabel: "Aug", totalDue: 2800),
-            MonthlyTrendPoint(month: Date(), monthLabel: "Sep", totalDue: 3100),
-            MonthlyTrendPoint(month: Date(), monthLabel: "Oct", totalDue: 2900),
-            MonthlyTrendPoint(month: Date(), monthLabel: "Nov", totalDue: 3400),
-            MonthlyTrendPoint(month: Date(), monthLabel: "Dec", totalDue: 3200),
-            MonthlyTrendPoint(month: Date(), monthLabel: "Jan", totalDue: 3000)
+            MonthlyTrendPoint(month: Date(), monthLabel: "Aug", total: 2800),
+            MonthlyTrendPoint(month: Date(), monthLabel: "Sep", total: 3100),
+            MonthlyTrendPoint(month: Date(), monthLabel: "Oct", total: 2900),
+            MonthlyTrendPoint(month: Date(), monthLabel: "Nov", total: 3400),
+            MonthlyTrendPoint(month: Date(), monthLabel: "Dec", total: 3200),
+            MonthlyTrendPoint(month: Date(), monthLabel: "Jan", total: 3000)
         ]
     ))
     .padding()

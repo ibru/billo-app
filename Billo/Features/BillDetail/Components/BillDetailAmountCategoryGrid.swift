@@ -42,9 +42,9 @@ struct BillDetailAmountCategoryGrid: View {
                 .textCase(.uppercase)
 
             HStack(spacing: DesignSystem.Spacing.extraSmall) {
-                Image(systemName: DesignSystem.Icon.categoryIcon(for: category.iconToken))
+                Image(systemName: category.systemImageName)
                     .font(.body)
-                    .foregroundStyle(DesignSystem.Color.categoryColor(for: category.colorToken))
+                    .foregroundStyle(category.color)
 
                 Text(category.name)
                     .font(.title3.weight(.medium))

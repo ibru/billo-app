@@ -1,159 +1,155 @@
 //  Created by Jiri Urbasek on 11/27/25.
 
 import Foundation
-
-struct CategoryDefinition: Identifiable, Sendable {
-    let identifier: DefaultCategoryIdentifier
-    let name: String
-    let iconToken: String
-    let colorToken: String
-    let sortOrder: Int
-
-    var id: DefaultCategoryIdentifier { identifier }
-
-    var categoryIdentifier: CategoryIdentifier { .predefined(identifier) }
-}
+import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct CategoryDisplayInfo: Identifiable, Hashable, Sendable {
     let id: CategoryIdentifier
     let name: String
-    let iconToken: String
-    let colorToken: String
+    /// Literal SF Symbol name, validated at construction — render with
+    /// `Image(systemName:)` without further checks.
+    let systemImageName: String
+    /// "#RRGGBB" — render with `color`.
+    let colorHex: String
     let isArchived: Bool
     let isCustom: Bool
     let sortOrder: Int
+
+    var color: SwiftUI.Color { SwiftUI.Color(hex: colorHex) }
+
+    /// Canonical category ordering used by the catalog, pickers, and charts:
+    /// catalog `sortOrder`, then name, then id as the deterministic tie-break.
+    static func displayOrder(_ lhs: CategoryDisplayInfo, _ rhs: CategoryDisplayInfo) -> Bool {
+        if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+        let nameComparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+        if nameComparison != .orderedSame { return nameComparison == .orderedAscending }
+        return lhs.id.rawValue < rhs.id.rawValue
+    }
 }
 
 enum CategoryCatalog {
-    static let currentVersion = "2025.1"
-
-    private static var cachedDefaults: [CategoryIdentifier: CategoryDisplayInfo] = [:]
-    private static let cacheLock = NSLock()
-
     static func availableCategories(
         customCategories: [CustomCategory],
         includeArchived: Bool = false
     ) -> [CategoryDisplayInfo] {
-        CategoryCatalogVersioning.ensureCurrentVersionApplied()
+        let customInfos = customCategories
+            .filter { includeArchived || $0.isArchived == false }
+            .map(displayInfo(for:))
 
-        let defaults = definitions.map { definition in
-            cachedDefaultDisplayInfo(for: definition)
-        }
-
-        let customInfos = customCategories.enumerated().compactMap { pair -> CategoryDisplayInfo? in
-            let (index, category) = pair
-            guard includeArchived || category.isArchived == false else { return nil }
-            return CategoryDisplayInfo(
-                id: .custom(category.id),
-                name: category.name,
-                iconToken: category.iconToken,
-                colorToken: category.colorToken,
-                isArchived: category.isArchived,
-                isCustom: true,
-                sortOrder: definitionSortBase + index
-            )
-        }
-
-        return (defaults + customInfos)
-            .sorted { lhs, rhs in
-                if lhs.sortOrder == rhs.sortOrder {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return lhs.sortOrder < rhs.sortOrder
-            }
+        return (defaultDisplayInfos + customInfos)
+            .sorted(by: CategoryDisplayInfo.displayOrder)
     }
 
     static func displayInfo(
         for identifier: CategoryIdentifier?,
         customCategories: [CustomCategory]
     ) -> CategoryDisplayInfo? {
-        guard let identifier else { return nil }
-        CategoryCatalogVersioning.ensureCurrentVersionApplied()
-
         switch identifier {
+        case nil:
+            return nil
         case .predefined(let defaultIdentifier):
-            guard let definition = definitionsMap[defaultIdentifier] else { return nil }
-            return cachedDefaultDisplayInfo(for: definition)
+            return displayInfo(for: defaultIdentifier)
         case .custom(let id):
-            guard let index = customCategories.firstIndex(where: { $0.id == id }) else { return nil }
-            let category = customCategories[index]
-            return CategoryDisplayInfo(
-                id: .custom(category.id),
-                name: category.name,
-                iconToken: category.iconToken,
-                colorToken: category.colorToken,
-                isArchived: category.isArchived,
-                isCustom: true,
-                sortOrder: definitionSortBase + index
-            )
+            guard let category = customCategories.first(where: { $0.id == id }) else { return nil }
+            return displayInfo(for: category)
         }
     }
 
-    static func invalidateCaches() {
-        cacheLock.lock()
-        cachedDefaults.removeAll()
-        cacheLock.unlock()
-    }
-
-    private static func cachedDefaultDisplayInfo(for definition: CategoryDefinition) -> CategoryDisplayInfo {
-        cacheLock.perform {
-            if let cached = cachedDefaults[definition.categoryIdentifier] {
-                return cached
-            }
-
-            let displayInfo = CategoryDisplayInfo(
-                id: definition.categoryIdentifier,
-                name: definition.name,
-                iconToken: definition.iconToken,
-                colorToken: definition.colorToken,
-                isArchived: false,
-                isCustom: false,
-                sortOrder: definition.sortOrder
-            )
-
-            cachedDefaults[definition.categoryIdentifier] = displayInfo
-            return displayInfo
-        }
-    }
-
-    private static let definitions: [CategoryDefinition] = DefaultCategoryIdentifier.allCases.map { identifier in
-        CategoryDefinition(
-            identifier: identifier,
-            name: identifier.displayName,
-            iconToken: identifier.iconToken,
-            colorToken: identifier.colorToken,
-            sortOrder: identifier.sortOrder
+    /// Non-optional lookup for predefined categories — every case has a
+    /// definition, so callers (previews, fallback paths) don't need to unwrap.
+    static func displayInfo(for defaultIdentifier: DefaultCategoryIdentifier) -> CategoryDisplayInfo {
+        CategoryDisplayInfo(
+            id: .predefined(defaultIdentifier),
+            name: defaultIdentifier.displayName,
+            systemImageName: defaultIdentifier.systemImageName,
+            colorHex: defaultIdentifier.colorHex,
+            isArchived: false,
+            isCustom: false,
+            sortOrder: defaultIdentifier.sortOrder
         )
     }
 
-    private static let definitionsMap: [DefaultCategoryIdentifier: CategoryDefinition] = {
-        var map: [DefaultCategoryIdentifier: CategoryDefinition] = [:]
-        for definition in definitions {
-            map[definition.identifier] = definition
+    // MARK: - Usage Ranking
+
+    /// Count of bills per assigned category. O(bills). Bills without a
+    /// category count nowhere.
+    static func usageCounts(bills: [Bill]) -> [CategoryIdentifier: Int] {
+        var counts: [CategoryIdentifier: Int] = [:]
+        for bill in bills {
+            guard let identifier = bill.categoryIdentifier else { continue }
+            counts[identifier, default: 0] += 1
         }
-        return map
-    }()
-
-    private static let definitionSortBase = 1000
-}
-
-enum CategoryCatalogVersioning {
-    private static let defaultsKey = "CategoryCatalogVersion"
-
-    static func ensureCurrentVersionApplied() {
-        let defaults = UserDefaults.standard
-        let appliedVersion = defaults.string(forKey: defaultsKey)
-        guard appliedVersion != CategoryCatalog.currentVersion else { return }
-
-        CategoryCatalog.invalidateCaches()
-        defaults.set(CategoryCatalog.currentVersion, forKey: defaultsKey)
+        return counts
     }
-}
 
-private extension NSLock {
-    func perform<T>(_ work: () -> T) -> T {
-        lock()
-        defer { unlock() }
-        return work()
+    /// The quick-pick options for the bill editor: top `limit` categories by
+    /// usage (desc), tie-broken by the canonical display order. Slots beyond
+    /// the used categories fill with predefined catalog order. `selected` is
+    /// always included, replacing the last slot when it ranks outside the top
+    /// `limit` (even when archived, so an existing bill's category never
+    /// vanishes from the editor).
+    static func quickPickCategories(
+        customCategories: [CustomCategory],
+        usageCounts: [CategoryIdentifier: Int],
+        selected: CategoryIdentifier?,
+        limit: Int = 8
+    ) -> [CategoryDisplayInfo] {
+        let ranked = availableCategories(customCategories: customCategories)
+            .sorted { lhs, rhs in
+                let lhsCount = usageCounts[lhs.id] ?? 0
+                let rhsCount = usageCounts[rhs.id] ?? 0
+                if lhsCount != rhsCount { return lhsCount > rhsCount }
+                return CategoryDisplayInfo.displayOrder(lhs, rhs)
+            }
+
+        var picks = Array(ranked.prefix(limit))
+
+        if let selected,
+           picks.contains(where: { $0.id == selected }) == false,
+           let selectedInfo = displayInfo(for: selected, customCategories: customCategories) {
+            if picks.count >= limit {
+                picks[picks.count - 1] = selectedInfo
+            } else {
+                picks.append(selectedInfo)
+            }
+        }
+
+        return picks
+    }
+
+    // MARK: - Private
+
+    /// Built once per process; predefined categories are compile-time
+    /// constants, so no locking or invalidation is needed.
+    private static let defaultDisplayInfos: [CategoryDisplayInfo] =
+        DefaultCategoryIdentifier.allCases.map { displayInfo(for: $0) }
+
+    private static func displayInfo(for category: CustomCategory) -> CategoryDisplayInfo {
+        CategoryDisplayInfo(
+            id: .custom(category.id),
+            name: category.name,
+            systemImageName: validatedSymbolName(category.iconToken),
+            colorHex: category.colorHex,
+            isArchived: category.isArchived,
+            isCustom: true,
+            sortOrder: customSortBase
+        )
+    }
+
+    /// Custom categories sort after every predefined category; ordering among
+    /// them comes from `displayOrder`'s name/id tie-breaks.
+    private static let customSortBase = 1000
+
+    /// A persisted symbol name can be invalid on this OS (synced from a
+    /// device with a newer symbol catalog, or corrupt) — `Image(systemName:)`
+    /// would render blank, so degrade to the default category glyph.
+    private static func validatedSymbolName(_ name: String) -> String {
+        #if canImport(UIKit)
+        guard UIImage(systemName: name) != nil else { return CategoryIcon.defaultSymbol }
+        #endif
+        return name
     }
 }

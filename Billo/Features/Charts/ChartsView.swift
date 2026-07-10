@@ -27,9 +27,9 @@ struct ChartsView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let state = chartsModel?.state {
+        if let chartsModel, let state = chartsModel.state {
             if state.hasData {
-                chartsScrollView(state: state)
+                chartsScrollView(model: chartsModel, state: state)
             } else {
                 emptyState
             }
@@ -38,9 +38,11 @@ struct ChartsView: View {
         }
     }
 
-    private func chartsScrollView(state: ChartsState) -> some View {
+    private func chartsScrollView(model: ChartsModel, state: ChartsState) -> some View {
         ScrollView {
             LazyVStack(spacing: DesignSystem.Spacing.medium) {
+                MonthSwitcherHeader(model: model)
+
                 MonthlyCashFlowChart(
                     data: state.cashFlow,
                     currencyCode: currencyCode
@@ -49,6 +51,10 @@ struct ChartsView: View {
                 CategoryBreakdownChart(
                     data: state.categoryBreakdown,
                     currencyCode: currencyCode
+                )
+
+                PaymentTimingChart(
+                    data: state.paymentTiming
                 )
 
                 MonthlyTrendChart(
@@ -79,6 +85,62 @@ struct ChartsView: View {
             chartsModel = ChartsModel(modelContext: modelContext)
         }
         chartsModel?.refresh()
+    }
+}
+
+/// Shared month pager for the month-scoped charts (cash flow and category
+/// breakdown). The trend charts below it always stay anchored to today.
+private struct MonthSwitcherHeader: View {
+    let model: ChartsModel
+
+    var body: some View {
+        VStack(spacing: DesignSystem.Spacing.extraSmall) {
+            HStack {
+                Button {
+                    withAnimation {
+                        model.stepMonth(by: -1)
+                    }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.body.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel(Text("Previous month", comment: "Accessibility label for the charts month switcher back button"))
+                .accessibilityIdentifier("charts_previous_month")
+
+                Spacer()
+
+                Text(model.selectedMonthLabel)
+                    .font(.headline)
+                    .accessibilityIdentifier("charts_selected_month")
+
+                Spacer()
+
+                Button {
+                    withAnimation {
+                        model.stepMonth(by: 1)
+                    }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.body.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel(Text("Next month", comment: "Accessibility label for the charts month switcher forward button"))
+                .accessibilityIdentifier("charts_next_month")
+            }
+
+            if !model.isViewingCurrentMonth {
+                Button {
+                    withAnimation {
+                        model.resetToCurrentMonth()
+                    }
+                } label: {
+                    Text("Back to current month", comment: "Button returning the charts month switcher to today's month")
+                        .font(.caption)
+                }
+                .accessibilityIdentifier("charts_reset_month")
+            }
+        }
     }
 }
 

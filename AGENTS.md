@@ -25,22 +25,21 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - Unit tests (iOS Simulator): `xcodebuild -project Billo.xcodeproj -scheme Billo -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' test`
 - Focused tests: append `-only-testing:BilloTests/<TestClass>`
 - Screenshots run (in-memory DB pre-seeded with realistic US demo data): use the `BilloScreenshots` scheme. It launches the main app with the `Screenshots` build configuration, which sets the `SCREENSHOTS` compile condition — see `Billo/App/ScreenshotMockData.swift` and the `#if SCREENSHOTS` branches in `BilloApp.swift`.
-- No external dependencies: Project uses only native Apple frameworks (SwiftUI, SwiftData, StoreKit 2, Charts)
+- Dependencies: native Apple frameworks (SwiftUI, SwiftData, StoreKit 2, Charts) plus a single SPM package — `simonbs/SFSymbols` 1.5.0 (SF Symbol picker UI). Adding any new dependency requires explicit user approval.
 
 ## Architecture & Patterns
-- **Pure SwiftUI**: No UIKit, no MVVM — follows Apple's Model-View architecture with `@Observable`, `@State`, `@Environment`.
+- **Pure SwiftUI**: No UIKit, no MVVM — follows Apple's Model-View architecture with `@Observable`, `@State`, `@Environment`. Narrow exception: UIKit bridges are allowed only where SwiftUI has no equivalent (e.g. pre-tinted `UIImage` for colored `Menu` icons in `CategoryQuickPicker`, `UIImage(systemName:)` symbol validation in `CategoryCatalog`); keep such bridges small and isolated.
 - **Data persistence**: SwiftData with CloudKit sync for seamless iCloud backup and multi-device support.
 - **Screaming Architecture**: Feature-based folders (`Features/<Feature_1>/`, `Features/<Feature_2>/`) that communicate the app's purpose at a glance.
 - **Subscription system**: StoreKit 2 with `StoreKitManager` singleton for Pro feature gating across the app.
 - **Data flow**: User input → @Observable model class -> SwiftData models -> automatic UI updates -> CloudKit sync.
-- **Localization**: Multi-language support with localization script for generating/updating string tables. 
+- **Localization**: Not set up yet. Strings live in `Billo/Localizable.xcstrings` (English only for now); multi-language support is planned later.
 
 ## Key Integration Points
-- **StoreKit 2**: In-app purchases via `StoreKitManager.shared` for Pro subscription management. Product IDs: TBD
-- **SwiftData + CloudKit**: Local-first data storage with automatic iCloud sync. Models defined in `Features/*/Models/`.
-- **Charts Framework**: TBD
+- **StoreKit 2**: In-app purchases via `StoreKitManager.shared` for Pro subscription management. Product IDs defined in `StoreKitManager.ProductID` (`...pro.sub.weekly`, `...pro.sub.yearly`).
+- **SwiftData + CloudKit**: Local-first data storage with automatic iCloud sync. Models defined in `Billo/Models/` and `Features/*/Models/`.
+- **Swift Charts**: Spending/income visualizations in `Features/Charts/` (cash flow, category breakdown, on-time payments, trends).
 - **Design System**: Centralized `DesignSystem.swift` provides spacing, colors, typography, and reusable view modifiers.
-- **Automatic Backup**: Background task exports complete app state to Documents directory with hash-based deduplication (keeps last 10 backups).
 
 ## Code Style
 - Follow Swift API Design Guidelines: expressive names, argument labels that read naturally.
@@ -48,7 +47,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - Avoid force unwraps except in guarded test helpers; prefer `guard let` with logged failures.
 - Single source of truth: Use one `@State` variable per logical concern (prefer optional types or enums over multiple boolean flags).
 - File headers: Always use `//  Created by Jiri Urbasek on ...` (never Claude Code, Codex etc).
-- Update localization strings for any user-facing copy changes. Follow guide at `docs/auto-translate-xcstrings.md` when manipulating with localized strings.
+- Keep user-facing copy extractable (use `Text`/`String(localized:)` with comments) so it lands in `Billo/Localizable.xcstrings`. No translation workflow exists yet.
 
 ## Workflow
 - Ask for clarification when requirements are ambiguous; surface 2–3 options when trade-offs matter
@@ -65,7 +64,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 
 ## Environment
 - Xcode 26+, Deployment target of iOS26+ and macOS26+. Simulator defaults to iPhone 17 Pro.
-- No external dependencies — uses only native Apple frameworks.
+- External dependencies limited to the `SFSymbols` SPM package; everything else is native Apple frameworks.
 - Universal app: Supports iPhone, iPad, and macOS via Mac Catalyst.
 
 ## Special Notes

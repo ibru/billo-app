@@ -33,7 +33,7 @@ struct CategoryTrendChart: View {
         }
 
         let categoriesList = data.categories
-            .map { $0.displayName }
+            .map { $0.name }
             .joined(separator: ", ")
 
         return String(
@@ -67,7 +67,7 @@ struct CategoryTrendChart: View {
                 x: .value("Month", point.monthLabel),
                 y: .value("Amount", point.amount)
             )
-            .foregroundStyle(colorForCategory(point.category))
+            .foregroundStyle(point.display.color)
         }
         .frame(height: 200)
         .chartYAxis {
@@ -86,36 +86,51 @@ struct CategoryTrendChart: View {
 
     private var legend: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: DesignSystem.Spacing.small) {
-            ForEach(data.categories, id: \.rawValue) { category in
+            ForEach(data.categories) { category in
                 HStack(spacing: DesignSystem.Spacing.extraSmall) {
                     Circle()
-                        .fill(colorForCategory(category))
+                        .fill(category.color)
                         .frame(width: 8, height: 8)
 
-                    Text(category.displayName)
+                    Text(category.name)
                         .font(.caption)
                         .lineLimit(1)
                 }
             }
         }
     }
-
-    private func colorForCategory(_ category: CategoryIdentifier) -> Color {
-        DesignSystem.Color.categoryColor(for: category.colorToken)
-    }
 }
 
 #Preview {
     CategoryTrendChart(data: CategoryTrendData(
         points: [
-            CategoryTrendPoint(month: Date(), monthLabel: "Oct", category: .predefined(.housing), amount: 1500),
-            CategoryTrendPoint(month: Date(), monthLabel: "Oct", category: .predefined(.utilities), amount: 200),
-            CategoryTrendPoint(month: Date(), monthLabel: "Nov", category: .predefined(.housing), amount: 1500),
-            CategoryTrendPoint(month: Date(), monthLabel: "Nov", category: .predefined(.utilities), amount: 180),
-            CategoryTrendPoint(month: Date(), monthLabel: "Dec", category: .predefined(.housing), amount: 1500),
-            CategoryTrendPoint(month: Date(), monthLabel: "Dec", category: .predefined(.utilities), amount: 220)
+            .preview(month: "Oct", category: .housing, amount: 1500),
+            .preview(month: "Oct", category: .utilities, amount: 200),
+            .preview(month: "Nov", category: .housing, amount: 1500),
+            .preview(month: "Nov", category: .utilities, amount: 180),
+            .preview(month: "Dec", category: .housing, amount: 1500),
+            .preview(month: "Dec", category: .utilities, amount: 220)
         ],
-        categories: [.predefined(.housing), .predefined(.utilities)]
+        categories: [
+            CategoryCatalog.displayInfo(for: .housing),
+            CategoryCatalog.displayInfo(for: .utilities)
+        ]
     ))
     .padding()
+}
+
+private extension CategoryTrendPoint {
+    static func preview(
+        month monthLabel: String,
+        category: DefaultCategoryIdentifier,
+        amount: Decimal
+    ) -> CategoryTrendPoint {
+        CategoryTrendPoint(
+            month: Date(),
+            monthLabel: monthLabel,
+            category: .predefined(category),
+            display: CategoryCatalog.displayInfo(for: category),
+            amount: amount
+        )
+    }
 }

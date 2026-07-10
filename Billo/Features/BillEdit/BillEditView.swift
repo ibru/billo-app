@@ -95,20 +95,14 @@ struct BillEditView: View {
 
                     DatePicker("Due Date", selection: $dueDate, displayedComponents: .date)
 
-                    Picker("Category", selection: $selectedCategoryIdentifier) {
-                        Text("None").tag(nil as CategoryIdentifier?)
-                        ForEach(categoryOptions) { option in
-                            HStack {
-                                Image(systemName: DesignSystem.Icon.categoryIcon(for: option.iconToken))
-                                    .foregroundStyle(DesignSystem.Color.categoryColor(for: option.colorToken))
-                                Text(option.name)
-                            }
-                            .tag(option.id as CategoryIdentifier?)
-                        }
-                    }
+                    CategoryQuickPicker(
+                        selection: $selectedCategoryIdentifier,
+                        usageCounts: billsModel.categoryUsageCounts,
+                        customCategories: customCategories
+                    )
                 }
 
-                Section(String(localized: "Repeat")) {
+                Section("Repeat") {
                     RecurrencePresetPicker(
                         selectedPreset: $selectedRecurrencePreset,
                         intervalType: $draftSelectedIntervalType,
@@ -159,10 +153,7 @@ struct BillEditView: View {
             }
             .alert(
                 activeAlert?.title ?? "",
-                isPresented: Binding(
-                    get: { activeAlert != nil },
-                    set: { if !$0 { activeAlert = nil } }
-                ),
+                isPresented: Binding(isPresent: $activeAlert),
                 presenting: activeAlert
             ) { alert in
                 alertActions(for: alert)
@@ -294,16 +285,13 @@ struct BillEditView: View {
         )
     }
 
-    private var categoryOptions: [CategoryDisplayInfo] {
-        CategoryCatalog.availableCategories(customCategories: customCategories)
-    }
 }
 
 extension BillEditView.Mode {
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
-        case .adding: return String(localized: "Add Bill")
-        case .editing: return String(localized: "Edit Bill")
+        case .adding: return "Add Bill"
+        case .editing: return "Edit Bill"
         }
     }
 }
@@ -314,12 +302,12 @@ private enum BillEditAlert {
     case saveError(String)
     case rescheduleWarning(strandedDates: [Date])
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .saveError:
-            return String(localized: "Error")
+            return "Error"
         case .rescheduleWarning:
-            return String(localized: "Reschedule Recurring Bill?")
+            return "Reschedule Recurring Bill?"
         }
     }
 

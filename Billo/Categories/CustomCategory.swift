@@ -7,8 +7,11 @@ import Foundation
 final class CustomCategory {
     var id: String = UUID().uuidString
     var name: String = ""
+    /// Literal SF Symbol name chosen by the user (e.g. "pawprint.fill").
     var iconToken: String = "tag"
-    var colorToken: String = "gray"
+    /// "#RRGGBB" hex string, normally one of
+    /// `DesignSystem.Color.CategoryPalette.swatches`.
+    var colorHex: String = "#8E8E93"
     var isArchived: Bool = false
     var archivedAt: Date?
     var replacementIdentifier: String?
@@ -18,7 +21,7 @@ final class CustomCategory {
         id: String = UUID().uuidString,
         name: String,
         iconToken: String,
-        colorToken: String,
+        colorHex: String,
         isArchived: Bool = false,
         archivedAt: Date? = nil,
         replacementIdentifier: String? = nil,
@@ -27,7 +30,7 @@ final class CustomCategory {
         self.id = id
         self.name = name
         self.iconToken = iconToken
-        self.colorToken = colorToken
+        self.colorHex = colorHex
         self.isArchived = isArchived
         self.archivedAt = archivedAt
         self.replacementIdentifier = replacementIdentifier

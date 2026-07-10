@@ -155,13 +155,7 @@ struct CalendarPaymentRow: View {
                     .foregroundColor(Color(uiColor: .label))
 
                 if let info = categoryInfo {
-                    HStack(spacing: 6) {
-                        Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
-                            .foregroundStyle(DesignSystem.Color.categoryColor(for: info.colorToken))
-                        Text(info.name)
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.caption)
+                    CategoryCaptionLabel(info: info)
                 }
             }
 

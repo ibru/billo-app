@@ -108,7 +108,7 @@ struct PaywallView: View {
             await storeKit.loadProductsIfNeeded()
             syncToggleWithSelection()
         }
-        .alert("Something went wrong", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
+        .alert("Something went wrong", isPresented: Binding(isPresent: $errorMessage)) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")

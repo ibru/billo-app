@@ -32,7 +32,7 @@ struct CategoryBreakdownChart: View {
 
         let totalFormatted = data.total.formatted(.currency(code: currencyCode))
         let categorySummary = data.slices
-            .map { "\($0.displayName): \(Int($0.percentage))%" }
+            .map { "\($0.display.name): \(Int($0.percentage))%" }
             .joined(separator: ", ")
 
         return String(
@@ -75,7 +75,7 @@ struct CategoryBreakdownChart: View {
                 innerRadius: .ratio(0.5),
                 angularInset: 1
             )
-            .foregroundStyle(DesignSystem.Color.categoryColor(for: slice.colorToken))
+            .foregroundStyle(slice.display.color)
         }
         .frame(width: 140, height: 140)
         .chartLegend(.hidden)
@@ -100,10 +100,10 @@ private struct CategoryLegendRow: View {
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             Circle()
-                .fill(DesignSystem.Color.categoryColor(for: slice.colorToken))
+                .fill(slice.display.color)
                 .frame(width: 10, height: 10)
 
-            Text(slice.displayName)
+            Text(slice.display.name)
                 .font(.caption)
                 .lineLimit(1)
 
@@ -119,12 +119,27 @@ private struct CategoryLegendRow: View {
 #Preview {
     CategoryBreakdownChart(data: CategoryBreakdownData(
         slices: [
-            CategorySlice(category: .predefined(.housing), amount: 1500, percentage: 45),
-            CategorySlice(category: .predefined(.subscriptions), amount: 300, percentage: 10),
-            CategorySlice(category: .predefined(.utilities), amount: 400, percentage: 12)
+            .preview(.housing, amount: 1500, percentage: 45),
+            .preview(.subscriptions, amount: 300, percentage: 10),
+            .preview(.utilities, amount: 400, percentage: 12)
         ],
         total: 2200,
         periodLabel: "January 2026"
     ))
     .padding()
+}
+
+private extension CategorySlice {
+    static func preview(
+        _ category: DefaultCategoryIdentifier,
+        amount: Decimal,
+        percentage: Double
+    ) -> CategorySlice {
+        CategorySlice(
+            category: .predefined(category),
+            display: CategoryCatalog.displayInfo(for: category),
+            amount: amount,
+            percentage: percentage
+        )
+    }
 }

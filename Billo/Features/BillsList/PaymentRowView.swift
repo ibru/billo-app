@@ -76,8 +76,8 @@ struct PaymentRowView: View {
         switch leadingIconStyle {
         case .category:
             if let info = categoryInfo {
-                Image(systemName: DesignSystem.Icon.categoryIcon(for: info.iconToken))
-                    .foregroundStyle(DesignSystem.Color.categoryColor(for: info.colorToken))
+                Image(systemName: info.systemImageName)
+                    .foregroundStyle(info.color)
                     .font(.title3)
                     .frame(width: 36)
             } else {

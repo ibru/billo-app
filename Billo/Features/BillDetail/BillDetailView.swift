@@ -181,7 +181,7 @@ struct BillDetailView: View {
                         .padding(.vertical, DesignSystem.Spacing.small)
                 }
                 .buttonStyle(.bordered)
-                .tint(.red)
+                .destructiveTint()
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium, style: .continuous))
                 .confirmationDialog(
                     "Delete Bill",
