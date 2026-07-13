@@ -112,8 +112,7 @@ private struct ThankYouBenefitRow: View {
             Spacer()
         }
         .padding(DesignSystem.Spacing.medium)
-        .background(DesignSystem.Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium))
     }
 }
 

@@ -19,11 +19,6 @@ extension DesignSystem.Color {
         SwiftUI.Color(uiColor: .systemGroupedBackground)
     }
 
-    /// Card background uses fixed palette color for both light and dark.
-    static var cardBackground: SwiftUI.Color {
-        DesignSystem.Color.neutralDark
-    }
-
     // MARK: - System Label Colors
     static var separator: SwiftUI.Color {
         SwiftUI.Color(uiColor: .separator)

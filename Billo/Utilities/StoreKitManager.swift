@@ -15,9 +15,10 @@ final class StoreKitManager {
     }
 
     enum ProductID {
-        static let weekly: String = "com.jiriurbasek.Billo.pro.sub.weekly"
+        static let monthly: String = "com.jiriurbasek.Billo.pro.sub.monthly"
         static let yearly: String = "com.jiriurbasek.Billo.pro.sub.yearly"
-        static let all: [String] = [weekly, yearly]
+        static let lifetime: String = "com.jiriurbasek.Billo.pro.lifetime"
+        static let all: [String] = [monthly, yearly, lifetime]
     }
 
     enum PurchaseError: LocalizedError, Equatable {

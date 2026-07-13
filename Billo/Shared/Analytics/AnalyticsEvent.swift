@@ -39,7 +39,6 @@ enum AnalyticsEvent: Sendable {
     // MARK: Paywall
     case paywallShown(context: String)
     case paywallPlanSelected(planId: String, context: String)
-    case paywallFreeTrialToggled(enabled: Bool, context: String)
     case paywallPurchaseAttempted(planId: String, context: String)
     case paywallPurchaseSucceeded(planId: String, context: String)
     case paywallPurchaseCancelled(planId: String, context: String)
@@ -127,7 +126,6 @@ extension AnalyticsEvent {
 
         case .paywallShown: "paywall shown"
         case .paywallPlanSelected: "paywall plan selected"
-        case .paywallFreeTrialToggled: "paywall free trial toggled"
         case .paywallPurchaseAttempted: "paywall purchase attempted"
         case .paywallPurchaseSucceeded: "paywall purchase succeeded"
         case .paywallPurchaseCancelled: "paywall purchase cancelled"
@@ -203,8 +201,6 @@ extension AnalyticsEvent {
             return ["plan_id": planId, "context": context, "error": error]
         case .paywallRestoreFailed(let context, let error):
             return ["context": context, "error": error]
-        case .paywallFreeTrialToggled(let enabled, let context):
-            return ["enabled": enabled, "context": context]
         case .proGateHit(let feature):
             return ["feature": feature]
 

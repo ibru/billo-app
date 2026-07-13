@@ -4,7 +4,21 @@
 
   ],
   "products" : [
-
+    {
+      "displayPrice" : "69.99",
+      "familyShareable" : false,
+      "internalID" : "lifetime_001",
+      "localizations" : [
+        {
+          "description" : "One-time purchase. Billo Pro forever.",
+          "displayName" : "Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.jiriurbasek.Billo.pro.lifetime",
+      "referenceName" : "Lifetime Pro",
+      "type" : "NonConsumable"
+    }
   ],
   "settings" : {
     "_developerTeamID" : "YOUR_TEAM_ID",
@@ -74,27 +88,21 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "3.99",
+          "displayPrice" : "4.99",
           "familyShareable" : false,
           "groupNumber" : 1,
-          "internalID" : "weekly_001",
-          "introductoryOffer" : {
-            "displayPrice" : "0",
-            "internalID" : "weekly_trial",
-            "numberOfPeriods" : 1,
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P3D"
-          },
+          "internalID" : "monthly_001",
+          "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Weekly subscription with 3-day free trial.",
-              "displayName" : "Weekly",
+              "description" : "Monthly subscription.",
+              "displayName" : "Monthly",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.jiriurbasek.Billo.pro.sub.weekly",
-          "recurringSubscriptionPeriod" : "P1W",
-          "referenceName" : "Weekly Pro Subscription",
+          "productID" : "com.jiriurbasek.Billo.pro.sub.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly Pro Subscription",
           "subscriptionGroupID" : "BilloPro",
           "type" : "RecurringSubscription"
         },
@@ -105,7 +113,7 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "39.99",
+          "displayPrice" : "29.99",
           "familyShareable" : false,
           "groupNumber" : 2,
           "internalID" : "yearly_001",

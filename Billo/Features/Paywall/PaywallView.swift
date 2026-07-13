@@ -45,8 +45,7 @@ struct PaywallView: View {
     let dismissOnFinish: Bool
     let onFinished: (PaywallResult) -> Void
 
-    @State private var selectedPlan: SelectedPlan = .weekly
-    @State private var isFreeTrialToggleOn: Bool = true
+    @State private var selectedPlan: SelectedPlan = .yearly
     @State private var isPurchasing: Bool = false
     @State private var errorMessage: String?
     /// Set by `finish(_:)`. When presented as a sheet, an interactive
@@ -58,41 +57,34 @@ struct PaywallView: View {
         selectedPlan.productID
     }
 
-    private var weeklyProduct: Product? {
-        storeKit.products.first { $0.id == StoreKitManager.ProductID.weekly }
+    private var monthlyProduct: Product? {
+        storeKit.products.first { $0.id == StoreKitManager.ProductID.monthly }
     }
 
     private var yearlyProduct: Product? {
         storeKit.products.first { $0.id == StoreKitManager.ProductID.yearly }
     }
 
-    private enum FallbackPricing {
-        static let weeklyPrice: Decimal = 3.99
-        static let yearlyPrice: Decimal = 39.99
+    private var lifetimeProduct: Product? {
+        storeKit.products.first { $0.id == StoreKitManager.ProductID.lifetime }
     }
 
-    private var weeklyDisplayPrice: String {
-        weeklyProduct?.displayPrice ?? currencyString(amount: FallbackPricing.weeklyPrice, locale: .current)
+    private enum FallbackPricing {
+        static let monthlyPrice: Decimal = 4.99
+        static let yearlyPrice: Decimal = 29.99
+        static let lifetimePrice: Decimal = 69.99
+    }
+
+    private var monthlyDisplayPrice: String {
+        monthlyProduct?.displayPrice ?? currencyString(amount: FallbackPricing.monthlyPrice, locale: .current)
     }
 
     private var yearlyDisplayPrice: String {
         yearlyProduct?.displayPrice ?? currencyString(amount: FallbackPricing.yearlyPrice, locale: .current)
     }
 
-    private var weeklyTitleText: String {
-        let trialText = introductoryOfferText(weeklyProduct)
-        if trialText.isEmpty {
-            return "Weekly — \(weeklyDisplayPrice)"
-        }
-        return trialText
-    }
-
-    private var weeklySubtitleText: String {
-        let trialText = introductoryOfferText(weeklyProduct)
-        if trialText.isEmpty {
-            return "Then \(weeklyDisplayPrice)/week • cancel anytime"
-        }
-        return "Then \(weeklyDisplayPrice)/week • cancel anytime"
+    private var lifetimeDisplayPrice: String {
+        lifetimeProduct?.displayPrice ?? currencyString(amount: FallbackPricing.lifetimePrice, locale: .current)
     }
 
     private var yearlySubtitleText: String {
@@ -136,7 +128,6 @@ struct PaywallView: View {
             Logger.log("Paywall shown (context: \(String(describing: context)))", level: .info)
             analytics.capture(.paywallShown(context: analyticsContext))
             await storeKit.loadProductsIfNeeded()
-            syncToggleWithSelection()
         }
         .alert("Something went wrong", isPresented: Binding(isPresent: $errorMessage)) {
             Button("OK", role: .cancel) {}
@@ -177,9 +168,11 @@ struct PaywallView: View {
     private var heroSection: some View {
         VStack(spacing: DesignSystem.Spacing.medium) {
             Image(systemName: "calendar.badge.checkmark")
-                .font(.system(size: 56, weight: .semibold))
+                .font(.system(size: 44, weight: .semibold))
                 .foregroundStyle(.tint)
                 .symbolRenderingMode(.hierarchical)
+                .frame(width: 96, height: 96)
+                .background(.tint.opacity(0.12), in: Circle())
                 .accessibilityHidden(true)
 
             VStack(spacing: DesignSystem.Spacing.extraSmall) {
@@ -197,16 +190,13 @@ struct PaywallView: View {
     }
 
     private var benefitsList: some View {
-        VStack(spacing: DesignSystem.Spacing.small) {
-            BenefitRow(icon: "tray.full", text: "Unlimited bills — track everything in one place")
-            BenefitRow(icon: "chart.pie", text: "Charts that show where your money goes")
+        VStack(spacing: DesignSystem.Spacing.mediumSmall) {
+            BenefitRow(icon: "chart.pie", text: "Unlimited bills and charts — know where your money goes")
             BenefitRow(icon: "creditcard", text: "Partial payments — pay bills your way")
             BenefitRow(icon: "calendar.badge.clock", text: "Custom repeat schedules for any bill")
         }
-        .padding(DesignSystem.Spacing.large)
-        .background(DesignSystem.Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large))
-        .cardShadow()
+        .padding(DesignSystem.Spacing.medium)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large))
     }
 
     // MARK: - Subscription Options
@@ -238,18 +228,11 @@ struct PaywallView: View {
                 .padding(.vertical, DesignSystem.Spacing.large)
 
             case .loaded:
-                freeTrialToggle
-
                 SubscriptionOptionRow(
-                    title: weeklyTitleText,
-                    subtitle: weeklySubtitleText,
-                    isSelected: selectedPlan == .weekly,
-                    action: {
-                        selectedPlan = .weekly
-                        syncToggleWithSelection()
-                        Logger.log("Paywall plan selected: weekly", level: .debug)
-                        analytics.capture(.paywallPlanSelected(planId: "weekly", context: analyticsContext))
-                    }
+                    title: "Monthly — \(monthlyDisplayPrice)",
+                    subtitle: "Billed monthly • cancel anytime",
+                    isSelected: selectedPlan == .monthly,
+                    action: { select(.monthly) }
                 )
 
                 SubscriptionOptionRow(
@@ -257,77 +240,29 @@ struct PaywallView: View {
                     subtitle: yearlySubtitleText,
                     isSelected: selectedPlan == .yearly,
                     savingsBadge: savingsPercentage,
-                    action: {
-                        selectedPlan = .yearly
-                        syncToggleWithSelection()
-                        Logger.log("Paywall plan selected: yearly", level: .debug)
-                        analytics.capture(.paywallPlanSelected(planId: "yearly", context: analyticsContext))
-                    }
+                    action: { select(.yearly) }
+                )
+
+                SubscriptionOptionRow(
+                    title: "Lifetime — \(lifetimeDisplayPrice)",
+                    subtitle: "Pay once • yours forever",
+                    isSelected: selectedPlan == .lifetime,
+                    action: { select(.lifetime) }
                 )
             }
         }
     }
 
-    private var freeTrialToggle: some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
-            Text("Not sure yet? Enable Free Trial")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Toggle("", isOn: Binding(
-                get: { isFreeTrialToggleOn },
-                set: { newValue in
-                    isFreeTrialToggleOn = newValue
-                    selectedPlan = newValue ? .weekly : .yearly
-                    Logger.log("Paywall free trial toggle: \(newValue ? "on" : "off")", level: .debug)
-                    analytics.capture(.paywallFreeTrialToggled(enabled: newValue, context: analyticsContext))
-                }
-            ))
-            .labelsHidden()
-            .tint(DesignSystem.Color.green)
-            .accessibilityLabel("Free trial")
-        }
-        .padding(.horizontal, DesignSystem.Spacing.medium)
-        .padding(.vertical, DesignSystem.Spacing.mediumSmall)
-        .background(DesignSystem.Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium))
+    private func select(_ plan: SelectedPlan) {
+        selectedPlan = plan
+        Logger.log("Paywall plan selected: \(plan.analyticsPlanId)", level: .debug)
+        analytics.capture(.paywallPlanSelected(planId: plan.analyticsPlanId, context: analyticsContext))
     }
 
     // MARK: - Purchase
 
     private var purchaseSection: some View {
-        VStack(spacing: DesignSystem.Spacing.small) {
-            purchaseButton
-            if shouldShowNoPaymentRequiredNow {
-                noPaymentRequiredNowNote
-            }
-        }
-    }
-
-    private var shouldShowNoPaymentRequiredNow: Bool {
-        if let selectedProduct {
-            return selectedProduct.hasNoImmediateCharge
-        }
-        return selectedPlan == .weekly
-    }
-
-    private var selectedProduct: Product? {
-        storeKit.products.first { $0.id == selectedProductID }
-    }
-
-    private var noPaymentRequiredNowNote: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.tint)
-                .symbolRenderingMode(.hierarchical)
-            Text("No payment required now")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityIdentifier("paywall_no_payment_required_now")
-        .frame(maxWidth: .infinity)
+        purchaseButton
     }
 
     private var purchaseButton: some View {
@@ -427,7 +362,7 @@ struct PaywallView: View {
     private var subheadline: String {
         switch context {
         case .firstLaunch:
-            return String(localized: "Try Pro free. Cancel anytime.", comment: "Paywall subheadline: first launch")
+            return String(localized: "Unlock everything with Billo Pro. Cancel anytime.", comment: "Paywall subheadline: first launch")
         case .billLimit:
             return String(localized: "Track unlimited bills with Billo Pro.", comment: "Paywall subheadline: free bill limit reached")
         case .incomeLimit:
@@ -501,10 +436,6 @@ struct PaywallView: View {
         }
     }
 
-    private func syncToggleWithSelection() {
-        isFreeTrialToggleOn = (selectedPlan == .weekly)
-    }
-
     private func yearlySavingsText(yearly: Product) -> String {
         let monthlyEquivalent = yearly.price / 12
         let formatter = NumberFormatter()
@@ -522,87 +453,44 @@ struct PaywallView: View {
     }
 
     private var savingsPercentage: String? {
-        let weeklyPrice = weeklyProduct?.price ?? FallbackPricing.weeklyPrice
+        let monthlyPrice = monthlyProduct?.price ?? FallbackPricing.monthlyPrice
         let yearlyPrice = yearlyProduct?.price ?? FallbackPricing.yearlyPrice
 
-        guard let percent = PaywallPricing.savingsPercentage(weeklyPrice: weeklyPrice, yearlyPrice: yearlyPrice) else { return nil }
+        guard let percent = PaywallPricing.savingsPercentage(monthlyPrice: monthlyPrice, yearlyPrice: yearlyPrice) else { return nil }
         return "SAVE \(percent)%"
-    }
-
-    private func introductoryOfferText(_ product: Product?) -> String {
-        guard
-            let product,
-            let subscription = product.subscription,
-            let offer = subscription.introductoryOffer
-        else { return "" }
-
-        let period = offer.period
-        let unit: PaywallPricing.SubscriptionUnit? = switch period.unit {
-        case .day: .day
-        case .week: .week
-        case .month: .month
-        case .year: .year
-        @unknown default: nil
-        }
-
-        guard let unit else { return "" }
-        return PaywallPricing.introductoryOfferText(value: period.value, unit: unit)
-    }
-}
-
-private extension Product {
-    var hasNoImmediateCharge: Bool {
-        guard let subscription else { return false }
-
-        if let introductoryOffer = subscription.introductoryOffer, introductoryOffer.isFreeUpFront {
-            return true
-        }
-
-        return false
-    }
-}
-
-private extension Product.SubscriptionOffer {
-    var isFreeUpFront: Bool {
-        if price == 0 {
-            return true
-        }
-
-        switch paymentMode {
-        case .freeTrial:
-            return true
-        default:
-            return false
-        }
     }
 }
 
 private enum SelectedPlan: Hashable {
-    case weekly
+    case monthly
     case yearly
+    case lifetime
 
     var productID: String {
         switch self {
-        case .weekly:
-            return StoreKitManager.ProductID.weekly
+        case .monthly:
+            return StoreKitManager.ProductID.monthly
         case .yearly:
             return StoreKitManager.ProductID.yearly
+        case .lifetime:
+            return StoreKitManager.ProductID.lifetime
         }
     }
 
     var purchaseButtonTitle: String {
         switch self {
-        case .weekly:
-            return "Try Pro free"
-        case .yearly:
-            return "Save yearly"
+        case .monthly, .yearly:
+            return "Unlock Billo Pro"
+        case .lifetime:
+            return "Get Lifetime Access"
         }
     }
 
     var analyticsPlanId: String {
         switch self {
-        case .weekly: "weekly"
+        case .monthly: "monthly"
         case .yearly: "yearly"
+        case .lifetime: "lifetime"
         }
     }
 }
@@ -613,18 +501,19 @@ private struct BenefitRow: View {
     let text: LocalizedStringKey
 
     var body: some View {
-        HStack(spacing: DesignSystem.Spacing.small) {
+        HStack(spacing: DesignSystem.Spacing.mediumSmall) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.tint)
                 .symbolRenderingMode(.hierarchical)
-                .frame(width: 22)
+                .frame(width: 32, height: 32)
+                .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small))
                 .accessibilityHidden(true)
 
             Text(text)
-                .font(.subheadline)
+                .font(.subheadline.weight(.medium))
 
-            Spacer()
+            Spacer(minLength: 0)
         }
     }
 }
@@ -651,8 +540,7 @@ private struct SubscriptionOptionRow: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color.accentColor)
-                                .clipShape(Capsule())
+                                .background(.tint, in: Capsule())
                         }
                     }
 
@@ -664,24 +552,32 @@ private struct SubscriptionOptionRow: View {
                 Spacer()
 
                 ZStack {
-                    Circle()
-                        .stroke(isSelected ? Color.accentColor : DesignSystem.Color.separator, lineWidth: 2)
-                        .frame(width: 24, height: 24)
-
                     if isSelected {
                         Circle()
-                            .fill(Color.accentColor)
+                            .stroke(.tint, lineWidth: 2)
+                            .frame(width: 24, height: 24)
+                        Circle()
+                            .fill(.tint)
                             .frame(width: 16, height: 16)
+                    } else {
+                        Circle()
+                            .stroke(DesignSystem.Color.separator, lineWidth: 2)
+                            .frame(width: 24, height: 24)
                     }
                 }
             }
             .padding(DesignSystem.Spacing.medium)
             .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(isSelected ? Color.accentColor : DesignSystem.Color.separator, lineWidth: isSelected ? 2 : 1)
+                isSelected ? AnyShapeStyle(.tint.opacity(0.1)) : AnyShapeStyle(.regularMaterial),
+                in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large)
+                    .strokeBorder(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 2)
             )
         }
         .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
         .accessibilityLabel("\(title), \(subtitle)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
