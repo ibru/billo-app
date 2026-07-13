@@ -12,7 +12,7 @@ struct AppRootView: View {
     var body: some View {
         Group {
             if flow.didCompleteOnboarding == false {
-                FirstLaunchFlowView(
+                OnboardingFlowView(
                     paywallPolicy: paywallPolicy,
                     onFinish: { flow.completeOnboarding() }
                 )

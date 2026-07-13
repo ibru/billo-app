@@ -68,6 +68,8 @@ struct AnalyticsModelTests {
             source: .sheet, category: "custom", currencyCode: "EUR",
             daysFromDue: 0, isPartial: false, hasConfirmationNumber: false
         ))
+        sut.capture(.onboardingSetupCommitted(billCount: 3, hasIncome: true))
+        sut.capture(.onboardingBillPresetAdded(category: "default.housing"))
 
         for event in spy.capturedEvents {
             #expect(event.properties["amount"] == nil, "\(event.name) must not carry an amount")
@@ -99,8 +101,13 @@ struct AnalyticsModelTests {
     @Test func whenCapturingFunnelEvents_thenNamesMatchContract() {
         let expectations: [(AnalyticsEvent, String)] = [
             (.onboardingStarted, "onboarding started"),
-            (.onboardingStepContinued(step: "marketing1"), "onboarding step continued"),
+            (.onboardingStepContinued(step: "view_modes"), "onboarding step continued"),
+            (.onboardingStepSkipped(step: "bill_setup"), "onboarding step skipped"),
             (.onboardingCurrencySelected(currencyCode: "USD"), "onboarding currency selected"),
+            (.onboardingBillPresetAdded(category: "default.housing"), "onboarding bill preset added"),
+            (.onboardingBillPresetRemoved(category: "default.housing"), "onboarding bill preset removed"),
+            (.onboardingSetupCommitted(billCount: 3, hasIncome: true), "onboarding setup committed"),
+            (.onboardingSkippedForReturningUser, "onboarding skipped for returning user"),
             (.onboardingCompleted(outcome: "purchased"), "onboarding completed"),
             (.paywallShown(context: "first_launch"), "paywall shown"),
             (.paywallPurchaseSucceeded(planId: "yearly", context: "first_launch"), "paywall purchase succeeded"),
@@ -118,6 +125,21 @@ struct AnalyticsModelTests {
         for (event, expectedName) in expectations {
             #expect(event.name == expectedName)
         }
+    }
+
+    @Test func whenCapturingOnboardingSetupEvents_thenSendsExpectedProperties() {
+        let (sut, spy) = makeSUT()
+
+        sut.capture(.onboardingSetupCommitted(billCount: 3, hasIncome: true))
+        sut.capture(.onboardingBillPresetAdded(category: "default.housing"))
+        sut.capture(.onboardingBillPresetRemoved(category: "default.utilities"))
+        sut.capture(.onboardingStepSkipped(step: "bill_setup"))
+
+        #expect(spy.capturedEvents[0].properties["bill_count"] as? Int == 3)
+        #expect(spy.capturedEvents[0].properties["has_income"] as? Bool == true)
+        #expect(spy.capturedEvents[1].properties["category"] as? String == "default.housing")
+        #expect(spy.capturedEvents[2].properties["category"] as? String == "default.utilities")
+        #expect(spy.capturedEvents[3].properties["step"] as? String == "bill_setup")
     }
 
     // MARK: - Super Properties

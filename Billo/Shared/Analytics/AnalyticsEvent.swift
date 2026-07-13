@@ -23,7 +23,16 @@ enum AnalyticsEvent: Sendable {
     // MARK: Onboarding
     case onboardingStarted
     case onboardingStepContinued(step: String)
+    /// `step` ∈ bill_setup | income.
+    case onboardingStepSkipped(step: String)
     case onboardingCurrencySelected(currencyCode: String)
+    /// `category` carries `CategoryIdentifier.analyticsKey` of the preset.
+    case onboardingBillPresetAdded(category: String)
+    case onboardingBillPresetRemoved(category: String)
+    /// Fired once when quick-setup drafts are saved into the production store.
+    case onboardingSetupCommitted(billCount: Int, hasIncome: Bool)
+    /// CloudKit data from a previous install arrived mid-flow — onboarding ended early.
+    case onboardingSkippedForReturningUser
     /// `outcome` ∈ purchased | dismissed | already_pro | skipped_by_policy.
     case onboardingCompleted(outcome: String)
 
@@ -100,7 +109,12 @@ extension AnalyticsEvent {
         switch self {
         case .onboardingStarted: "onboarding started"
         case .onboardingStepContinued: "onboarding step continued"
+        case .onboardingStepSkipped: "onboarding step skipped"
         case .onboardingCurrencySelected: "onboarding currency selected"
+        case .onboardingBillPresetAdded: "onboarding bill preset added"
+        case .onboardingBillPresetRemoved: "onboarding bill preset removed"
+        case .onboardingSetupCommitted: "onboarding setup committed"
+        case .onboardingSkippedForReturningUser: "onboarding skipped for returning user"
         case .onboardingCompleted: "onboarding completed"
 
         case .paywallShown: "paywall shown"
@@ -149,15 +163,19 @@ extension AnalyticsEvent {
 
     var properties: [String: Any] {
         switch self {
-        case .onboardingStarted, .ratingPromptRequested,
+        case .onboardingStarted, .onboardingSkippedForReturningUser, .ratingPromptRequested,
              .incomeOccurrenceSkipped, .incomeOccurrenceAmountEdited, .incomeOccurrenceDeleted,
              .customCategoryCreated, .customCategoryDeleted:
             return [:]
 
-        case .onboardingStepContinued(let step):
+        case .onboardingStepContinued(let step), .onboardingStepSkipped(let step):
             return ["step": step]
         case .onboardingCurrencySelected(let currencyCode):
             return ["currency_code": currencyCode]
+        case .onboardingBillPresetAdded(let category), .onboardingBillPresetRemoved(let category):
+            return ["category": category]
+        case .onboardingSetupCommitted(let billCount, let hasIncome):
+            return ["bill_count": billCount, "has_income": hasIncome]
         case .onboardingCompleted(let outcome):
             return ["outcome": outcome]
 

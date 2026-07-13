@@ -25,9 +25,11 @@ struct BilloApp: App {
             CustomCategory.self,
             AppSettings.self
         ])
-#if SCREENSHOTS
-        // Screenshots run against a throwaway in-memory store seeded with
-        // realistic demo data; CloudKit stays out of the way.
+#if SCREENSHOTS || ONBOARDING
+        // Screenshots and Onboarding runs use a throwaway in-memory store;
+        // CloudKit stays out of the way. Screenshots additionally seeds
+        // realistic demo data below; Onboarding starts empty so the
+        // first-launch flow always has a clean slate.
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: true,
@@ -167,6 +169,15 @@ struct BilloApp: App {
 //                         } catch {
 //                             Logger.log("Failed to reset onboarding: \(error)", level: .error)
 //                         }
+#endif
+
+#if ONBOARDING
+                        // BilloOnboarding scheme: always run the first-launch
+                        // flow. The store above is fresh in-memory (so
+                        // currencyCode is nil and the launch-time skip never
+                        // fires); the local completion flags persist in
+                        // UserDefaults, so clear them on every launch.
+                        AppPersistence().resetAll()
 #endif
 
                         let flow = AppFlowModel()
