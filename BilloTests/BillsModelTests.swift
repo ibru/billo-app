@@ -157,6 +157,35 @@ struct BillsModelTests {
             #expect(bills[0].allPaymentEntries.first?.amount == customAmount)
         }
 
+        @Test func whenQuickPayingPartiallyPaidOccurrence_thenRecordsOnlyRemainder() async throws {
+            // A list/calendar swipe passes no amount. Defaulting to the full
+            // occurrence amount would re-record the whole bill on top of the
+            // existing partial payment (100 paid on 40/100 → history shows 140).
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence, amount: 40, source: .sheet)
+
+            try await sut.markPaid(occurrence, source: .listSwipe)
+
+            let amounts = bills[0].allPaymentEntries.map(\.amount).sorted()
+            #expect(amounts == [40, 60])
+            #expect(bills[0].remainingBalance(for: occurrence.dueDate, calendar: utcCalendar()) == 0)
+        }
+
+        @Test func whenQuickPayingFullyPaidOccurrence_thenRecordsNoAdditionalPayment() async throws {
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1)
+            try sut.refresh()
+
+            let occurrence = makeOccurrence(for: bills[0])
+            try await sut.markPaid(occurrence, source: .sheet)
+
+            try await sut.markPaid(occurrence, source: .listSwipe)
+
+            #expect(bills[0].allPaymentEntries.count == 1)
+        }
+
         @Test func whenMarkingPaidWithConfirmation_thenStoresConfirmationNumber() async throws {
             let (sut, bills, _, _, _) = try makeSUT(billCount: 1)
             try sut.refresh()

@@ -147,7 +147,15 @@ final class BillsModel {
         confirmationNumber: String? = nil,
         source: PaymentEventSource
     ) async throws {
-        let paidAmount = amount ?? occurrence.amount
+        let remainingBeforePayment = occurrence.bill.remainingBalance(
+            for: occurrence.dueDate,
+            calendar: calendar
+        )
+        // Quick-pay (no explicit amount) settles what is still owed, not the
+        // full occurrence amount — a swipe on a partially-paid occurrence must
+        // not re-record the whole bill on top of the existing partials.
+        let paidAmount = amount ?? remainingBeforePayment
+        guard paidAmount > 0 else { return }
         let datePaid = date ?? currentDate()
         Logger.log("Marking paid: \(occurrence.name), occurrence: \(occurrence.dueDate), amount: \(paidAmount)", level: .info)
         let recorder = PaymentRecorder()
