@@ -3,6 +3,8 @@
 import SwiftUI
 
 struct RecurrencePresetPicker: View {
+    @Environment(StoreKitManager.self) private var storeKit
+
     @Binding var selectedPreset: RecurrencePreset
 
     @Binding var intervalType: RepeatIntervalType
@@ -13,6 +15,46 @@ struct RecurrencePresetPicker: View {
     @Binding var anchorDate: Date
 
     var synchronizer: DateAnchorSynchronizer = DateAnchorSynchronizer()
+    /// Fired when a non-pro user selects Custom; the host presents the paywall.
+    var onCustomLocked: () -> Void = {}
+
+    /// Captured once per view identity (form session). A bill/income that
+    /// already HAS a custom rule — created while Pro, or synced from another
+    /// device — keeps full Custom access for the whole edit session, so a
+    /// lapsed subscription can never lock a user out of saving their own data.
+    /// Only *newly choosing* Custom is gated.
+    @State private var initialPresetWasCustom: Bool
+
+    /// One-shot marker for the programmatic revert of a locked Custom
+    /// selection, so its `onChange` echo is skipped exactly — a heuristic on
+    /// the old value would also swallow a legitimate Custom → other transition
+    /// after a mid-session entitlement lapse.
+    @State private var isRevertingLockedCustom: Bool = false
+
+    init(
+        selectedPreset: Binding<RecurrencePreset>,
+        intervalType: Binding<RepeatIntervalType>,
+        frequency: Binding<Int>,
+        dayOfWeek: Binding<Weekday>,
+        dayOfMonth: Binding<Int>,
+        anchorDate: Binding<Date>,
+        synchronizer: DateAnchorSynchronizer = DateAnchorSynchronizer(),
+        onCustomLocked: @escaping () -> Void = {}
+    ) {
+        _selectedPreset = selectedPreset
+        _intervalType = intervalType
+        _frequency = frequency
+        _dayOfWeek = dayOfWeek
+        _dayOfMonth = dayOfMonth
+        _anchorDate = anchorDate
+        self.synchronizer = synchronizer
+        self.onCustomLocked = onCustomLocked
+        _initialPresetWasCustom = State(initialValue: selectedPreset.wrappedValue == .custom)
+    }
+
+    private var isCustomUnlocked: Bool {
+        FreeTierLimits.canSelectCustomRecurrence(isPro: storeKit.isPro) || initialPresetWasCustom
+    }
 
     var body: some View {
         Picker(String(localized: "Repeat"), selection: $selectedPreset) {
@@ -21,7 +63,12 @@ struct RecurrencePresetPicker: View {
             Text(RecurrencePreset.biweekly.displayName).tag(RecurrencePreset.biweekly)
             Text(RecurrencePreset.monthly.displayName).tag(RecurrencePreset.monthly)
             Divider()
-            Text(RecurrencePreset.custom.displayName).tag(RecurrencePreset.custom)
+            if isCustomUnlocked {
+                Text(RecurrencePreset.custom.displayName).tag(RecurrencePreset.custom)
+            } else {
+                Label(RecurrencePreset.custom.displayName, systemImage: "lock.fill")
+                    .tag(RecurrencePreset.custom)
+            }
         }
         .pickerStyle(.menu)
         .tint(.secondary)
@@ -29,6 +76,19 @@ struct RecurrencePresetPicker: View {
             anchorRepeatFieldsIfNeeded()
         }
         .onChange(of: selectedPreset) { oldValue, newValue in
+            if newValue == .custom, !isCustomUnlocked {
+                isRevertingLockedCustom = true
+                selectedPreset = oldValue
+                onCustomLocked()
+                return
+            }
+            // Echo of the locked-Custom revert above: .custom was never
+            // legitimately active, so don't let applyPresetChange treat it as
+            // a real transition and mutate the draft interval fields.
+            if isRevertingLockedCustom {
+                isRevertingLockedCustom = false
+                return
+            }
             applyPresetChange(from: oldValue, to: newValue)
         }
         .onChange(of: anchorDate) { _, _ in

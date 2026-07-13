@@ -405,7 +405,7 @@ struct OnboardingFlowView: View {
 #Preview("Full onboarding flow") {
     let preview = BilloPreviewContainer.empty()
     let flow = AppFlowModel(persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-first-launch") ?? .standard))
-    let storeKit = StoreKitManager()
+    let storeKit = StoreKitManager(isPro: false)
 
     return OnboardingFlowView(paywallPolicy: FirstLaunchPaywallPolicy(), onFinish: {})
         .environment(preview.billsModel)

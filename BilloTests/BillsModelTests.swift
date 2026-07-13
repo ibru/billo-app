@@ -539,6 +539,49 @@ struct BillsModelTests {
             #expect(event?.properties["is_partial"] as? Bool == false)
         }
 
+        @Test func whenPayingRemainderOfPartiallyPaidOccurrence_thenIsPartialIsFalse() async throws {
+            // `is_partial` must share the gate's definition — "less than what
+            // is still owed" — not "less than the series amount". Settling a
+            // remainder is a full payment in both the gate and the funnel.
+            var captured: [AnalyticsEvent] = []
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1, analyticsCapture: { captured.append($0) })
+            try sut.refresh()
+
+            let occurrence = BillOccurrence(bill: bills[0], dueDate: bills[0].dueDate)
+            let seriesAmount = bills[0].amount
+            try await sut.markPaid(occurrence, amount: seriesAmount - 60, source: .sheet)
+            try await sut.markPaid(occurrence, amount: 60, source: .sheet)
+
+            let events = captured.filter { $0.name == "payment recorded" }
+            #expect(events.count == 2)
+            #expect(events.first?.properties["is_partial"] as? Bool == true)
+            #expect(events.last?.properties["is_partial"] as? Bool == false)
+        }
+
+        @Test func whenQuickPayingFrozenOccurrenceAfterSeriesAmountLowered_thenIsPartialIsFalse() async throws {
+            // The occurrence is frozen at 100 by the first payment's snapshot.
+            // Lowering the series amount to 50 must not affect the quick-pay
+            // default: settling the frozen remainder (60) is a full payment,
+            // so `is_partial` stays false. Defaulting to the series amount
+            // would record 50 and mislabel the payment as partial.
+            var captured: [AnalyticsEvent] = []
+            let (sut, bills, _, _, _) = try makeSUT(billCount: 1, analyticsCapture: { captured.append($0) })
+            try sut.refresh()
+
+            let bill = bills[0]
+            let occurrence = BillOccurrence(bill: bill, dueDate: bill.dueDate)
+            try await sut.markPaid(occurrence, amount: 40, source: .sheet)
+            bill.amount = 50
+            try await sut.updateBill(bill)
+
+            try await sut.markPaid(occurrence, source: .listSwipe)
+
+            let events = captured.filter { $0.name == "payment recorded" }
+            #expect(events.count == 2)
+            #expect(events.last?.properties["is_partial"] as? Bool == false)
+            #expect(bill.remainingBalance(for: occurrence.dueDate, calendar: utcCalendar()) == 0)
+        }
+
         @Test func whenDeletingBillWithPayments_thenCapturesBillDeletedWithHadPayments() async throws {
             var captured: [AnalyticsEvent] = []
             let (sut, bills, _, _, _) = try makeSUT(billCount: 1, analyticsCapture: { captured.append($0) })
@@ -655,6 +698,53 @@ struct BillsModelTests {
             let bills = try modelContext.fetch(FetchDescriptor<Bill>())
             #expect(bills.count == 1 && bills.first?.name == "New Bill")
             #expect(coordinator.refreshAllNotificationsCalls.count == 1)
+        }
+
+        @Test func whenIncomesStored_thenStoredIncomeCountCountsIncomesOnly() async throws {
+            // Feeds the free-tier income cap: fresh count of Income records,
+            // ignoring bills.
+            let (sut, _, modelContext, _, _) = try makeSUT(billCount: 2)
+
+            #expect(try sut.storedIncomeCount() == 0)
+
+            for name in ["Salary", "Side gig"] {
+                let income = try Income.create(
+                    name: name,
+                    amount: 1000,
+                    currencyCode: "USD",
+                    startDate: makeDate(day: 1),
+                    recurrenceRule: nil
+                )
+                modelContext.insert(income)
+            }
+            try modelContext.save()
+
+            #expect(try sut.storedIncomeCount() == 2)
+        }
+
+        @Test func whenBillsStored_thenStoredBillCountCountsBillsOnly() async throws {
+            // Feeds the free-tier cap: counts Bill records fresh from the
+            // store (not the refresh() snapshot) and ignores income.
+            let (sut, _, modelContext, _, _) = try makeSUT(billCount: 3)
+
+            let income = try Income.create(
+                name: "Salary",
+                amount: 3000,
+                currencyCode: "USD",
+                startDate: makeDate(day: 1),
+                recurrenceRule: nil
+            )
+            modelContext.insert(income)
+            try modelContext.save()
+
+            #expect(try sut.storedBillCount() == 3)
+
+            // Inserted directly (bypassing addBill/refresh) — the count must
+            // still see it because it fetches fresh at call time.
+            modelContext.insert(Bill(name: "Direct", amount: 10, dueDate: makeDate(day: 25)))
+            try modelContext.save()
+
+            #expect(try sut.storedBillCount() == 4)
         }
     }
 

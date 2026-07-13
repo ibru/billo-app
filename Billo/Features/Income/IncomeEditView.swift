@@ -6,6 +6,8 @@ import SwiftData
 struct IncomeEditView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettingsModel
+    @Environment(AnalyticsModel.self) private var analytics
+    @Environment(StoreKitManager.self) private var storeKit
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -19,6 +21,7 @@ struct IncomeEditView: View {
     @State private var name: String = ""
     @State private var amount: Decimal = 0
     @State private var startDate: Date = Date()
+    @State private var paywallContext: PaywallContext?
 
     @State private var selectedRecurrencePreset: RecurrencePreset = .monthly
     @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
@@ -80,7 +83,11 @@ struct IncomeEditView: View {
                         frequency: $draftFrequency,
                         dayOfWeek: $draftDayOfWeek,
                         dayOfMonth: $draftDayOfMonth,
-                        anchorDate: $startDate
+                        anchorDate: $startDate,
+                        onCustomLocked: {
+                            analytics.capture(.proGateHit(feature: PaywallContext.customRecurrence.analyticsKey))
+                            paywallContext = .customRecurrence
+                        }
                     )
 
                     if selectedRecurrencePreset != .none {
@@ -98,6 +105,7 @@ struct IncomeEditView: View {
             .navigationTitle(mode.title)
             .platformInlineNavigationTitle()
             .analyticsScreen(analyticsScreenValue)
+            .paywallSheet(context: $paywallContext)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -118,6 +126,18 @@ struct IncomeEditView: View {
     private func save() {
         switch mode {
         case .adding:
+            do {
+                let currentCount = try billsModel.storedIncomeCount()
+                if !FreeTierLimits.canAddIncome(currentCount: currentCount, isPro: storeKit.isPro) {
+                    analytics.capture(.proGateHit(feature: PaywallContext.incomeLimit.analyticsKey))
+                    paywallContext = .incomeLimit
+                    return
+                }
+            } catch {
+                // Stay in the form; mirrors the save-failure path below.
+                Logger.log("Failed to count incomes for free-tier gate: \(error)", level: .error)
+                return
+            }
             Task {
                 do {
                     let income = try Income.create(

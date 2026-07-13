@@ -3,8 +3,31 @@
 import StoreKit
 import SwiftUI
 
-enum PaywallContext: Hashable, Sendable {
+enum PaywallContext: Hashable, Sendable, Identifiable, CaseIterable {
     case firstLaunch
+    case billLimit
+    case incomeLimit
+    case partialPayment
+    case customRecurrence
+    case charts
+    case dataExport
+
+    /// Stable snake_case key — the analytics context, the `proGateHit`
+    /// feature, and the sheet identity. The funnel joins `pro gate hit` to
+    /// `paywall shown` on this key, so it must never drift per call site.
+    var analyticsKey: String {
+        switch self {
+        case .firstLaunch: "first_launch"
+        case .billLimit: "bill_limit"
+        case .incomeLimit: "income_limit"
+        case .partialPayment: "partial_payment"
+        case .customRecurrence: "custom_recurrence"
+        case .charts: "charts"
+        case .dataExport: "data_export"
+        }
+    }
+
+    var id: String { analyticsKey }
 }
 
 enum PaywallResult: Hashable, Sendable {
@@ -26,6 +49,10 @@ struct PaywallView: View {
     @State private var isFreeTrialToggleOn: Bool = true
     @State private var isPurchasing: Bool = false
     @State private var errorMessage: String?
+    /// Set by `finish(_:)`. When presented as a sheet, an interactive
+    /// swipe-down bypasses the close button — `onDisappear` uses this flag to
+    /// still capture `paywallClosed` exactly once.
+    @State private var didFinish: Bool = false
 
     private var selectedProductID: String {
         selectedPlan.productID
@@ -116,6 +143,12 @@ struct PaywallView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        .onDisappear {
+            if !didFinish {
+                Logger.log("Paywall dismissed interactively", level: .info)
+                analytics.capture(.paywallClosed(context: analyticsContext))
+            }
+        }
     }
 
     // MARK: - Header Bar
@@ -165,10 +198,10 @@ struct PaywallView: View {
 
     private var benefitsList: some View {
         VStack(spacing: DesignSystem.Spacing.small) {
-            BenefitRow(icon: "sparkles", text: "Peace of mind about what's due next")
-            BenefitRow(icon: "tray.full", text: "Everything in one place — no scattered notes")
-            BenefitRow(icon: "bell.badge", text: "Stay ahead of late fees and surprises")
-            BenefitRow(icon: "checkmark.circle", text: "Build a simple weekly routine that sticks")
+            BenefitRow(icon: "tray.full", text: "Unlimited bills — track everything in one place")
+            BenefitRow(icon: "chart.pie", text: "Charts that show where your money goes")
+            BenefitRow(icon: "creditcard", text: "Partial payments — pay bills your way")
+            BenefitRow(icon: "calendar.badge.clock", text: "Custom repeat schedules for any bill")
         }
         .padding(DesignSystem.Spacing.large)
         .background(DesignSystem.Color.cardBackground)
@@ -375,14 +408,38 @@ struct PaywallView: View {
     private var headline: String {
         switch context {
         case .firstLaunch:
-            return "Stay on top of every bill"
+            return String(localized: "Stay on top of every bill", comment: "Paywall headline: first launch")
+        case .billLimit:
+            return String(localized: "You've outgrown the free plan", comment: "Paywall headline: free bill limit reached")
+        case .incomeLimit:
+            return String(localized: "All your income, one picture", comment: "Paywall headline: free income limit reached")
+        case .partialPayment:
+            return String(localized: "Pay bills your way", comment: "Paywall headline: partial payment gate")
+        case .customRecurrence:
+            return String(localized: "Bills on your schedule", comment: "Paywall headline: custom recurrence gate")
+        case .charts:
+            return String(localized: "See where your money goes", comment: "Paywall headline: charts gate")
+        case .dataExport:
+            return String(localized: "Your data, anywhere", comment: "Paywall headline: data export gate")
         }
     }
 
     private var subheadline: String {
         switch context {
         case .firstLaunch:
-            return "Try Pro free. Cancel anytime."
+            return String(localized: "Try Pro free. Cancel anytime.", comment: "Paywall subheadline: first launch")
+        case .billLimit:
+            return String(localized: "Track unlimited bills with Billo Pro.", comment: "Paywall subheadline: free bill limit reached")
+        case .incomeLimit:
+            return String(localized: "Track unlimited income sources with Billo Pro.", comment: "Paywall subheadline: free income limit reached")
+        case .partialPayment:
+            return String(localized: "Record partial payments with Billo Pro.", comment: "Paywall subheadline: partial payment gate")
+        case .customRecurrence:
+            return String(localized: "Custom repeat intervals with Billo Pro.", comment: "Paywall subheadline: custom recurrence gate")
+        case .charts:
+            return String(localized: "Unlock spending insights with Billo Pro.", comment: "Paywall subheadline: charts gate")
+        case .dataExport:
+            return String(localized: "Export everything with Billo Pro.", comment: "Paywall subheadline: data export gate")
         }
     }
 
@@ -425,12 +482,11 @@ struct PaywallView: View {
     }
 
     private var analyticsContext: String {
-        switch context {
-        case .firstLaunch: "first_launch"
-        }
+        context.analyticsKey
     }
 
     private func finish(_ result: PaywallResult) {
+        didFinish = true
         switch result {
         case .purchased:
             break
@@ -553,7 +609,8 @@ private enum SelectedPlan: Hashable {
 
 private struct BenefitRow: View {
     let icon: String
-    let text: String
+    // LocalizedStringKey so literals at call sites extract into Localizable.xcstrings.
+    let text: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
@@ -632,7 +689,7 @@ private struct SubscriptionOptionRow: View {
 
 #if DEBUG && targetEnvironment(simulator)
 #Preview {
-    let storeKit = StoreKitManager()
+    let storeKit = StoreKitManager(isPro: false)
     return PaywallView(context: .firstLaunch, isDismissible: true, dismissOnFinish: true, onFinished: { _ in })
         .environment(storeKit)
         .environment(AnalyticsModel())

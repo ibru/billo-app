@@ -181,12 +181,19 @@ struct BilloApp: App {
 #endif
 
                         let flow = AppFlowModel()
-                        let storeKit = StoreKitManager()
 #if SCREENSHOTS
                         // Pro unlocked without touching StoreKit, so screenshots
                         // never show locked features or entitlement loading states.
-                        storeKit.isPro = true
+                        let storeKit = StoreKitManager(isPro: true)
+#elseif ONBOARDING
+                        // Non-pro on every LAUNCH: StoreKit is never started and
+                        // the entitlement cache is a no-op, so a cached `true`
+                        // from a previous run can't hide the Pro gates during QA.
+                        // (Purchasing on the paywall mid-session still flips
+                        // `isPro` until the next launch — useful for QA too.)
+                        let storeKit = StoreKitManager(isPro: false)
 #else
+                        let storeKit = StoreKitManager()
                         storeKit.start()
 #endif
 

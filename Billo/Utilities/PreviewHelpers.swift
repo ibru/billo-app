@@ -463,13 +463,20 @@ private func insertPayment(
 }
 
 extension View {
-    func billoPreviewEnvironment(_ preview: BilloPreviewContainer, colorScheme: ColorScheme? = nil) -> some View {
+    /// `isPro` defaults to true so previews show the full-feature UI; pass
+    /// false to preview a Pro gate (lock icons, blur overlays, paywall hints).
+    func billoPreviewEnvironment(
+        _ preview: BilloPreviewContainer,
+        colorScheme: ColorScheme? = nil,
+        isPro: Bool = true
+    ) -> some View {
         self
             .environment(preview.billsModel)
             .environment(preview.notificationCoordinator)
             .environment(preview.preferencesStore)
             .environment(preview.appSettingsModel)
             .environment(AnalyticsModel())
+            .environment(StoreKitManager(isPro: isPro))
             .modelContainer(preview.container)
             .preferredColorScheme(colorScheme)
     }

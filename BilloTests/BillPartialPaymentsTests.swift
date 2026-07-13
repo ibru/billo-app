@@ -97,6 +97,22 @@ struct BillPartialPaymentsTests {
         #expect(status == .partiallyPaid)
     }
 
+    @Test func whenOccurrenceFrozenAtHigherAmountThanSeries_thenRemainingBalanceUsesFrozenAmount() throws {
+        // A frozen occurrence still owes its snapshot amount even after the
+        // series amount is edited downward. The mark-paid default must follow
+        // the occurrence's remaining balance, never the live series amount —
+        // otherwise a free user's untouched default reads as a partial payment.
+        let (bill, context) = try makeSUT(amount: 120)
+        let occurrence = bill.dueDate
+
+        _ = makeIssuedOccurrence(for: bill, dueDate: occurrence, in: context)
+        bill.amount = 100
+        try context.save()
+
+        #expect(bill.expectedAmount(for: occurrence, calendar: .current) == 120)
+        #expect(bill.remainingBalance(for: occurrence, calendar: .current) == 120)
+    }
+
     @Test func whenFullyPaid_thenOccurrenceRemovedFromUnpaidList() throws {
         let (bill, context) = try makeSUT(amount: 100)
         let occurrence = bill.dueDate

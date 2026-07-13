@@ -96,6 +96,30 @@ struct AnalyticsModelTests {
         #expect(spy.capturedEvents[0].properties["has_confirmation_number"] as? Bool == true)
     }
 
+    // MARK: - Pro gates
+
+    @Test func whenCapturingProGateHit_thenSendsExpectedNameAndFeature() {
+        let (sut, spy) = makeSUT()
+
+        sut.capture(.proGateHit(feature: "bill_limit"))
+
+        #expect(spy.capturedEvents.count == 1)
+        #expect(spy.capturedEvents[0].name == "pro gate hit")
+        #expect(spy.capturedEvents[0].properties["feature"] as? String == "bill_limit")
+    }
+
+    @Test func whenGateOpensPaywall_thenGateFeatureAndPaywallContextShareOneKey() {
+        // The funnel joins `pro gate hit` to `paywall shown` on this key —
+        // a mismatch would silently break per-gate conversion reporting.
+        // Iterates allCases so a future context can't skip this contract.
+        let expectedKeys = [
+            "first_launch", "bill_limit", "income_limit", "partial_payment", "custom_recurrence", "charts", "data_export"
+        ]
+
+        #expect(PaywallContext.allCases.map(\.analyticsKey) == expectedKeys)
+        #expect(PaywallContext.allCases.map(\.id) == expectedKeys)
+    }
+
     // MARK: - Funnel event-name stability (names are the analytics contract)
 
     @Test func whenCapturingFunnelEvents_thenNamesMatchContract() {
@@ -113,6 +137,7 @@ struct AnalyticsModelTests {
             (.paywallPurchaseSucceeded(planId: "yearly", context: "first_launch"), "paywall purchase succeeded"),
             (.paywallPurchaseCancelled(planId: "weekly", context: "first_launch"), "paywall purchase cancelled"),
             (.paywallRestoreFailed(context: "first_launch", error: "no_purchases_found"), "paywall restore failed"),
+            (.proGateHit(feature: "partial_payment"), "pro gate hit"),
             (.notificationOpened(kind: "bill_reminder"), "notification opened"),
             (.viewModeChanged(to: "calendar"), "view mode changed"),
             (.currencyChanged(currencyCode: "EUR", source: "settings"), "currency changed"),

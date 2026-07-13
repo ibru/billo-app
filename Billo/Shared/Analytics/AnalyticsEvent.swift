@@ -49,6 +49,14 @@ enum AnalyticsEvent: Sendable {
     case paywallRestoreSucceeded(context: String)
     case paywallRestoreFailed(context: String, error: String)
     case paywallClosed(context: String)
+    /// A free user bumped into a Pro gate (before the paywall renders).
+    /// `feature` always carries `PaywallContext.analyticsKey` so the funnel
+    /// gate-hit → paywall shown → purchased joins on one key.
+    /// Semantics per gate: action gates (`bill_limit`, `partial_payment`,
+    /// `custom_recurrence`) fire when the blocked action is attempted; for
+    /// `charts` it means "upgrade button tapped" — blurred-screen exposure is
+    /// deliberately not counted (tab switches would inflate it).
+    case proGateHit(feature: String)
     case ratingPromptRequested
 
     // MARK: Bills & payments
@@ -129,6 +137,7 @@ extension AnalyticsEvent {
         case .paywallRestoreSucceeded: "paywall restore succeeded"
         case .paywallRestoreFailed: "paywall restore failed"
         case .paywallClosed: "paywall closed"
+        case .proGateHit: "pro gate hit"
         case .ratingPromptRequested: "rating prompt requested"
 
         case .billCreated: "bill created"
@@ -196,6 +205,8 @@ extension AnalyticsEvent {
             return ["context": context, "error": error]
         case .paywallFreeTrialToggled(let enabled, let context):
             return ["enabled": enabled, "context": context]
+        case .proGateHit(let feature):
+            return ["feature": feature]
 
         case .billCreated(
             let category, let isRecurring, let recurrencePattern,

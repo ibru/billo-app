@@ -6,6 +6,8 @@ import SwiftData
 struct BillEditView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettingsModel
+    @Environment(StoreKitManager.self) private var storeKit
+    @Environment(AnalyticsModel.self) private var analytics
     @Environment(\.dismiss) private var dismiss
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
@@ -33,6 +35,7 @@ struct BillEditView: View {
     @State private var providerURL: String = ""
     @State private var isSaving: Bool = false
     @State private var activeAlert: BillEditAlert?
+    @State private var paywallContext: PaywallContext?
 
     @State private var selectedRecurrencePreset: RecurrencePreset = .none
     @State private var draftSelectedIntervalType: RepeatIntervalType = .monthly
@@ -115,7 +118,11 @@ struct BillEditView: View {
                         frequency: $draftFrequency,
                         dayOfWeek: $draftDayOfWeek,
                         dayOfMonth: $draftDayOfMonth,
-                        anchorDate: $dueDate
+                        anchorDate: $dueDate,
+                        onCustomLocked: {
+                            analytics.capture(.proGateHit(feature: PaywallContext.customRecurrence.analyticsKey))
+                            paywallContext = .customRecurrence
+                        }
                     )
 
                     if selectedRecurrencePreset != .none {
@@ -170,6 +177,7 @@ struct BillEditView: View {
             } message: { alert in
                 Text(alert.message)
             }
+            .paywallSheet(context: $paywallContext)
         }
     }
 
@@ -192,6 +200,17 @@ struct BillEditView: View {
         guard isSaving == false else { return }
 
         guard case .editing(let bill) = mode else {
+            do {
+                let currentCount = try billsModel.storedBillCount()
+                if !FreeTierLimits.canAddBill(currentCount: currentCount, isPro: storeKit.isPro) {
+                    analytics.capture(.proGateHit(feature: PaywallContext.billLimit.analyticsKey))
+                    paywallContext = .billLimit
+                    return
+                }
+            } catch {
+                activeAlert = .saveError(error.localizedDescription)
+                return
+            }
             performAdd()
             return
         }
@@ -337,6 +356,15 @@ private enum BillEditAlert {
     return NavigationStack {
         BillEditView(mode: .adding)
             .billoPreviewEnvironment(preview)
+    }
+}
+
+#Preview("Add Bill – Free tier") {
+    let preview = BilloPreviewContainer.withSampleData()
+
+    return NavigationStack {
+        BillEditView(mode: .adding)
+            .billoPreviewEnvironment(preview, isPro: false)
     }
 }
 

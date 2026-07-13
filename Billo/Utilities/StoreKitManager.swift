@@ -59,11 +59,27 @@ final class StoreKitManager {
     var products: [Product] = []
     var productsState: LoadState = .idle
 
+    private let cache: ProEntitlementCaching
     private var transactionUpdatesTask: Task<Void, Never>?
     private var productsLoadTask: Task<[Product], Error>?
     private var didStart: Bool = false
 
-    init() {}
+    /// Seeds `isPro` synchronously from the last-known cached entitlement so a
+    /// paying user relaunching offline (or during a slow StoreKit response)
+    /// never sees locked features — `refreshEntitlements()` remains the source
+    /// of truth and overwrites the cache once it lands.
+    init(cache: ProEntitlementCaching = UserDefaultsProEntitlementCache()) {
+        self.cache = cache
+        self.isPro = cache.isPro
+    }
+
+    /// Previews, tests, and QA schemes ONLY: a fixed entitlement without
+    /// touching StoreKit or UserDefaults. Never use in the production launch
+    /// path — it bypasses the entitlement cache and real StoreKit entirely.
+    convenience init(isPro: Bool) {
+        self.init(cache: NoopProEntitlementCache())
+        self.isPro = isPro
+    }
 
     func start() {
         guard didStart == false else { return }
@@ -145,13 +161,24 @@ final class StoreKitManager {
             break
         }
 
-        isPro = foundActive
+        applyEntitlement(isActive: foundActive)
+    }
+
+    /// Single write path for the entitlement: updates `isPro` and persists the
+    /// optimistic cache together. Internal (not private) so tests can drive
+    /// entitlement changes deterministically — iterating the real
+    /// `Transaction.currentEntitlements` is not controllable in the test host.
+    func applyEntitlement(isActive: Bool) {
+        isPro = isActive
+        cache.save(isPro: isActive)
     }
 
     func restorePurchases() async throws {
         try await AppStore.sync()
         await refreshEntitlements()
     }
+
+    // MARK: - Purchase
 
     func purchase(_ product: Product) async -> Result<Void, PurchaseError> {
         do {
@@ -175,4 +202,38 @@ final class StoreKitManager {
             return .failure(.failed(error.localizedDescription))
         }
     }
+}
+
+// MARK: - Pro entitlement cache
+
+/// Lightweight optimistic cache for the Pro entitlement. Backed by
+/// `UserDefaults` in production; a spy in tests; a no-op for previews and the
+/// QA schemes (so a cached `true` can never leak into a gating QA session).
+/// The cache only seeds the launch value — `Transaction.currentEntitlements`
+/// overwrites it on every refresh.
+protocol ProEntitlementCaching {
+    var isPro: Bool { get }
+    func save(isPro: Bool)
+}
+
+final class UserDefaultsProEntitlementCache: ProEntitlementCaching {
+    private static let key = "billo.proEntitlement.isPro"
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    var isPro: Bool {
+        defaults.bool(forKey: Self.key)
+    }
+
+    func save(isPro: Bool) {
+        defaults.set(isPro, forKey: Self.key)
+    }
+}
+
+final class NoopProEntitlementCache: ProEntitlementCaching {
+    var isPro: Bool { false }
+    func save(isPro: Bool) {}
 }

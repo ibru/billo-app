@@ -38,7 +38,7 @@ struct AppRootView: View {
 #Preview {
     let preview = BilloPreviewContainer.empty()
     let flow = AppFlowModel(persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-root") ?? .standard))
-    let storeKit = StoreKitManager()
+    let storeKit = StoreKitManager(isPro: false)
 
     return AppRootView()
         .environment(preview.billsModel)

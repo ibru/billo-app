@@ -147,6 +147,9 @@ final class BillsModel {
         confirmationNumber: String? = nil,
         source: PaymentEventSource
     ) async throws {
+        // Captured BEFORE recording: "partial" means paying less than what was
+        // still owed — the same definition the free-tier gate uses. Comparing
+        // against the series amount would mislabel settling a remainder.
         let remainingBeforePayment = occurrence.bill.remainingBalance(
             for: occurrence.dueDate,
             calendar: calendar
@@ -180,7 +183,7 @@ final class BillsModel {
             category: occurrence.categoryIdentifier?.analyticsKey ?? "none",
             currencyCode: occurrence.currencyCode,
             daysFromDue: daysBetween(occurrence.dueDate, and: datePaid),
-            isPartial: paidAmount < occurrence.amount,
+            isPartial: paidAmount < remainingBeforePayment,
             hasConfirmationNumber: confirmationNumber?.isEmpty == false
         ))
 
@@ -195,6 +198,19 @@ final class BillsModel {
             from: calendar.startOfDay(for: dueDate),
             to: calendar.startOfDay(for: paidDate)
         ).day ?? 0
+    }
+
+    /// Fresh count of stored `Bill` records for the free-tier cap check.
+    /// NOT the `bills` snapshot array — that is only rebuilt on `refresh()`
+    /// and can be stale after a mid-session CloudKit import.
+    func storedBillCount() throws -> Int {
+        try modelContext.fetchCount(FetchDescriptor<Bill>())
+    }
+
+    /// Fresh count of stored `Income` records for the free-tier cap check —
+    /// same rationale as `storedBillCount()`.
+    func storedIncomeCount() throws -> Int {
+        try modelContext.fetchCount(FetchDescriptor<Income>())
     }
 
     func addBill(_ bill: Bill) async throws {
