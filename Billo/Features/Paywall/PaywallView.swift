@@ -174,13 +174,8 @@ struct PaywallView: View {
 
     private var heroSection: some View {
         VStack(spacing: DesignSystem.Spacing.medium) {
-            Image(systemName: "calendar.badge.checkmark")
-                .font(.system(size: 44, weight: .semibold))
-                .foregroundStyle(.tint)
-                .symbolRenderingMode(.hierarchical)
-                .frame(width: 96, height: 96)
-                .background(.tint.opacity(0.12), in: Circle())
-                .accessibilityHidden(true)
+            AppIconView(size: 96)
+                .cardShadow()
 
             VStack(spacing: DesignSystem.Spacing.extraSmall) {
                 Text(headline)

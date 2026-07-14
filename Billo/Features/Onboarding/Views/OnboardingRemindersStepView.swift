@@ -70,15 +70,7 @@ struct OnboardingNotificationBannerMock: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.medium) {
-            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                .fill(DesignSystem.Color.green.gradient)
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Image(systemName: "checklist")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .accessibilityHidden(true)
+            AppIconView(size: 40)
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.extraSmall) {
                 HStack {
