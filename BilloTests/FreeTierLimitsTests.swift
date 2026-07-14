@@ -69,6 +69,25 @@ struct FreeTierLimitsTests {
         #expect(FreeTierLimits.canRecordPayment(amount: 60, remainingBalance: 60, isPro: false))
     }
 
+    // MARK: - Display-cap overflow
+
+    @Test func whenUnderLimit_thenHiddenCountIsZero() {
+        #expect(FreeTierLimits.hiddenCount(totalCount: 10, limit: 15, isPro: false) == 0)
+    }
+
+    @Test func whenAtLimit_thenHiddenCountIsZero() {
+        #expect(FreeTierLimits.hiddenCount(totalCount: 15, limit: 15, isPro: false) == 0)
+    }
+
+    @Test func whenOverLimit_thenHiddenCountIsOverflow() {
+        // Over-cap state exists when a lapsed subscriber kept their data.
+        #expect(FreeTierLimits.hiddenCount(totalCount: 20, limit: 15, isPro: false) == 5)
+    }
+
+    @Test func whenOverLimitAndPro_thenHiddenCountIsZero() {
+        #expect(FreeTierLimits.hiddenCount(totalCount: 20, limit: 15, isPro: true) == 0)
+    }
+
     // MARK: - Feature switches
 
     @Test func whenNotPro_thenCustomRecurrenceChartsAndExportAreLocked() {

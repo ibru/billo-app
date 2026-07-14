@@ -150,15 +150,56 @@ struct NotificationActionHandlerTests {
 
         #expect(captured.isEmpty)
     }
+
+    @Test func whenMarkPaidFromNotificationAndOverLimit_thenNotificationRefreshDerivesFromVisibleBills() async throws {
+        // A stale action can fire while over the free-tier cap without the
+        // app opening — reminder/badge state must still derive from the
+        // visible bill set, not everything in the store. Clock is pinned near
+        // the due dates so the ranking's occurrence window applies.
+        let calendar = makeUTCCalendar()
+        let actionDate = makeDate(year: 2025, month: 1, day: 15)
+        let (sut, container, coordinatorSpy, prefs) = try makeSUT(calendar: calendar, currentDate: { actionDate })
+
+        let dueDate = makeDate(year: 2025, month: 1, day: 15)
+        try insertBill(amount: 100, dueDate: dueDate, stableID: "bill-due-soon", calendar: calendar, in: container)
+        for index in 1...FreeTierLimits.billLimit {
+            let laterDueDate = calendar.date(byAdding: .day, value: index, to: dueDate)!
+            try insertBill(amount: 100, dueDate: laterDueDate, stableID: "bill-\(index)", calendar: calendar, in: container)
+        }
+
+        let timestamp = Int(dueDate.timeIntervalSinceReferenceDate)
+        let identifier = makeNotificationIdentifier(billStableID: "bill-due-soon", timestamp: timestamp)
+
+        await sut.handleMarkPaid(
+            notificationIdentifier: identifier,
+            modelContainer: container,
+            notificationCoordinator: coordinatorSpy,
+            notificationPreferences: prefs,
+            isPro: false
+        )
+
+        let payments = try fetchPaymentEntries(from: container)
+        #expect(payments.count == 1)
+
+        // Post-save recompute: the paid one-time bill dies and drops out;
+        // the previously hidden 16th bill is revealed in its place. Count
+        // alone would pass even if the pre-save set were reused.
+        let refreshedBills = try #require(coordinatorSpy.refreshAllNotificationsCalls.last)
+        let refreshedIDs = refreshedBills.map(\.stableID)
+        #expect(refreshedIDs.count == FreeTierLimits.billLimit)
+        #expect(refreshedIDs.contains("bill-due-soon") == false)
+        #expect(refreshedIDs.contains("bill-\(FreeTierLimits.billLimit)"))
+    }
 }
 
 // MARK: - makeSUT & Factories
 
 @MainActor
 private func makeSUT(
-    calendar: Calendar = makeUTCCalendar()
+    calendar: Calendar = makeUTCCalendar(),
+    currentDate: @escaping @Sendable () -> Date = { Date() }
 ) throws -> (NotificationActionHandler, ModelContainer, NotificationCoordinatorSpy, StubNotificationPreferences) {
-    let handler = NotificationActionHandler(calendar: calendar)
+    let handler = NotificationActionHandler(calendar: calendar, currentDate: currentDate)
     let schema = Schema([Bill.self, RecurrenceRule.self, IssuedOccurrence.self, PaymentEntry.self])
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [config])

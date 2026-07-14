@@ -34,10 +34,19 @@ private struct AnalyticsContextBinder: ViewModifier {
             .onChange(of: storeKitManager.isPro) { _, _ in
                 updateContext()
             }
-            .onChange(of: billsModel.bills.count) { _, _ in
+            .onChange(of: billsModel.totalBillCount) { _, _ in
                 updateContext()
             }
-            .onChange(of: billsModel.incomes.count) { _, _ in
+            .onChange(of: billsModel.totalIncomeCount) { _, _ in
+                updateContext()
+            }
+            // Hidden counts change on entitlement flips while totals stay
+            // constant — without these triggers the isPro onChange registers
+            // stale hidden counts (the model refresh runs async, after it).
+            .onChange(of: billsModel.hiddenBillCount) { _, _ in
+                updateContext()
+            }
+            .onChange(of: billsModel.hiddenIncomeCount) { _, _ in
                 updateContext()
             }
             .onChange(of: preferences.remindersEnabled) { _, _ in
@@ -53,10 +62,14 @@ private struct AnalyticsContextBinder: ViewModifier {
     }
 
     private func updateContext() {
+        // True stored counts, not the display-capped arrays — over-limit free
+        // users are exactly the segment these properties must identify.
         analytics.register(superProperties: [
             "is_pro": storeKitManager.isPro,
-            "bill_count": billsModel.bills.count,
-            "income_count": billsModel.incomes.count,
+            "bill_count": billsModel.totalBillCount,
+            "income_count": billsModel.totalIncomeCount,
+            "hidden_bill_count": billsModel.hiddenBillCount,
+            "hidden_income_count": billsModel.hiddenIncomeCount,
             "reminders_enabled": preferences.remindersEnabled,
             "digest_enabled": preferences.digestEnabled,
             "platform": platformValue,

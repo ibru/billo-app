@@ -6,11 +6,13 @@ import SwiftUI
 struct BillsListView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettingsModel
+    @Environment(AnalyticsModel.self) private var analytics
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
     @State private var monthsAhead = 3
+    @State private var paywallContext: PaywallContext?
 
     private let usesStackNavigation: Bool
     private let onAddBill: () -> Void
@@ -45,11 +47,19 @@ struct BillsListView: View {
 
                     billSections()
 
+                    if billsModel.hiddenBillCount > 0 {
+                        HiddenItemsPromptRow(count: billsModel.hiddenBillCount, kind: .bills) {
+                            analytics.capture(.proGateHit(feature: PaywallContext.hiddenBills.analyticsKey))
+                            paywallContext = .hiddenBills
+                        }
+                    }
+
                     showMoreButton
                 }
             }
         }
         .background(DesignSystem.Color.groupedBackground)
+        .paywallSheet(context: $paywallContext)
         .analyticsScreen(.billsList)
         .task {
             do {

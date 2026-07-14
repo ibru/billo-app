@@ -11,6 +11,11 @@ enum PaywallContext: Hashable, Sendable, Identifiable, CaseIterable {
     case customRecurrence
     case charts
     case dataExport
+    /// Display cap: over-limit items exist (created while Pro) but are hidden.
+    /// Distinct from `.billLimit`/`.incomeLimit` (tried to add a new item) —
+    /// "wants to see existing data" is a different purchase motivation.
+    case hiddenBills
+    case hiddenIncomes
 
     /// Stable snake_case key — the analytics context, the `proGateHit`
     /// feature, and the sheet identity. The funnel joins `pro gate hit` to
@@ -24,6 +29,8 @@ enum PaywallContext: Hashable, Sendable, Identifiable, CaseIterable {
         case .customRecurrence: "custom_recurrence"
         case .charts: "charts"
         case .dataExport: "data_export"
+        case .hiddenBills: "hidden_bills"
+        case .hiddenIncomes: "hidden_incomes"
         }
     }
 
@@ -356,6 +363,10 @@ struct PaywallView: View {
             return String(localized: "See where your money goes", comment: "Paywall headline: charts gate")
         case .dataExport:
             return String(localized: "Your data, anywhere", comment: "Paywall headline: data export gate")
+        case .hiddenBills:
+            return String(localized: "Unlock all your bills", comment: "Paywall headline: hidden bills display cap")
+        case .hiddenIncomes:
+            return String(localized: "Unlock all your income", comment: "Paywall headline: hidden incomes display cap")
         }
     }
 
@@ -375,6 +386,10 @@ struct PaywallView: View {
             return String(localized: "Unlock spending insights with Billo Pro.", comment: "Paywall subheadline: charts gate")
         case .dataExport:
             return String(localized: "Export everything with Billo Pro.", comment: "Paywall subheadline: data export gate")
+        case .hiddenBills:
+            return String(localized: "Your data is safe — see every bill again with Billo Pro.", comment: "Paywall subheadline: hidden bills display cap")
+        case .hiddenIncomes:
+            return String(localized: "Your data is safe — see every income again with Billo Pro.", comment: "Paywall subheadline: hidden incomes display cap")
         }
     }
 

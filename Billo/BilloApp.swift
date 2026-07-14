@@ -91,6 +91,15 @@ struct BilloApp: App {
                             storeKitManager: storeKitManager,
                             preferences: preferencesStore
                         )
+                        // Free-tier display cap reacts to entitlement changes:
+                        // purchase reveals hidden items, lapse hides them and
+                        // cancels their reminders — one bills + notifications
+                        // refresh through the existing refresher path.
+                        .onChange(of: storeKitManager.isPro) { _, _ in
+                            Task { @MainActor in
+                                await refreshNotificationsIfReady()
+                            }
+                        }
                 } else {
                     ProgressView()
                         .task {
@@ -132,17 +141,36 @@ struct BilloApp: App {
                             currentDate: { Date() }
                         )
 
+                        // StoreKit must exist before BillsModel — the model's
+                        // free-tier display cap reads live entitlement.
+#if SCREENSHOTS
+                        // Pro unlocked without touching StoreKit, so screenshots
+                        // never show locked features or entitlement loading states.
+                        let storeKit = StoreKitManager(isPro: true)
+#elseif ONBOARDING
+                        // Non-pro on every LAUNCH: StoreKit is never started and
+                        // the entitlement cache is a no-op, so a cached `true`
+                        // from a previous run can't hide the Pro gates during QA.
+                        // (Purchasing on the paywall mid-session still flips
+                        // `isPro` until the next launch — useful for QA too.)
+                        let storeKit = StoreKitManager(isPro: false)
+#else
+                        let storeKit = StoreKitManager()
+#endif
+
                         // Set up notification delegate references
                         notificationDelegate.modelContainer = sharedModelContainer
                         notificationDelegate.notificationCoordinator = coordinator
                         notificationDelegate.notificationPreferences = preferences
                         notificationDelegate.analyticsCapture = { event in analytics.capture(event) }
+                        notificationDelegate.isProProvider = { storeKit.isPro }
 
                         let bills = BillsModel(
                             modelContext: context,
                             notificationCoordinator: coordinator,
                             notificationPreferences: preferences,
-                            analyticsCapture: { event in analytics.capture(event) }
+                            analyticsCapture: { event in analytics.capture(event) },
+                            isPro: { storeKit.isPro }
                         )
 
                         // Set up app settings
@@ -181,21 +209,6 @@ struct BilloApp: App {
 #endif
 
                         let flow = AppFlowModel()
-#if SCREENSHOTS
-                        // Pro unlocked without touching StoreKit, so screenshots
-                        // never show locked features or entitlement loading states.
-                        let storeKit = StoreKitManager(isPro: true)
-#elseif ONBOARDING
-                        // Non-pro on every LAUNCH: StoreKit is never started and
-                        // the entitlement cache is a no-op, so a cached `true`
-                        // from a previous run can't hide the Pro gates during QA.
-                        // (Purchasing on the paywall mid-session still flips
-                        // `isPro` until the next launch — useful for QA too.)
-                        let storeKit = StoreKitManager(isPro: false)
-#else
-                        let storeKit = StoreKitManager()
-                        storeKit.start()
-#endif
 
                         if settings.currencyCode != nil {
                             flow.completeOnboarding()
@@ -215,6 +228,16 @@ struct BilloApp: App {
                             appFlowModel = flow
                             storeKitManager = storeKit
                             analyticsModel = analytics
+
+#if !SCREENSHOTS && !ONBOARDING
+                            // Start AFTER the state is published so the ready
+                            // branch's `onChange(of: isPro)` observer is (about
+                            // to be) attached when the async entitlement
+                            // verification lands — starting earlier leaves a
+                            // window where a flip goes unobserved and the
+                            // display cap stays stale until the next refresh.
+                            storeKit.start()
+#endif
                         }
                 }
             }

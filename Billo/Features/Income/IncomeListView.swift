@@ -5,8 +5,10 @@ import SwiftUI
 
 struct IncomeListView: View {
     @Environment(BillsModel.self) private var billsModel
+    @Environment(AnalyticsModel.self) private var analytics
 
     @State private var showingAddIncome = false
+    @State private var paywallContext: PaywallContext?
 
 	    var body: some View {
 	        List {
@@ -21,9 +23,18 @@ struct IncomeListView: View {
                     }
                 }
 	                .onDelete(perform: deleteIncome)
+
+                if billsModel.hiddenIncomeCount > 0 {
+                    HiddenItemsPromptRow(count: billsModel.hiddenIncomeCount, kind: .incomes) {
+                        analytics.capture(.proGateHit(feature: PaywallContext.hiddenIncomes.analyticsKey))
+                        paywallContext = .hiddenIncomes
+                    }
+                    .listRowSeparator(.hidden)
+                }
 	            }
 	        }
 	        .navigationTitle("Income")
+	        .paywallSheet(context: $paywallContext)
 	        .analyticsScreen(.incomeList)
 	        .toolbar {
 	            ToolbarItem(placement: .primaryAction) {

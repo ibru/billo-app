@@ -88,7 +88,7 @@ struct OccurrenceDetailView: View {
         HStack(spacing: DesignSystem.Spacing.small) {
             Image(systemName: "archivebox")
                 .foregroundStyle(.secondary)
-            Text("This bill was deleted. Showing saved history only.")
+            Text("Showing saved payment history only.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()

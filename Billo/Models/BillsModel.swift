@@ -15,14 +15,27 @@ final class BillsModel {
     @ObservationIgnored private let badgeCalculator: BadgeCalculator
     @ObservationIgnored private let incomeProjector: IncomeOccurrenceProjector
     @ObservationIgnored private let analyticsCapture: (AnalyticsEvent) -> Void
+    @ObservationIgnored private let isPro: () -> Bool
 
+    /// Free-tier display cap applied: for non-Pro users this holds only the
+    /// `FreeTierLimits.billLimit` soonest-due bills. Every consumer (list,
+    /// calendar, notifications, badge) derives from this visible set.
     private(set) var bills: [Bill] = []
+    /// Display cap applied — first `FreeTierLimits.incomeLimit` by start date
+    /// for non-Pro users.
     private(set) var incomes: [Income] = []
     private(set) var sections: BillsListSections = .empty
     private(set) var incomeOccurrences: [IncomeOccurrence] = []
     /// Rebuilt on every `refresh()` (launch, mutations, app-active) so views
     /// read a precomputed dictionary instead of counting during body updates.
     private(set) var categoryUsageCounts: [CategoryIdentifier: Int] = [:]
+    /// Over-cap overflow for the upgrade prompt rows; 0 for Pro users.
+    private(set) var hiddenBillCount: Int = 0
+    private(set) var hiddenIncomeCount: Int = 0
+    /// True stored counts (pre-truncation) — analytics must report these,
+    /// not the capped `bills`/`incomes` counts.
+    private(set) var totalBillCount: Int = 0
+    private(set) var totalIncomeCount: Int = 0
 
     init(
         modelContext: ModelContext,
@@ -30,7 +43,8 @@ final class BillsModel {
         currentDate: @escaping () -> Date = { Date() },
         notificationCoordinator: NotificationCoordinating,
         notificationPreferences: NotificationPreferencesReading,
-        analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in }
+        analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in },
+        isPro: @escaping () -> Bool = { true }
     ) {
         self.modelContext = modelContext
         self.calendar = calendar
@@ -38,6 +52,7 @@ final class BillsModel {
         self.notificationCoordinator = notificationCoordinator
         self.notificationPreferences = notificationPreferences
         self.analyticsCapture = analyticsCapture
+        self.isPro = isPro
         self.badgeCalculator = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
         self.incomeProjector = IncomeOccurrenceProjector(calendar: calendar)
     }
@@ -54,16 +69,47 @@ final class BillsModel {
 
         // Fetch both bills and incomes from same context for data consistency
         let billDescriptor = FetchDescriptor<Bill>(sortBy: [SortDescriptor(\.dueDate)])
-        bills = try modelContext.fetch(billDescriptor)
-        categoryUsageCounts = CategoryCatalog.usageCounts(bills: bills)
+        let allBills = try modelContext.fetch(billDescriptor)
+        // Category usage deliberately counts ALL bills (hidden included): it
+        // only orders the category picker, and staying stable across
+        // entitlement flips avoids picker-order churn.
+        categoryUsageCounts = CategoryCatalog.usageCounts(bills: allBills)
 
-        let incomeDescriptor = FetchDescriptor<Income>(sortBy: [SortDescriptor(\.startDate)])
-        incomes = try modelContext.fetch(incomeDescriptor)
+        let proUser = isPro()
+        totalBillCount = allBills.count
+        bills = Self.visibleBills(
+            from: allBills,
+            isPro: proUser,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+        hiddenBillCount = FreeTierLimits.hiddenCount(
+            totalCount: allBills.count,
+            limit: FreeTierLimits.billLimit,
+            isPro: proUser
+        )
+
+        // Secondary createdDate sort: startDate ties (both salaries on the
+        // 1st) must resolve identically on every device, or CloudKit-synced
+        // devices could show a different visible pair.
+        let incomeDescriptor = FetchDescriptor<Income>(
+            sortBy: [SortDescriptor(\.startDate), SortDescriptor(\.createdDate)]
+        )
+        let allIncomes = try modelContext.fetch(incomeDescriptor)
+        totalIncomeCount = allIncomes.count
+        incomes = proUser ? allIncomes : Array(allIncomes.prefix(FreeTierLimits.incomeLimit))
+        hiddenIncomeCount = FreeTierLimits.hiddenCount(
+            totalCount: allIncomes.count,
+            limit: FreeTierLimits.incomeLimit,
+            isPro: proUser
+        )
 
         // Lazy steady-state materialization: ensure every past occurrence for an
         // active income is recorded as a snapshot row. This is the only place that
         // backfills "missed" past dates that accumulated since the last refresh.
-        try materializeMissingPastOccurrences(today: referenceDate)
+        // Runs over ALL incomes — the backfill is data integrity, not display;
+        // the free-tier cap must not silently drop hidden incomes' history.
+        try materializeMissingPastOccurrences(for: allIncomes, today: referenceDate)
 
         let occurrenceDescriptor = FetchDescriptor<IncomeOccurrence>(sortBy: [SortDescriptor(\.date)])
         incomeOccurrences = try modelContext.fetch(occurrenceDescriptor)
@@ -116,12 +162,43 @@ final class BillsModel {
         )
     }
 
-    private func materializeMissingPastOccurrences(today: Date) throws {
+    private func materializeMissingPastOccurrences(for allIncomes: [Income], today: Date) throws {
         try incomeProjector.materializePastOccurrences(
-            for: incomes,
+            for: allIncomes,
             upTo: today,
             context: modelContext
         )
+    }
+
+    /// Free tier shows the `FreeTierLimits.billLimit` bills whose next unpaid
+    /// occurrence is soonest (overdue first — they must stay visible). Bills
+    /// with nothing left unpaid rank last so dead bills never consume a free
+    /// slot ahead of a live one. Tiebreaks form a total order so the visible
+    /// set is deterministic across refreshes.
+    static func visibleBills(
+        from allBills: [Bill],
+        isPro: Bool,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> [Bill] {
+        guard !isPro, allBills.count > FreeTierLimits.billLimit else { return allBills }
+        // Precompute ranks once — unpaidOccurrences walks payments and
+        // recurrence generation, too costly to re-run inside the comparator.
+        // `.distantFuture` also catches live bills whose next occurrence lies
+        // beyond the frequency lookahead window (24+ months) — tying them
+        // with dead bills is accepted: a bill due years out can lose a slot.
+        let ranked = allBills
+            .map { bill in
+                (bill: bill,
+                 next: bill.unpaidOccurrences(aroundDate: referenceDate, calendar: calendar).first ?? .distantFuture)
+            }
+            .sorted { lhs, rhs in
+                if lhs.next != rhs.next { return lhs.next < rhs.next }
+                if lhs.bill.dueDate != rhs.bill.dueDate { return lhs.bill.dueDate < rhs.bill.dueDate }
+                if lhs.bill.createdDate != rhs.bill.createdDate { return lhs.bill.createdDate < rhs.bill.createdDate }
+                return lhs.bill.stableID < rhs.bill.stableID
+            }
+        return ranked.prefix(FreeTierLimits.billLimit).map(\.bill)
     }
 
     private func buildIncomeOccurrenceItems(

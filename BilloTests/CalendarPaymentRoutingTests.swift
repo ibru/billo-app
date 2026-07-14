@@ -34,6 +34,36 @@ struct CalendarPaymentRoutingTests {
 
         #expect(destination == nil)
     }
+
+    // MARK: Free-tier display cap: hidden bills must not open live detail
+
+    @Test
+    func whenPaymentBillIsHiddenByFreeTierCap_thenRoutesToOccurrenceDetail() throws {
+        let (payment, _, _) = try makeLivePayment()
+        let occurrence = try #require(payment.issuedOccurrence)
+
+        let destination = CalendarPaymentRouting.destination(for: payment, isBillVisible: { _ in false })
+
+        #expect(destination == .occurrence(occurrence.persistentModelID))
+    }
+
+    @Test
+    func whenPaymentBillIsVisible_thenExplicitVisibilityStillRoutesToBillDetail() throws {
+        let (payment, bill, _) = try makeLivePayment()
+
+        let destination = CalendarPaymentRouting.destination(for: payment, isBillVisible: { $0 == bill.persistentModelID })
+
+        #expect(destination == .bill(bill.persistentModelID))
+    }
+
+    @Test
+    func whenParentBillHiddenAndNoIssuedOccurrence_thenRoutesNowhere() {
+        let payment = makeDetachedPayment()
+
+        let destination = CalendarPaymentRouting.destination(for: payment, isBillVisible: { _ in false })
+
+        #expect(destination == nil)
+    }
 }
 
 // MARK: - makeSUT & Factories

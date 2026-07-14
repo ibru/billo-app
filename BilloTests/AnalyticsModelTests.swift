@@ -113,7 +113,8 @@ struct AnalyticsModelTests {
         // a mismatch would silently break per-gate conversion reporting.
         // Iterates allCases so a future context can't skip this contract.
         let expectedKeys = [
-            "first_launch", "bill_limit", "income_limit", "partial_payment", "custom_recurrence", "charts", "data_export"
+            "first_launch", "bill_limit", "income_limit", "partial_payment", "custom_recurrence", "charts", "data_export",
+            "hidden_bills", "hidden_incomes"
         ]
 
         #expect(PaywallContext.allCases.map(\.analyticsKey) == expectedKeys)

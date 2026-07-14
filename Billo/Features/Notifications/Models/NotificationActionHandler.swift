@@ -23,19 +23,28 @@ enum NotificationActionError: LocalizedError {
 struct NotificationActionHandler: Sendable {
     private let calendar: Calendar
     private let badgeCalculator: BadgeCalculator
+    private let currentDate: @Sendable () -> Date
 
-    init(calendar: Calendar = .current) {
+    init(calendar: Calendar = .current, currentDate: @escaping @Sendable () -> Date = { Date() }) {
         self.calendar = calendar
+        self.currentDate = currentDate
         self.badgeCalculator = BadgeCalculator(calendar: calendar, baseHorizonDays: 90)
     }
 
     /// Handles Mark Paid action. Returns silently if bill/occurrence not found (stale notification).
+    ///
+    /// `isPro` drives the free-tier display cap: recording the payment always
+    /// targets the found bill (full payments are free-tier legal, even on a
+    /// hidden bill), but badge/reminder state must derive from the *visible*
+    /// bill set only — a stale action can fire without the app ever opening,
+    /// so this is the only place that keeps the cap honest in the background.
     @MainActor
     func handleMarkPaid(
         notificationIdentifier: String,
         modelContainer: ModelContainer,
         notificationCoordinator: NotificationCoordinating,
         notificationPreferences: NotificationPreferencesReading,
+        isPro: Bool = true,
         analyticsCapture: (@MainActor (AnalyticsEvent) -> Void)? = nil
     ) async {
         // 1. Parse identifier
@@ -77,7 +86,13 @@ struct NotificationActionHandler: Sendable {
         let recorder = PaymentRecorder()
 
         do {
-            let datePaid = Date()
+            let datePaid = currentDate()
+            let visibleBills = BillsModel.visibleBills(
+                from: bills,
+                isPro: isPro,
+                referenceDate: datePaid,
+                calendar: calendar
+            )
             _ = try await recorder.recordPayment(
                 for: bill,
                 occurrenceDate: occurrenceDate,
@@ -89,9 +104,28 @@ struct NotificationActionHandler: Sendable {
                 notificationCoordinator: notificationCoordinator,
                 badgeCalculator: badgeCalculator,
                 badgeMode: notificationPreferences.badgeMode,
-                allBills: bills,
-                currentDate: { Date() }
+                allBills: visibleBills,
+                currentDate: currentDate
             )
+
+            // Paying a bill can change the visible-set ranking (the paid bill
+            // drops back; a hidden bill may earn a slot), and the recorder
+            // only cancels/badges — it never reschedules. One full refresh
+            // from the post-payment visible set keeps reminders, digest, and
+            // badge consistent even when the app never comes to foreground.
+            // Own do/catch: a notification failure must not read as a payment
+            // failure or swallow the analytics capture — the payment is saved.
+            do {
+                let visibleAfterPayment = BillsModel.visibleBills(
+                    from: bills,
+                    isPro: isPro,
+                    referenceDate: currentDate(),
+                    calendar: calendar
+                )
+                try await notificationCoordinator.refreshAllNotifications(for: visibleAfterPayment)
+            } catch {
+                Logger.log("Failed to refresh notifications after notification-action payment: \(error)", level: .error)
+            }
 
             let daysFromDue = calendar.dateComponents(
                 [.day],

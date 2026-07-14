@@ -4,10 +4,19 @@ import SwiftData
 import SwiftUI
 
 struct CalendarItemRow: View {
+    @Environment(BillsModel.self) private var billsModel
+
     let usesStackNavigation: Bool
     let item: CalendarListItem
     let customCategories: [CustomCategory]
     let onOpen: (HomeDetailDestination) -> Void
+
+    /// Free-tier display cap: a payment row may only open the live bill
+    /// detail when its parent bill is in the visible set; hidden parents fall
+    /// back to the read-only occurrence detail inside the routing.
+    private func isBillVisible(_ billID: PersistentIdentifier) -> Bool {
+        billsModel.bills.contains { $0.persistentModelID == billID }
+    }
 
     var body: some View {
         switch item {
@@ -32,7 +41,7 @@ struct CalendarItemRow: View {
             }
 
         case .payment(let payment):
-            let destination = CalendarPaymentRouting.destination(for: payment)
+            let destination = CalendarPaymentRouting.destination(for: payment, isBillVisible: isBillVisible)
             if let destination {
                 if usesStackNavigation {
                     NavigationLink(value: destination) {
