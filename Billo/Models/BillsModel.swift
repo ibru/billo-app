@@ -36,6 +36,12 @@ final class BillsModel {
     /// not the capped `bills`/`incomes` counts.
     private(set) var totalBillCount: Int = 0
     private(set) var totalIncomeCount: Int = 0
+    /// Incremented at the end of every `refresh()`. Views that derive local
+    /// state from this model (e.g. the calendar) observe it instead of the
+    /// `bills`/`incomes` arrays: array identity misses in-place edits (an
+    /// amount change keeps the same elements in the same order), while every
+    /// mutation path funnels through `refresh()` and bumps this.
+    private(set) var refreshGeneration = 0
 
     init(
         modelContext: ModelContext,
@@ -134,6 +140,7 @@ final class BillsModel {
             calendar: calendar,
             monthsAhead: monthsAhead
         )
+        refreshGeneration &+= 1
         Logger.log(
             "Refreshed bills: \(bills.count), incomes: \(incomes.count), incomeOccurrences: \(incomeOccurrences.count), months: \(monthsAhead)",
             level: .debug

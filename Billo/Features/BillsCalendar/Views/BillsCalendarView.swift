@@ -43,6 +43,44 @@ struct BillsCalendarView: View {
     private var allPayments: [PaymentEntry] { allStoredPayments }
     @State private var referenceDate: Date = Date()
 
+    /// Everything the calendar renders or routes from one payment. Equatable
+    /// value snapshot (not a hash) so change detection is exact.
+    private struct PaymentChangeKey: Equatable {
+        let id: PersistentIdentifier
+        let amount: Decimal
+        let datePaid: Date
+        let occurrenceDate: Date
+        let snapshotName: String?
+        let snapshotCurrencyCode: String?
+        let snapshotCategoryRawValue: String?
+        let billID: PersistentIdentifier?
+    }
+
+    /// Change detector over the payment fields the calendar renders. The
+    /// query re-runs on any context save, so this is recomputed per body
+    /// evaluation — O(payments) value copies, negligible next to a rebuild.
+    private var paymentsChangeSnapshot: [PaymentChangeKey] {
+        allStoredPayments.map { payment in
+            PaymentChangeKey(
+                id: payment.persistentModelID,
+                amount: payment.amount,
+                datePaid: payment.datePaid,
+                occurrenceDate: payment.occurrenceDate,
+                snapshotName: payment.snapshotName,
+                snapshotCurrencyCode: payment.snapshotCurrencyCode,
+                snapshotCategoryRawValue: payment.snapshotCategoryIdentifier?.rawValue,
+                billID: payment.bill?.persistentModelID
+            )
+        }
+    }
+
+    /// Payments state the last `rebuildLocalState()` ran against. Lets the
+    /// payments observer skip when a `BillsModel` mutation path (which calls
+    /// `refresh()` itself, e.g. `markPaid`) already rebuilt with this exact
+    /// state — otherwise every local payment change would refresh and rebuild
+    /// twice (once via `refreshGeneration`, once via the query observer).
+    @State private var lastRebuiltPayments: [PaymentChangeKey]?
+
 	    init(
 	        calendar: Calendar = .autoupdatingCurrent,
             usesStackNavigation: Bool = true,
@@ -70,22 +108,29 @@ struct BillsCalendarView: View {
                 },
                 onSkipIncome: {
                     // `BillsModel.skipIncomeOccurrence` already refreshed the
-                    // model. Just rebuild local state — avoids a second
-                    // full model refresh.
-                    rebuildLocalState()
+                    // model, which bumps `refreshGeneration` — the observer
+                    // below rebuilds local state; nothing to do here.
                 }
             )
             .analyticsScreen(.billsCalendar)
             .task {
                 await refreshData()
             }
-            .onChange(of: billsModel.bills) { _, _ in
-                Task { await refreshData() }
+            // Single rebuild pipeline: every model mutation ends in
+            // `BillsModel.refresh()`, which bumps the generation. Observing it
+            // (instead of the bills/incomes arrays) also catches in-place
+            // edits that keep array identity, e.g. changing a bill's amount.
+            .onChange(of: billsModel.refreshGeneration) { _, _ in
+                rebuildLocalState()
             }
-            .onChange(of: billsModel.incomes) { _, _ in
-                Task { await refreshData() }
-            }
-            .onChange(of: allStoredPayments.count) { _, _ in
+            // Payments can also change without a model refresh (CloudKit sync
+            // delivering remote inserts/deletes/field updates — including
+            // same-count batches, which a `.count` trigger would miss). Local
+            // mutations go through `BillsModel` and already rebuilt via the
+            // generation observer above, so skip those (the rebuild recorded
+            // the payments state it ran against).
+            .onChange(of: paymentsChangeSnapshot) { _, newValue in
+                guard newValue != lastRebuiltPayments else { return }
                 Task { await refreshData() }
             }
             .onChange(of: displayedMonth) { _, _ in
@@ -235,27 +280,28 @@ struct BillsCalendarView: View {
         )
     }
 
-    /// Full refresh: fetches/materializes via `BillsModel.refresh()` and then
-    /// rebuilds the calendar's local state. Used by `.task` on appear and by
-    /// the various model-state `onChange` observers below.
+    /// Full refresh: `BillsModel.refresh()` bumps `refreshGeneration`, whose
+    /// observer in `body` performs the local rebuild — no direct rebuild call
+    /// on the success path, or every refresh would rebuild twice.
     @MainActor
     private func refreshData() async {
         do {
             try billsModel.refresh()
         } catch {
             Logger.log("Failed to refresh bills: \(error)", level: .error)
+            // The generation didn't bump; rebuild from whatever state the
+            // model holds so the calendar still renders something.
+            rebuildLocalState()
         }
-        rebuildLocalState()
     }
 
     /// Rebuild-only path: assumes `BillsModel` is already up to date and just
-    /// reads from it to refresh the calendar's local @State. Used by callbacks
-    /// from `DayDetailSheet` whose model-side method (e.g. `skipIncomeOccurrence`)
-    /// already invoked `BillsModel.refresh()` internally — calling
-    /// `refreshData()` here would double-refresh the model.
+    /// reads from it to refresh the calendar's local @State. Driven by the
+    /// `refreshGeneration` observer in `body`.
     @MainActor
     private func rebuildLocalState() {
         referenceDate = Date()
+        lastRebuiltPayments = paymentsChangeSnapshot
 
         let payments = allPayments
         let earliest = CalendarNavigationBounds.earliestMonth(
