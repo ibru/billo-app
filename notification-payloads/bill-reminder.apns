@@ -1,0 +1,14 @@
+{
+    "Simulator Target Bundle": "com.jiriurbasek.Billo",
+    "aps": {
+        "alert": {
+            "title": "Geico Auto Insurance",
+            "body": "$128.30 is due tomorrow"
+        },
+        "sound": "default",
+        "category": "BILL_REMINDER"
+    },
+    "billID": "7F3A9C2E-5B14-4D68-A0E7-91C4D2F8B356",
+    "occurrenceTimestamp": 805852800,
+    "offsetDays": 1
+}

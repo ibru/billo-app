@@ -1,0 +1,11 @@
+{
+    "Simulator Target Bundle": "com.jiriurbasek.Billo",
+    "aps": {
+        "alert": {
+            "title": "4 bills due in next 7 days",
+            "body": "Netflix — $15.49 — Jul 17\nGeico Auto Insurance — $128.30 — Jul 18\nCon Edison Electric — $86.42 — Jul 20\nVerizon Wireless — $92.15 — Jul 22\nRent — $1,850.00 — Jul 24"
+        },
+        "sound": "default",
+        "category": "DAILY_DIGEST"
+    }
+}
