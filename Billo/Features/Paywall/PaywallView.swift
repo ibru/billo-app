@@ -296,7 +296,7 @@ struct PaywallView: View {
 
     private var legalLinks: some View {
         HStack(spacing: 16) {
-            if let termsURL = URL(string: "https://example.com/terms") {
+            if let termsURL = URL(string: "https://www.billorganizer.app/terms-of-use.html") {
                 Link("Terms of Use", destination: termsURL)
             }
 
@@ -335,7 +335,7 @@ struct PaywallView: View {
             Text("•")
                 .foregroundStyle(.tertiary)
 
-            if let privacyURL = URL(string: "https://example.com/privacy") {
+            if let privacyURL = URL(string: "https://www.billorganizer.app/privacy-policy.html") {
                 Link("Privacy Policy", destination: privacyURL)
             }
         }
