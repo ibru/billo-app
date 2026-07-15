@@ -23,7 +23,7 @@ struct StoreKitManagerProCacheTests {
     @Test func whenEntitlementAppliedActive_thenIsProTrueAndCacheSavedTrue() {
         let (sut, cache) = makeSUT(cachedIsPro: false)
 
-        sut.applyEntitlement(isActive: true)
+        sut.applyEntitlement(activePlan: .yearly)
 
         #expect(sut.isPro == true)
         #expect(cache.savedValues == [true])
@@ -33,7 +33,7 @@ struct StoreKitManagerProCacheTests {
         // Optimistic seed from a stale cache must be overwritten by the refresh.
         let (sut, cache) = makeSUT(cachedIsPro: true)
 
-        sut.applyEntitlement(isActive: false)
+        sut.applyEntitlement(activePlan: nil)
 
         #expect(sut.isPro == false)
         #expect(cache.savedValues == [false])

@@ -21,6 +21,50 @@ final class StoreKitManager {
         static let all: [String] = [monthly, yearly, lifetime]
     }
 
+    /// The Pro plan behind the active entitlement, for display (e.g. the
+    /// Settings status row). `nil` while entitled means "plan unknown" — the
+    /// launch cache persists only the boolean, so callers must fall back to a
+    /// generic "Active" label until the first entitlement refresh lands.
+    enum ProPlan: Equatable {
+        case monthly
+        case yearly
+        case lifetime
+
+        init?(productID: String) {
+            switch productID {
+            case ProductID.monthly: self = .monthly
+            case ProductID.yearly: self = .yearly
+            case ProductID.lifetime: self = .lifetime
+            default: return nil
+            }
+        }
+
+        var displayName: String {
+            switch self {
+            case .monthly:
+                String(localized: "Monthly", comment: "Pro plan name: monthly subscription")
+            case .yearly:
+                String(localized: "Yearly", comment: "Pro plan name: yearly subscription")
+            case .lifetime:
+                String(localized: "Lifetime", comment: "Pro plan name: lifetime purchase")
+            }
+        }
+
+        /// A user can hold several entitlements at once (e.g. bought lifetime
+        /// while a subscription is still running) — show the strongest one.
+        static func preferred(among plans: [ProPlan]) -> ProPlan? {
+            plans.max { $0.rank < $1.rank }
+        }
+
+        private var rank: Int {
+            switch self {
+            case .monthly: 0
+            case .yearly: 1
+            case .lifetime: 2
+            }
+        }
+    }
+
     enum PurchaseError: LocalizedError, Equatable {
         case cancelled
         case pending
@@ -57,6 +101,7 @@ final class StoreKitManager {
     }
 
     var isPro: Bool = false
+    var activePlan: ProPlan?
     var products: [Product] = []
     var productsState: LoadState = .idle
 
@@ -150,28 +195,28 @@ final class StoreKitManager {
     }
 
     func refreshEntitlements() async {
-        var foundActive = false
+        var activePlans: [ProPlan] = []
         let now = Date()
 
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
-            guard ProductID.all.contains(transaction.productID) else { continue }
+            guard let plan = ProPlan(productID: transaction.productID) else { continue }
             guard transaction.revocationDate == nil else { continue }
             guard transaction.expirationDate.map({ $0 > now }) ?? true else { continue }
-            foundActive = true
-            break
+            activePlans.append(plan)
         }
 
-        applyEntitlement(isActive: foundActive)
+        applyEntitlement(activePlan: .preferred(among: activePlans))
     }
 
-    /// Single write path for the entitlement: updates `isPro` and persists the
-    /// optimistic cache together. Internal (not private) so tests can drive
-    /// entitlement changes deterministically — iterating the real
+    /// Single write path for the entitlement: updates `isPro`/`activePlan` and
+    /// persists the optimistic cache together. Internal (not private) so tests
+    /// can drive entitlement changes deterministically — iterating the real
     /// `Transaction.currentEntitlements` is not controllable in the test host.
-    func applyEntitlement(isActive: Bool) {
-        isPro = isActive
-        cache.save(isPro: isActive)
+    func applyEntitlement(activePlan: ProPlan?) {
+        self.activePlan = activePlan
+        isPro = activePlan != nil
+        cache.save(isPro: isPro)
     }
 
     func restorePurchases() async throws {

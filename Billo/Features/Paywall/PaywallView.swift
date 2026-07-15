@@ -16,6 +16,9 @@ enum PaywallContext: Hashable, Sendable, Identifiable, CaseIterable {
     /// "wants to see existing data" is a different purchase motivation.
     case hiddenBills
     case hiddenIncomes
+    /// Deliberate upgrade from the Settings status row — the only entry
+    /// point that isn't a feature gate.
+    case settings
 
     /// Stable snake_case key — the analytics context, the `proGateHit`
     /// feature, and the sheet identity. The funnel joins `pro gate hit` to
@@ -31,6 +34,7 @@ enum PaywallContext: Hashable, Sendable, Identifiable, CaseIterable {
         case .dataExport: "data_export"
         case .hiddenBills: "hidden_bills"
         case .hiddenIncomes: "hidden_incomes"
+        case .settings: "settings"
         }
     }
 
@@ -362,6 +366,8 @@ struct PaywallView: View {
             return String(localized: "Unlock all your bills", comment: "Paywall headline: hidden bills display cap")
         case .hiddenIncomes:
             return String(localized: "Unlock all your income", comment: "Paywall headline: hidden incomes display cap")
+        case .settings:
+            return String(localized: "Get the most out of Billo", comment: "Paywall headline: opened from Settings")
         }
     }
 
@@ -385,6 +391,8 @@ struct PaywallView: View {
             return String(localized: "Your data is safe — see every bill again with Billo Pro.", comment: "Paywall subheadline: hidden bills display cap")
         case .hiddenIncomes:
             return String(localized: "Your data is safe — see every income again with Billo Pro.", comment: "Paywall subheadline: hidden incomes display cap")
+        case .settings:
+            return String(localized: "Unlock everything with Billo Pro. Cancel anytime.", comment: "Paywall subheadline: opened from Settings")
         }
     }
 
