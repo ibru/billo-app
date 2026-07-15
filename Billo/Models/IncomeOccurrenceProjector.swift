@@ -51,7 +51,11 @@ struct IncomeOccurrenceProjector {
             )
         }
 
-        try context.save()
+        // Steady state inserts nothing — skip the save machinery (and the
+        // CloudKit export scheduling it pokes) on this read-mostly path.
+        if context.hasChanges {
+            try context.save()
+        }
     }
 
     // MARK: - Projection

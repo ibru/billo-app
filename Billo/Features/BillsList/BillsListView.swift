@@ -38,12 +38,12 @@ struct BillsListView: View {
                 if billsModel.bills.isEmpty {
                     BillsEmptyStateView(onAddBill: onAddBill)
                 } else {
+                    // Replay-masked by the list container mask on this ScrollView.
                     SummarySectionView(
                         overview: billsModel.sections.weeklyOverview,
                         totals: billsModel.sections.monthlyTotals,
                         currencyCode: currencyCode
                     )
-                    .replayMaskSensitive()
 
                     billSections()
 
@@ -59,6 +59,12 @@ struct BillsListView: View {
             }
         }
         .background(DesignSystem.Color.groupedBackground)
+        // One container-level replay mask for the whole list — the summary,
+        // rows, and section headers inside rely on it. Per-row masks each
+        // injected PostHog tag UIViews whose setup re-walks the view
+        // hierarchy; profiling showed them dominating first-frame and
+        // scrolling hangs.
+        .replayMaskSensitive()
         .paywallSheet(context: $paywallContext)
         .analyticsScreen(.billsList)
         .task {
@@ -368,7 +374,8 @@ struct BillRowView: View {
         }
         .frame(minHeight: CountdownBadgeView.estimatedSize)
         .contentShape(Rectangle())
-        .replayMaskSensitive()
+        // Replay-masked by each hosting screen's container mask
+        // (bills list ScrollView, DayDetailSheet list).
     }
 }
 
@@ -474,7 +481,7 @@ private struct BillSectionHeader: View {
                 }
                 .monospacedDigit()
                 .fontWeight(.bold)
-                .replayMaskSensitive()
+                // Replay-masked by the list container mask on the ScrollView.
             }
         }
         .frame(maxWidth: .infinity)

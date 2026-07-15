@@ -2,6 +2,15 @@
 
 import Foundation
 
+/// Cached UTC calendar for `utcDayKey`. Building a `Calendar` is expensive
+/// (ICU setup) and the key is computed inside per-occurrence hot loops
+/// (calendar/charts refresh), so it must not be re-created per call.
+private nonisolated let utcGregorianCalendar: Calendar = {
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+    return utc
+}()
+
 extension Date {
     /// `YYYY-MM-DD` of this `Date`'s UTC day.
     ///
@@ -18,9 +27,7 @@ extension Date {
     /// `nonisolated` so it can be called from `@Model` types like `Bill` whose
     /// generated members are not main-actor-bound.
     nonisolated var utcDayKey: String {
-        var utc = Calendar(identifier: .gregorian)
-        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        let components = utc.dateComponents([.year, .month, .day], from: self)
+        let components = utcGregorianCalendar.dateComponents([.year, .month, .day], from: self)
         return String(
             format: "%04d-%02d-%02d",
             components.year ?? 0,

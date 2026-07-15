@@ -530,6 +530,97 @@ struct NotificationCoordinatorTests {
             #expect(center.addedRequests.isEmpty)
         }
     }
+
+    @Suite("refresh coalescing")
+    @MainActor
+    struct RefreshCoalescing {
+
+        @Test
+        func whenRefreshRequestedWhileAnotherIsInFlight_thenCoalescesIntoOneTrailingPass() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
+            let (sut, center, _) = makeSUT(occurrences: [occurrence], referenceDate: referenceDate)
+            let (firstPassStarted, releaseFirstPass) = holdFirstRefreshPass(of: center)
+
+            let firstRefresh = Task { try await sut.refreshAllNotifications(for: [occurrence.bill]) }
+            await firstPassStarted.wait()
+
+            // Two more requests land while the first pass is suspended mid-flight.
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            await releaseFirstPass.open()
+            try await firstRefresh.value
+
+            #expect(center.authorizationStatusCallCount == 2)
+        }
+
+        @Test
+        func whenRefreshesRequestedWhileInFlight_thenTrailingPassUsesLatestBills() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrences = makeOccurrences(count: 3, startingFrom: referenceDate)
+            let (sut, center, provider) = makeSUT(occurrences: occurrences, referenceDate: referenceDate)
+            let (firstPassStarted, releaseFirstPass) = holdFirstRefreshPass(of: center)
+
+            let firstRefresh = Task { try await sut.refreshAllNotifications(for: [occurrences[0].bill]) }
+            await firstPassStarted.wait()
+
+            try await sut.refreshAllNotifications(for: [occurrences[0].bill, occurrences[1].bill])
+            try await sut.refreshAllNotifications(for: occurrences.map(\.bill))
+
+            await releaseFirstPass.open()
+            try await firstRefresh.value
+
+            #expect(provider.unpaidOccurrencesCalls.map(\.billsCount) == [1, 3])
+        }
+
+        @Test
+        func whenRefreshesRunSequentially_thenEachRunsItsOwnFullPass() async throws {
+            let referenceDate = makeDate(2025, 12, 1)
+            let occurrence = makeOccurrence(dueDate: makeDate(2025, 12, 2))
+            let (sut, center, _) = makeSUT(occurrences: [occurrence], referenceDate: referenceDate)
+
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+            try await sut.refreshAllNotifications(for: [occurrence.bill])
+
+            #expect(center.authorizationStatusCallCount == 2)
+        }
+
+        /// Suspends the first refresh pass at its authorization check and hands
+        /// the test two gates: one that opens once the pass is provably in
+        /// flight, one the test opens to let the pass finish. Later passes run
+        /// unimpeded, so overlap scenarios are deterministic, not timing-based.
+        private func holdFirstRefreshPass(
+            of center: UNNotificationCenterSpy
+        ) -> (firstPassStarted: TestGate, releaseFirstPass: TestGate) {
+            let firstPassStarted = TestGate()
+            let releaseFirstPass = TestGate()
+            center.onAuthorizationStatus = { passIndex in
+                guard passIndex == 1 else { return }
+                await firstPassStarted.open()
+                await releaseFirstPass.wait()
+            }
+            return (firstPassStarted, releaseFirstPass)
+        }
+    }
+}
+
+/// One-shot async gate: `wait()` suspends until `open()`; waiting after the
+/// gate opened returns immediately, so signal-then-wait handshakes can't race.
+private actor TestGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
+    }
 }
 
 // MARK: - makeSUT & Factories

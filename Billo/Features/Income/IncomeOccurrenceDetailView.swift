@@ -287,6 +287,10 @@ struct IncomeOccurrenceDetailView: View {
 
 // MARK: - Previews
 
+// Gated together with `IncomeOccurrencePreview` below: #Preview bodies still
+// compile in Release (Profile) builds even though they're stripped at link
+// time, so they must not reference DEBUG-only symbols outside the flag.
+#if DEBUG
 #Preview("Persisted March occurrence") {
     let preview = BilloPreviewContainer.withSampleData()
     let occurrence = IncomeOccurrencePreview.makePersistedMarchOccurrence(in: preview)
@@ -310,7 +314,6 @@ struct IncomeOccurrenceDetailView: View {
 /// Preview-only factory for `IncomeOccurrence` rows. Kept private to this file
 /// (the detail view is the only consumer) and lives behind `#if DEBUG` so
 /// release builds can't accidentally call into preview-shaped construction.
-#if DEBUG
 private enum IncomeOccurrencePreview {
     @MainActor
     static func makePersistedMarchOccurrence(in preview: BilloPreviewContainer) -> IncomeOccurrence {

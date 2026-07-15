@@ -8,6 +8,14 @@ import Observation
 @Observable
 @MainActor
 final class NotificationCoordinator: NotificationCoordinating {
+    /// Shared formatter for log timestamps — `DateFormatter` construction is
+    /// expensive and these logs fire inside the per-candidate scheduling loops.
+    private static let logDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
+    }()
+
     private struct NotificationOccurrenceSnapshot: Sendable {
         let billIDString: String
         let name: String
@@ -83,7 +91,32 @@ final class NotificationCoordinator: NotificationCoordinating {
 
     // MARK: - Refresh All
 
+    /// Coalesces overlapping refresh requests. The pipeline suspends at many
+    /// XPC awaits, and independent triggers routinely fire within milliseconds
+    /// of each other (e.g. a purchase flips `isPro` while the dismissing
+    /// payment sheet re-activates the scene) — without this guard two full
+    /// cancel-and-reschedule passes interleave, doubling ~35 awaited
+    /// notification-center calls on the main actor. The trailing pass reruns
+    /// with the latest bills, so the eventual schedule is identical.
+    private var refreshInFlight = false
+    private var pendingRefreshBills: [Bill]?
+
     func refreshAllNotifications(for bills: [Bill]) async throws {
+        if refreshInFlight {
+            pendingRefreshBills = bills
+            return
+        }
+        refreshInFlight = true
+        defer { refreshInFlight = false }
+
+        try await performRefreshAllNotifications(for: bills)
+        while let nextBills = pendingRefreshBills {
+            pendingRefreshBills = nil
+            try await performRefreshAllNotifications(for: nextBills)
+        }
+    }
+
+    private func performRefreshAllNotifications(for bills: [Bill]) async throws {
         Logger.log("Refreshing all notifications", level: .debug)
         Logger.log("Preferences - reminders: \(preferences.remindersEnabled), digest: \(preferences.digestEnabled), lookahead: \(preferences.digestLookaheadDays)", level: .debug)
         let referenceDate = currentDate()
@@ -246,9 +279,7 @@ final class NotificationCoordinator: NotificationCoordinating {
                 upcomingOccurrences: upcoming,
                 overdueOccurrences: overdue
             )
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd HH:mm"
-            Logger.log("Digest candidate: \(formatter.string(from: notificationDate)) - \(upcoming.count) upcoming, \(overdue.count) overdue", level: .debug)
+            Logger.log("Digest candidate: \(Self.logDateFormatter.string(from: notificationDate)) - \(upcoming.count) upcoming, \(overdue.count) overdue", level: .debug)
             return candidate
         }
     }
@@ -565,9 +596,7 @@ final class NotificationCoordinator: NotificationCoordinating {
         notificationDate: Date,
         identifier: String
     ) async throws {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        Logger.log("Scheduling digest: \(formatter.string(from: notificationDate)) - \(upcomingItems.count) upcoming, \(overdueItems.count) overdue", level: .info)
+        Logger.log("Scheduling digest: \(Self.logDateFormatter.string(from: notificationDate)) - \(upcomingItems.count) upcoming, \(overdueItems.count) overdue", level: .info)
 
         let content = UNMutableNotificationContent()
         content.title = contentBuilder.digestTitle(
@@ -647,11 +676,8 @@ final class NotificationCoordinator: NotificationCoordinating {
         Logger.log("=== NOTIFICATION SCHEDULE ===", level: .info)
         Logger.log("Total scheduled: \(plan.count), Remaining capacity: \(availableSlots - plan.count)", level: .info)
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-
         for (index, (snapshot, offset, notificationDate)) in plan.prefix(5).enumerated() {
-            let dateStr = formatter.string(from: notificationDate)
+            let dateStr = Self.logDateFormatter.string(from: notificationDate)
             let body = contentBuilder.reminderBody(
                 amount: snapshot.amount,
                 currencyCode: snapshot.currencyCode,

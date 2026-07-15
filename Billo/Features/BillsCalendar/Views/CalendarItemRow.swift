@@ -194,7 +194,7 @@ struct CalendarPaymentRow: View {
             localized: "Payment: \(payment.snapshotName ?? "Unknown Bill"), \(formattedAmount)",
             comment: "Accessibility: calendar payment row label (bill name, amount)"
         ))
-        .replayMaskSensitive()
+        // Replay-masked by the calendar list container in `BillsCalendarView`.
     }
 }
 
@@ -234,7 +234,7 @@ struct CalendarIncomeBillStyleRow: View {
             localized: "Income: \(incomeOccurrence.name), \(formattedAmount)",
             comment: "Accessibility: calendar income row label (income name, amount)"
         ))
-        .replayMaskSensitive()
+        // Replay-masked by the calendar list container in `BillsCalendarView`.
     }
 }
 

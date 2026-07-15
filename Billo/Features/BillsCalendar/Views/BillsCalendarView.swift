@@ -32,8 +32,13 @@ struct BillsCalendarView: View {
     @State private var months: [DateComponents] = []
     @State private var pageIndex: Int = 0
     @State private var hasInitialScroll = false
-    @State private var allOccurrences: [BillOccurrence] = []
-    @State private var allIncomeOccurrences: [IncomeOccurrenceItem] = []
+    /// Per-month grid data, built once in `rebuildLocalState()`. The paged
+    /// `TabView` instantiates every month page on each body evaluation
+    /// (page-style `TabView` is not lazy), so the `monthDataProvider` closure
+    /// must be an O(1) lookup — recomputing `CalendarMonthGridBuilder.build`
+    /// per page scans every occurrence and payment for each of the ~36+
+    /// months on every swipe or day selection.
+    @State private var gridDataByMonth: [DateComponents: CalendarMonthGridData] = [:]
 
     private var allPayments: [PaymentEntry] { allStoredPayments }
     @State private var referenceDate: Date = Date()
@@ -176,6 +181,12 @@ struct BillsCalendarView: View {
                         .scrollTargetLayout()
                     }
                     .scrollIndicators(.visible)
+                    // One container-level replay mask for the whole list.
+                    // Per-row masks each injected PostHog tag UIViews whose
+                    // setup re-walks the view hierarchy — profiled as the
+                    // dominant cost of calendar scrolling hangs. The rows and
+                    // section headers inside rely on this mask.
+                    .replayMaskSensitive()
                     .onChange(of: scrollRequest) { _, request in
                         guard let request else { return }
                         withAnimation(.easeInOut) {
@@ -274,8 +285,19 @@ struct BillsCalendarView: View {
             to: latest
         )
 
-        allOccurrences = occurrences
-        allIncomeOccurrences = incomeOccurrences
+        var gridData: [DateComponents: CalendarMonthGridData] = [:]
+        gridData.reserveCapacity(months.count)
+        for month in months {
+            gridData[month] = CalendarMonthGridBuilder.build(
+                month: month,
+                calendar: calendar,
+                occurrences: occurrences,
+                payments: payments,
+                incomeOccurrences: incomeOccurrences,
+                referenceDate: referenceDate
+            )
+        }
+        gridDataByMonth = gridData
 
         sections = CalendarSectionsBuilder.build(
             occurrences: occurrences,
@@ -407,14 +429,7 @@ struct BillsCalendarView: View {
     }
 
     private func gridData(for month: DateComponents) -> CalendarMonthGridData {
-        return CalendarMonthGridBuilder.build(
-            month: month,
-            calendar: calendar,
-            occurrences: allOccurrences,
-            payments: allPayments,
-            incomeOccurrences: allIncomeOccurrences,
-            referenceDate: referenceDate
-        )
+        gridDataByMonth[month] ?? [:]
     }
 }
 
@@ -442,11 +457,12 @@ private struct MonthSectionHeader: View {
                 if showBreakdown {
                     Spacer()
 
+                    // Masked by the calendar list's container-level
+                    // `.replayMaskSensitive()` in `BillsCalendarView.content`.
                     VStack(alignment: .trailing, spacing: 2) {
                         breakdownView
                         remainingLabel
                     }
-                    .replayMaskSensitive()
                 }
         }
         .padding(.horizontal, DesignSystem.Spacing.medium)

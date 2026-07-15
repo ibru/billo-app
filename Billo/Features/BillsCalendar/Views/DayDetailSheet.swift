@@ -71,6 +71,9 @@ struct DayDetailSheet: View {
             }
             .navigationTitle(dayData.date.formatted(.dateTime.month(.wide).day()))
             .platformInlineNavigationTitle()
+            // One container-level replay mask for all rows in the sheet —
+            // the income/payment/bill rows inside carry no masks of their own.
+            .replayMaskSensitive()
             .analyticsScreen(.calendarDaySheet)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -151,6 +154,6 @@ private struct DaySheetIncomeRow: View {
             localized: "Income: \(incomeOccurrence.name), \(formattedAmount)",
             comment: "Accessibility: day details income row label (name, amount)"
         ))
-        .replayMaskSensitive()
+        // Replay-masked by the sheet's list container mask.
     }
 }

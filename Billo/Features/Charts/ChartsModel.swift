@@ -94,6 +94,7 @@ final class ChartsModel {
         let payments = fetchPayments()
         customCategories = fetchCustomCategories()
         customCategoryIDs = Set(customCategories.map(\.id))
+        monthSpendingCache.removeAll()
         let now = currentDate()
 
         // Freeze past income occurrences as persisted snapshots (idempotent) so
@@ -191,11 +192,23 @@ final class ChartsModel {
         }
     }
 
+    /// Memo for `monthSpending` within a single `refresh()` pass. The trend
+    /// charts and the month-scoped charts ask for overlapping months (14 calls,
+    /// at most ~7 unique months) and each pass walks every payment plus every
+    /// bill's occurrence generation and issued-occurrence relationships —
+    /// too expensive to recompute for identical inputs. Cleared at the start
+    /// of every `refresh()` because bills/payments are refetched there.
+    @ObservationIgnored
+    private var monthSpendingCache: [Date: MonthSpending] = [:]
+
     private func monthSpending(
         bills: [Bill],
         payments: [PaymentEntry],
         in monthInterval: DateInterval
     ) -> MonthSpending {
+        if let cached = monthSpendingCache[monthInterval.start] {
+            return cached
+        }
         var spending = MonthSpending()
 
         // Actual money out: every payment made during the month, regardless of
@@ -230,6 +243,7 @@ final class ChartsModel {
             }
         }
 
+        monthSpendingCache[monthInterval.start] = spending
         return spending
     }
 

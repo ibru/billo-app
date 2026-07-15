@@ -13,6 +13,9 @@ final class UNNotificationCenterSpy: UNNotificationCenterProtocol, @unchecked Se
     private(set) var removedIdentifiers: [[String]] = []
     private(set) var badgeCounts: [Int] = []
     private(set) var requestAuthorizationCallCount = 0
+    /// One increment per `refreshAllNotifications` pass — the coordinator
+    /// checks authorization exactly once per pass, so this counts passes.
+    private(set) var authorizationStatusCallCount = 0
 
     // MARK: - Stubbed responses
 
@@ -20,6 +23,10 @@ final class UNNotificationCenterSpy: UNNotificationCenterProtocol, @unchecked Se
     var stubbedAuthorizationStatus: UNAuthorizationStatus = .authorized
     var requestAuthorizationResult: Result<Bool, Error> = .success(true)
     var addRequestError: Error?
+    /// Awaited inside `authorizationStatus()` with the 1-based call index.
+    /// Lets a test suspend a chosen refresh pass mid-flight to exercise
+    /// overlap behavior deterministically. No-op when nil.
+    var onAuthorizationStatus: (@Sendable (Int) async -> Void)?
 
     // MARK: - Protocol implementation
 
@@ -29,7 +36,9 @@ final class UNNotificationCenterSpy: UNNotificationCenterProtocol, @unchecked Se
     }
 
     func authorizationStatus() async -> UNAuthorizationStatus {
-        stubbedAuthorizationStatus
+        authorizationStatusCallCount += 1
+        await onAuthorizationStatus?(authorizationStatusCallCount)
+        return stubbedAuthorizationStatus
     }
 
     func add(_ request: UNNotificationRequest) async throws {

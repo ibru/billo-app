@@ -57,12 +57,16 @@ enum CalendarMonthGridBuilder {
             let occurrencePayments = paymentsByOccurrence[paymentKey] ?? []
             let totalPaid = occurrencePayments.reduce(Decimal.zero) { $0 + $1.amount }
 
+            // `occurrence.amount` walks the bill's issued-occurrence relationship —
+            // read it once per occurrence, not per comparison.
+            let occurrenceAmount = occurrence.amount
+
             // Fully paid → skip (only the payment on datePaid represents this bill)
-            if totalPaid >= occurrence.amount { continue }
+            if totalPaid >= occurrenceAmount { continue }
 
             let status: BillDueStatus
             if totalPaid > 0 {
-                status = .partiallyPaid(paid: totalPaid, remaining: occurrence.amount - totalPaid)
+                status = .partiallyPaid(paid: totalPaid, remaining: occurrenceAmount - totalPaid)
             } else if key < startOfToday {
                 status = .missed
             } else {

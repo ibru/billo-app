@@ -97,10 +97,12 @@ enum CalendarSectionsBuilder {
             let monthOccurrences = occurrences.filter { contains($0.dueDate, in: monthInterval) }
             let monthIncomes = incomeOccurrences.filter { contains($0.date, in: monthInterval) }
             let monthPayments = payments.filter { contains($0.datePaid, in: monthInterval) }
-            Logger.log(
-                "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) intervalStart=\(monthInterval.start.ISO8601Format()) intervalEnd=\(monthInterval.end.ISO8601Format()) occurrences=\(monthOccurrences.count) incomes=\(monthIncomes.count) payments=\(monthPayments.count)",
-                level: .debug
-            )
+            if isVerboseTraceEnabled {
+                Logger.log(
+                    "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) intervalStart=\(monthInterval.start.ISO8601Format()) intervalEnd=\(monthInterval.end.ISO8601Format()) occurrences=\(monthOccurrences.count) incomes=\(monthIncomes.count) payments=\(monthPayments.count)",
+                    level: .debug
+                )
+            }
 
             var items: [CalendarListItem] = []
             items.append(contentsOf: monthIncomes.map { .income($0) })
@@ -116,6 +118,10 @@ enum CalendarSectionsBuilder {
 
             var producedBills = 0
             var skippedFullyPaid = 0
+            // Accumulated during the same pass so the totals below don't need a
+            // second walk over the occurrences (each `occurrence.amount` read
+            // scans the bill's issued-occurrence relationship).
+            var totalBillsDue = Decimal.zero
 
             for occurrence in monthOccurrences {
                 let startOfDueDate = calendar.startOfDay(for: occurrence.dueDate)
@@ -123,9 +129,10 @@ enum CalendarSectionsBuilder {
                 let key = CalendarPaymentKey(billID: occurrence.bill.persistentModelID, occurrenceDay: startOfDueDate)
                 let occurrencePayments = paymentsByOccurrence[key] ?? []
                 let totalPaid = occurrencePayments.reduce(Decimal.zero) { $0 + $1.amount }
+                let occurrenceAmount = occurrence.amount
 
                 // Fully paid → skip (only the payment on datePaid represents this bill)
-                if totalPaid >= occurrence.amount {
+                if totalPaid >= occurrenceAmount {
                     skippedFullyPaid += 1
                     if isVerboseTraceEnabled {
                         Logger.log(
@@ -138,11 +145,14 @@ enum CalendarSectionsBuilder {
 
                 let status: BillDueStatus
                 if totalPaid > 0 {
-                    status = .partiallyPaid(paid: totalPaid, remaining: occurrence.amount - totalPaid)
+                    status = .partiallyPaid(paid: totalPaid, remaining: occurrenceAmount - totalPaid)
+                    totalBillsDue += occurrenceAmount - totalPaid
                 } else if startOfDueDate < startOfToday {
                     status = .missed
+                    totalBillsDue += occurrenceAmount
                 } else {
                     status = .upcoming
+                    totalBillsDue += occurrenceAmount
                 }
 
                 let display = BillDisplay(occurrence: occurrence, status: status)
@@ -170,18 +180,22 @@ enum CalendarSectionsBuilder {
                 }
                 return lhs.id < rhs.id
             }
-            Logger.log(
-                "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) items after sort: total=\(items.count) income=\(monthIncomes.count) bills=\(producedBills) payments=\(monthPayments.count) skippedFullyPaid=\(skippedFullyPaid)",
-                level: .debug
-            )
+            if isVerboseTraceEnabled {
+                Logger.log(
+                    "[CalendarSectionsBuilder][\(traceID)] month=\(Self.sectionId(from: current)) items after sort: total=\(items.count) income=\(monthIncomes.count) bills=\(producedBills) payments=\(monthPayments.count) skippedFullyPaid=\(skippedFullyPaid)",
+                    level: .debug
+                )
+            }
 
             let sectionId = Self.sectionId(from: current)
             if items.isEmpty {
                 items = [.emptyMonth(sectionId: sectionId)]
-                Logger.log(
-                    "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) inserted emptyMonth item",
-                    level: .debug
-                )
+                if isVerboseTraceEnabled {
+                    Logger.log(
+                        "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) inserted emptyMonth item",
+                        level: .debug
+                    )
+                }
             }
 
             if !items.isEmpty, items.first?.isEmptyMonth != true, contains(startOfToday, in: monthInterval) {
@@ -190,24 +204,17 @@ enum CalendarSectionsBuilder {
                 }) ?? items.count
 
                 items.insert(.todayDivider(date: startOfToday, sectionId: sectionId), at: insertionIndex)
-                Logger.log(
-                    "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) inserted todayDivider at index=\(insertionIndex) today=\(startOfToday.ISO8601Format())",
-                    level: .debug
-                )
+                if isVerboseTraceEnabled {
+                    Logger.log(
+                        "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) inserted todayDivider at index=\(insertionIndex) today=\(startOfToday.ISO8601Format())",
+                        level: .debug
+                    )
+                }
             }
 
-            // Calculate totals — only non-fully-paid bills count toward totalBillsDue
+            // Calculate totals — only non-fully-paid bills count toward
+            // totalBillsDue (accumulated in the occurrence loop above).
             let totalIncome = monthIncomes.reduce(Decimal.zero) { $0 + $1.amount }
-            let totalBillsDue = monthOccurrences.reduce(Decimal.zero) { partial, occurrence in
-                let startOfDueDate = calendar.startOfDay(for: occurrence.dueDate)
-                let key = CalendarPaymentKey(billID: occurrence.bill.persistentModelID, occurrenceDay: startOfDueDate)
-                let occurrencePayments = paymentsByOccurrence[key] ?? []
-                let totalPaid = occurrencePayments.reduce(Decimal.zero) { $0 + $1.amount }
-
-                if totalPaid >= occurrence.amount { return partial }
-                if totalPaid > 0 { return partial + (occurrence.amount - totalPaid) }
-                return partial + occurrence.amount
-            }
 
             // A month is "past" once its last day is strictly before today (i.e. the
             // exclusive month-end <= startOfToday). Past months populate totalPaid with
@@ -218,10 +225,12 @@ enum CalendarSectionsBuilder {
                 ? monthPayments.reduce(Decimal.zero) { $0 + $1.amount }
                 : 0
 
-            Logger.log(
-                "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) totals: totalIncome=\(totalIncome) totalPaid=\(totalPaid) totalBillsDue=\(totalBillsDue) isPast=\(isPastMonth)",
-                level: .debug
-            )
+            if isVerboseTraceEnabled {
+                Logger.log(
+                    "[CalendarSectionsBuilder][\(traceID)] month=\(sectionId) totals: totalIncome=\(totalIncome) totalPaid=\(totalPaid) totalBillsDue=\(totalBillsDue) isPast=\(isPastMonth)",
+                    level: .debug
+                )
+            }
 
             sections.append(
                 CalendarMonthSection(

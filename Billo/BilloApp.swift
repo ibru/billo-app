@@ -107,7 +107,7 @@ struct BilloApp: App {
 
                         // Set up analytics first so services can capture events.
                         let analytics: AnalyticsModel = {
-                            guard Self.analyticsEnabled else {
+                            guard AnalyticsEnvironment.isAnalyticsEnabled else {
                                 return AnalyticsModel(client: NoopAnalyticsClient())
                             }
 
@@ -279,23 +279,6 @@ struct BilloApp: App {
             coordinator: notificationCoordinator,
             refreshBills: refreshBills
         )
-    }
-
-    /// Analytics is opt-in for developers and always off for tests, previews,
-    /// and the screenshots scheme. Release builds send events unconditionally.
-    private static var analyticsEnabled: Bool {
-        #if SCREENSHOTS
-        return false
-        #else
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return false }
-        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" { return false }
-
-        #if DEBUG
-        return ProcessInfo.processInfo.environment["BILLO_ENABLE_ANALYTICS"] == "1"
-        #else
-        return true
-        #endif
-        #endif
     }
 
     private func registerNotificationCategories() {

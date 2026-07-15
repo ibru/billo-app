@@ -69,7 +69,8 @@ struct PaymentRowView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(payment.amount.formatted(.currency(code: currencyCode)))
-        .replayMaskSensitive()
+        // Replay-masked by each hosting screen's container mask
+        // (bills list ScrollView, DayDetailSheet list, PaymentHistoryView list).
     }
 
     @ViewBuilder

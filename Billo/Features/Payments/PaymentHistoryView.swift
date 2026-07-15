@@ -56,6 +56,9 @@ struct PaymentHistoryView: View {
             }
         }
         .navigationTitle("Payment History")
+        // One container-level replay mask for the whole list — the payment
+        // rows inside (`PaymentRowView`) carry no masks of their own.
+        .replayMaskSensitive()
         .analyticsScreen(.paymentHistory)
     }
 
