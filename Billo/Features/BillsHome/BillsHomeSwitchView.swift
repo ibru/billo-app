@@ -129,17 +129,20 @@ struct BillsHomeSwitchView: View {
                 }
             }
 
-            if horizontalSizeClass == .compact {
-                NavigationLink(value: HomeDetailDestination.dataExport) {
-                    Label("Data Export", systemImage: "square.and.arrow.up")
-                }
-            } else {
-                Button {
-                    openSelection(.dataExport)
-                } label: {
-                    Label("Data Export", systemImage: "square.and.arrow.up")
-                }
-            }
+            // Data Export is not implemented yet — hidden from the menu, but
+            // the routing (`HomeDetailDestination.dataExport`, `DataExportView`,
+            // `PaywallContext.dataExport`) stays wired. Uncomment to bring back.
+            // if horizontalSizeClass == .compact {
+            //     NavigationLink(value: HomeDetailDestination.dataExport) {
+            //         Label("Data Export", systemImage: "square.and.arrow.up")
+            //     }
+            // } else {
+            //     Button {
+            //         openSelection(.dataExport)
+            //     } label: {
+            //         Label("Data Export", systemImage: "square.and.arrow.up")
+            //     }
+            // }
         } label: {
             Image(systemName: "ellipsis.circle")
         }
