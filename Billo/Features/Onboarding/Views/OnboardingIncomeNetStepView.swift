@@ -9,8 +9,26 @@ import SwiftUI
 /// "pushes" to the Income list, teaching the access path.
 struct OnboardingIncomeNetStepView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     let onContinue: () -> Void
+
+    /// iPad and Mac windows (regular × regular) get a larger miniature — the
+    /// iPhone-sized stage reads tiny there. iPhone keeps the original size.
+    private var isExpansiveLayout: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular
+    }
+
+    private var miniScale: CGFloat { isExpansiveLayout ? 1.35 : 1 }
+
+    /// Fixed-size fonts (not text styles) so every piece of the miniature
+    /// scales uniformly on expansive layouts. The stage is decorative —
+    /// accessibility is served by its combined label, not per-text Dynamic
+    /// Type.
+    private func miniFont(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size * miniScale, weight: weight)
+    }
 
     private enum MiniScreen {
         case bills
@@ -116,7 +134,7 @@ struct OnboardingIncomeNetStepView: View {
         .background(DesignSystem.Color.groupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.extraLarge))
         .cardShadow()
-        .frame(maxWidth: 360)
+        .frame(maxWidth: 360 * miniScale)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(
             "Miniature of the home screen: the wallet button in the floating bottom bar opens the Income screen, where income minus bills shows what’s left",
@@ -131,7 +149,7 @@ struct OnboardingIncomeNetStepView: View {
             HStack(spacing: DesignSystem.Spacing.extraSmall) {
                 if screen == .income {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(miniFont(11, weight: .semibold))
                         .foregroundStyle(.tint)
                         .transition(.opacity)
                 }
@@ -143,7 +161,7 @@ struct OnboardingIncomeNetStepView: View {
                     ? String(localized: "Bills", comment: "Navigation title in the onboarding income miniature")
                     : String(localized: "Income", comment: "Navigation title in the onboarding income miniature")
             )
-            .font(.subheadline.weight(.semibold))
+            .font(miniFont(15, weight: .semibold))
             .contentTransition(.opacity)
         }
         .padding(.horizontal, DesignSystem.Spacing.mediumSmall)
@@ -158,19 +176,19 @@ struct OnboardingIncomeNetStepView: View {
 
             HStack(spacing: 0) {
                 Image(systemName: "clock.arrow.circlepath")
-                    .frame(width: 42, height: 34)
+                    .frame(width: 42 * miniScale, height: 34 * miniScale)
 
                 Divider()
-                    .frame(height: 18)
+                    .frame(height: 18 * miniScale)
 
                 Image(systemName: "wallet.bifold")
                     // Emphatic blink: a big size pulse with an opacity dip,
                     // so the eye lands on the income button itself.
                     .scaleEffect(walletBlinks ? 1.5 : 1)
                     .opacity(walletBlinks ? 0.35 : 1)
-                    .frame(width: 42, height: 34)
+                    .frame(width: 42 * miniScale, height: 34 * miniScale)
             }
-            .font(.subheadline.weight(.semibold))
+            .font(miniFont(15, weight: .semibold))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(DesignSystem.Color.greenIncome)
             .background(.background, in: Capsule())
@@ -208,10 +226,10 @@ struct OnboardingIncomeNetStepView: View {
 
             HStack {
                 Text("Left over", comment: "Onboarding mock summary net row")
-                    .font(.subheadline.weight(.semibold))
+                    .font(miniFont(15, weight: .semibold))
                 Spacer()
                 Text(sampleNet, format: currencyFormat)
-                    .font(.title3.bold())
+                    .font(miniFont(20, weight: .bold))
                     .foregroundStyle(DesignSystem.Color.greenIncome)
             }
             .opacity(revealedRows >= 3 ? 1 : 0)
@@ -228,23 +246,23 @@ struct OnboardingIncomeNetStepView: View {
         VStack(spacing: DesignSystem.Spacing.mediumSmall) {
             HStack(spacing: DesignSystem.Spacing.mediumSmall) {
                 Image(systemName: "wallet.bifold")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(miniFont(14, weight: .semibold))
                     .foregroundStyle(DesignSystem.Color.greenIncome)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 30 * miniScale, height: 30 * miniScale)
                     .background(DesignSystem.Color.greenIncome.opacity(0.14), in: Circle())
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Salary", comment: "Onboarding mock income row")
-                        .font(.subheadline.weight(.semibold))
+                        .font(miniFont(15, weight: .semibold))
                     Text("Every month · on the 1st", comment: "Onboarding mock income row schedule")
-                        .font(.caption)
+                        .font(miniFont(12))
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 (Text("+") + Text(sampleIncome, format: currencyFormat))
-                    .font(.subheadline.weight(.semibold))
+                    .font(miniFont(15, weight: .semibold))
                     .foregroundStyle(DesignSystem.Color.greenIncome)
             }
             .padding(DesignSystem.Spacing.medium)
@@ -253,9 +271,9 @@ struct OnboardingIncomeNetStepView: View {
 
             HStack(spacing: DesignSystem.Spacing.small) {
                 Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(miniFont(12, weight: .semibold))
                 Text("Add income", comment: "Onboarding mock income add-row hint")
-                    .font(.subheadline)
+                    .font(miniFont(15))
             }
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)
@@ -278,15 +296,15 @@ struct OnboardingIncomeNetStepView: View {
         let isRevealed = revealedRows >= threshold
         return VStack(spacing: DesignSystem.Spacing.extraSmall) {
             HStack {
-                label.font(.subheadline)
+                label.font(miniFont(15))
                 Spacer()
                 (Text(prefix) + Text(amount, format: currencyFormat))
-                    .font(.subheadline.weight(.semibold))
+                    .font(miniFont(15, weight: .semibold))
                     .foregroundStyle(color)
             }
             Capsule()
                 .fill(color == .secondary ? AnyShapeStyle(.quaternary) : AnyShapeStyle(color.gradient))
-                .frame(height: 6)
+                .frame(height: 6 * miniScale)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .scaleEffect(x: isRevealed ? barFraction : 0.001, anchor: .leading)
         }

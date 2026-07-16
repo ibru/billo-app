@@ -95,6 +95,34 @@ final class OnboardingSetupModel {
 
     // MARK: - Income
 
+    /// USD baseline for the income step's pre-filled amount — a meaningful
+    /// average-US-salary figure, deliberately matching the $3,500 used by the
+    /// onboarding income illustrations.
+    private static let averageMonthlyIncomeUSD: Decimal = 3500
+
+    /// The amount the income step pre-fills: the USD baseline rescaled to the
+    /// user's currency the same way bill preset amounts are.
+    func defaultIncomeAmount(forCurrency currencyCode: String) -> Decimal {
+        OnboardingPresetCurrencyScale.amount(
+            fromUSDBase: Self.averageMonthlyIncomeUSD,
+            currencyCode: currencyCode
+        )
+    }
+
+    /// The payday the income step pre-selects: the 1st of the following month,
+    /// or today when today already is the 1st.
+    var defaultNextPayday: Date {
+        let startOfToday = calendar.startOfDay(for: currentDate())
+        if calendar.component(.day, from: startOfToday) == 1 {
+            return startOfToday
+        }
+        var components = calendar.dateComponents([.year, .month], from: startOfToday)
+        // Month overflow (13) normalizes into January of the next year.
+        components.month = (components.month ?? 1) + 1
+        components.day = 1
+        return calendar.date(from: components) ?? startOfToday
+    }
+
     /// Validates through `Income.validate` so the draft can't hold values the
     /// commit-time `Income.create` would reject.
     func setIncome(name: String, amount: Decimal, cadence: RecurrencePreset, nextPayday: Date) throws {

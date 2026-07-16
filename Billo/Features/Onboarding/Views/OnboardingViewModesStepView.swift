@@ -51,7 +51,16 @@ struct OnboardingViewModesStepView: View {
 private struct HomeShowcaseView: View {
     let autoCycles: Bool
 
-    @State private var showcase = HomeShowcaseEnvironment()
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// Created once in `.task` — deliberately NOT inline in `@State`'s initial
+    /// value. That expression re-runs on every `HomeShowcaseView.init` (any
+    /// parent re-render), rebuilding the whole SwiftData stack and running
+    /// `context.save()` mid-view-update each time — on macOS the notification
+    /// permission dialog's reactivation re-render did exactly that and crashed
+    /// (EXC_BREAKPOINT) inside the save's didSave notification post.
+    @State private var showcase: HomeShowcaseEnvironment?
     @State private var mode: BillsHomeViewMode = .list
     @State private var iconBlinks = false
     @State private var pillZoomsIn = false
@@ -59,7 +68,19 @@ private struct HomeShowcaseView: View {
     /// The real views render on a phone-sized canvas, then scale down into
     /// the card — keeping layout, typography, and colors pixel-faithful.
     private let canvasSize = CGSize(width: 393, height: 520)
-    private let scale: CGFloat = 0.68
+
+    /// iPad and Mac windows (regular × regular) get a near-full-size
+    /// miniature — the iPhone scale reads tiny in those layouts. iPhone
+    /// (any compact dimension) keeps the original size.
+    private var isExpansiveLayout: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular
+    }
+
+    private var scale: CGFloat { isExpansiveLayout ? 0.95 : 0.68 }
+
+    /// The mock toolbar is built from real-size fonts (not the scaled
+    /// canvas), so it scales its chrome in step with the content scale.
+    private var chromeScale: CGFloat { scale / 0.68 }
 
     private var nextMode: BillsHomeViewMode {
         mode == .list ? .calendar : .list
@@ -73,11 +94,20 @@ private struct HomeShowcaseView: View {
                 .zIndex(1)
 
             ZStack {
-                scaledDown(BillsListView(usesStackNavigation: false, onAddBill: {}))
-                    .opacity(mode == .list ? 1 : 0)
-                scaledDown(BillsCalendarView(usesStackNavigation: false))
-                    .opacity(mode == .calendar ? 1 : 0)
+                if let showcase {
+                    scaledDown(BillsListView(usesStackNavigation: false, onAddBill: {}), in: showcase)
+                        .opacity(mode == .list ? 1 : 0)
+                    scaledDown(BillsCalendarView(usesStackNavigation: false), in: showcase)
+                        .opacity(mode == .calendar ? 1 : 0)
+                }
             }
+            // Reserves the miniature's footprint while the environment is
+            // still being created, so the card doesn't jump on first render.
+            .frame(
+                width: canvasSize.width * scale,
+                height: canvasSize.height * scale,
+                alignment: .top
+            )
         }
         .background(DesignSystem.Color.groupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.extraLarge))
@@ -88,6 +118,9 @@ private struct HomeShowcaseView: View {
             comment: "Accessibility label for the onboarding view-modes illustration"
         ))
         .task {
+            if showcase == nil {
+                showcase = HomeShowcaseEnvironment()
+            }
             guard autoCycles else { return }
             // Endless demo loop: zoom the toolbar pill in (to the front),
             // blink the switch icon emphatically, crossfade the view beneath
@@ -117,7 +150,7 @@ private struct HomeShowcaseView: View {
         }
     }
 
-    private func scaledDown(_ view: some View) -> some View {
+    private func scaledDown(_ view: some View, in showcase: HomeShowcaseEnvironment) -> some View {
         view
             .environment(showcase.billsModel)
             .environment(showcase.appSettingsModel)
@@ -143,13 +176,13 @@ private struct HomeShowcaseView: View {
     private var mockToolbar: some View {
         ZStack {
             Text("Bills", comment: "Navigation title shown in the onboarding home-screen miniature")
-                .font(.subheadline.weight(.semibold))
+                .font(.system(size: 15 * chromeScale, weight: .semibold))
 
             HStack {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11 * chromeScale, weight: .semibold))
                     .foregroundStyle(.tint)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 26 * chromeScale, height: 26 * chromeScale)
                     .background(.background, in: Circle())
                     .subtleShadow()
 
@@ -157,7 +190,7 @@ private struct HomeShowcaseView: View {
 
                 HStack(spacing: DesignSystem.Spacing.medium) {
                     Image(systemName: nextMode.iconName)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 12 * chromeScale, weight: .semibold))
                         .foregroundStyle(.tint)
                         // Emphatic blink: a big size pulse with an opacity
                         // dip, so the eye lands on the switcher itself.
@@ -166,11 +199,11 @@ private struct HomeShowcaseView: View {
                         .contentTransition(.symbolEffect(.replace))
 
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 12 * chromeScale, weight: .semibold))
                         .foregroundStyle(.tint)
                 }
                 .padding(.horizontal, DesignSystem.Spacing.mediumSmall)
-                .frame(height: 26)
+                .frame(height: 26 * chromeScale)
                 .background(.background, in: Capsule())
                 .cardShadow()
                 // Zooms toward the content (anchored at its trailing edge)

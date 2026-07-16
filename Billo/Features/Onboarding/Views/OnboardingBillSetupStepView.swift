@@ -1,6 +1,9 @@
 //  Created by Jiri Urbasek on 7/10/26.
 
 import SwiftUI
+#if targetEnvironment(macCatalyst)
+import UIKit
+#endif
 
 /// Quick bill setup: a grid of common-bill chips. Tapping a chip opens a
 /// small sheet pre-filled with the preset's defaults (amount, due day,
@@ -8,6 +11,8 @@ import SwiftUI
 /// edit or remove the draft.
 struct OnboardingBillSetupStepView: View {
     @Environment(AnalyticsModel.self) private var analytics
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     let setupModel: OnboardingSetupModel
     let currencyCode: String
@@ -16,7 +21,18 @@ struct OnboardingBillSetupStepView: View {
 
     @State private var sheetPreset: OnboardingBillPreset?
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: DesignSystem.Spacing.mediumSmall)]
+    /// iPad and Mac windows (regular × regular) get two columns of larger
+    /// chips — three columns of iPhone-sized chips read tiny there.
+    private var isExpansiveLayout: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular
+    }
+
+    private var columns: [GridItem] {
+        [GridItem(
+            .adaptive(minimum: isExpansiveLayout ? 210 : 150),
+            spacing: DesignSystem.Spacing.mediumSmall
+        )]
+    }
 
     var body: some View {
         OnboardingStepContainer(
@@ -81,10 +97,37 @@ struct OnboardingBillSetupStepView: View {
                     analytics.capture(.onboardingBillPresetRemoved(
                         category: CategoryIdentifier.predefined(preset.category).analyticsKey
                     ))
-                }
+                },
+                done: dismissAdjustSheet
             )
-            .presentationDetents([.medium])
+            .platformPresentationDetents([.medium])
         }
+    }
+
+    /// Dismisses the adjust sheet by clearing the item binding directly. On
+    /// Mac Catalyst (macOS 26) SwiftUI clears its presentation state (the
+    /// binding nils, the parent re-renders, the sheet's buttons go dead) but
+    /// never drives the UIKit dismissal — the dead sheet stays on screen
+    /// until the app deactivates. Verified with `@Environment(\.dismiss)`,
+    /// plain binding writes, and animation-disabled transactions alike, so
+    /// after clearing the state we complete the teardown UIKit-side.
+    private func dismissAdjustSheet() {
+        #if targetEnvironment(macCatalyst)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { sheetPreset = nil }
+        // Async: give SwiftUI the update pass first; on macOS versions where
+        // presentation teardown works this finds nothing left to dismiss.
+        DispatchQueue.main.async {
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+                .compactMap { $0.rootViewController?.presentedViewController }
+                .forEach { $0.dismiss(animated: false) }
+        }
+        #else
+        sheetPreset = nil
+        #endif
     }
 
     private var runningTotal: some View {
@@ -103,6 +146,9 @@ struct OnboardingBillSetupStepView: View {
 // MARK: - Chip
 
 private struct OnboardingBillPresetChip: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
     let preset: OnboardingBillPreset
     let draft: OnboardingSetupModel.BillDraft?
     let currencyCode: String
@@ -110,21 +156,29 @@ private struct OnboardingBillPresetChip: View {
 
     private var isSelected: Bool { draft != nil }
 
+    /// Mirrors the grid's layout switch: larger chip contents on iPad/Mac.
+    private var isExpansiveLayout: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular
+    }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: DesignSystem.Spacing.small) {
                 Image(systemName: preset.category.systemImageName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: isExpansiveLayout ? 16 : 13, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 28, height: 28)
+                    .frame(
+                        width: isExpansiveLayout ? 34 : 28,
+                        height: isExpansiveLayout ? 34 : 28
+                    )
                     .background(SwiftUI.Color(hex: preset.category.colorHex), in: Circle())
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(preset.name)
-                        .font(.subheadline.weight(.medium))
+                        .font(isExpansiveLayout ? .body.weight(.medium) : .subheadline.weight(.medium))
                         .lineLimit(1)
                     Text(draft?.amount ?? preset.startingAmount(for: currencyCode), format: .currency(code: currencyCode).precision(.fractionLength(0)))
-                        .font(.caption)
+                        .font(isExpansiveLayout ? .subheadline : .caption)
                         .foregroundStyle(.secondary)
                         .replayMaskSensitive()
                 }
@@ -133,12 +187,12 @@ private struct OnboardingBillPresetChip: View {
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16))
+                        .font(.system(size: isExpansiveLayout ? 20 : 16))
                         .foregroundStyle(.tint)
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            .padding(DesignSystem.Spacing.small)
+            .padding(isExpansiveLayout ? DesignSystem.Spacing.mediumSmall : DesignSystem.Spacing.small)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 isSelected ? AnyShapeStyle(DesignSystem.Color.green.opacity(0.12)) : AnyShapeStyle(.regularMaterial),
@@ -161,8 +215,6 @@ private struct OnboardingBillPresetChip: View {
 // MARK: - Adjust sheet
 
 private struct OnboardingBillAdjustSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
     let preset: OnboardingBillPreset
     let existingDraft: OnboardingSetupModel.BillDraft?
     let currencyCode: String
@@ -171,6 +223,11 @@ private struct OnboardingBillAdjustSheet: View {
     let firstDueDate: (Int) -> Date
     let onSave: (Decimal, Int, RecurrencePreset) -> Void
     let onRemove: () -> Void
+    /// Dismissal callback that clears the presenting item binding directly —
+    /// NOT `@Environment(\.dismiss)`: on Mac Catalyst the environment action's
+    /// animated dismissal stalls until app deactivation (see
+    /// `dismissAdjustSheet`).
+    let done: () -> Void
 
     @State private var amount: Decimal
     @State private var dueDay: Int
@@ -184,7 +241,8 @@ private struct OnboardingBillAdjustSheet: View {
         currencyCode: String,
         firstDueDate: @escaping (Int) -> Date,
         onSave: @escaping (Decimal, Int, RecurrencePreset) -> Void,
-        onRemove: @escaping () -> Void
+        onRemove: @escaping () -> Void,
+        done: @escaping () -> Void
     ) {
         self.preset = preset
         self.existingDraft = existingDraft
@@ -192,6 +250,7 @@ private struct OnboardingBillAdjustSheet: View {
         self.firstDueDate = firstDueDate
         self.onSave = onSave
         self.onRemove = onRemove
+        self.done = done
         _amount = State(initialValue: existingDraft?.amount ?? preset.startingAmount(for: currencyCode))
         _dueDay = State(initialValue: existingDraft?.dueDayOfMonth ?? preset.defaultDueDay)
         _recurrence = State(initialValue: existingDraft?.recurrence ?? .monthly)
@@ -240,7 +299,7 @@ private struct OnboardingBillAdjustSheet: View {
                     Section {
                         Button(role: .destructive) {
                             onRemove()
-                            dismiss()
+                            done()
                         } label: {
                             Text("Remove bill", comment: "Onboarding bill adjust sheet remove button")
                                 .frame(maxWidth: .infinity)
@@ -254,7 +313,7 @@ private struct OnboardingBillAdjustSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
-                        dismiss()
+                        done()
                     } label: {
                         Text("Cancel", comment: "Onboarding bill adjust sheet cancel button")
                     }
@@ -262,7 +321,7 @@ private struct OnboardingBillAdjustSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         onSave(amount, dueDay, recurrence)
-                        dismiss()
+                        done()
                     } label: {
                         Text(
                             isEditing ? "Save" : "Add bill",

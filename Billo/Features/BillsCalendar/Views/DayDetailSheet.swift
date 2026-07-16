@@ -98,7 +98,7 @@ struct DayDetailSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .platformPresentationDetents([.medium])
         .presentationDragIndicator(.visible)
     }
 

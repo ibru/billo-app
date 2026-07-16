@@ -105,7 +105,7 @@ struct OnboardingEmpathyStepView: View {
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
                 body
-                    .font(.callout)
+                    .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
 
                 (Text("— ") + source)
@@ -115,8 +115,14 @@ struct OnboardingEmpathyStepView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(DesignSystem.Spacing.medium)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large))
-        .cardShadow()
+        // A material card disappears against the step's plain background —
+        // the tint wash + stroke (same treatment as selected bill chips)
+        // keeps the trust card clearly delineated.
+        .background(.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.large)
+                .strokeBorder(.tint.opacity(0.35), lineWidth: 1)
+        }
         .frame(maxWidth: 360)
     }
 }

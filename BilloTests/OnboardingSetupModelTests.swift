@@ -89,6 +89,48 @@ struct OnboardingSetupModelTests {
         }
     }
 
+    @Suite("income defaults")
+    @MainActor
+    struct IncomeDefaults {
+        @Test func whenTodayIsMidMonth_thenDefaultNextPaydayIsFirstOfFollowingMonth() {
+            let sut = makeSUT(today: march10)
+
+            #expect(sut.defaultNextPayday == makeUTCDate(year: 2026, month: 4, day: 1))
+        }
+
+        @Test func whenTodayIsFirstOfMonth_thenDefaultNextPaydayIsToday() {
+            let march1 = makeUTCDate(year: 2026, month: 3, day: 1)
+            let sut = makeSUT(today: march1)
+
+            #expect(sut.defaultNextPayday == march1)
+        }
+
+        @Test func whenTodayIsLastDayOfYear_thenDefaultNextPaydayRollsIntoJanuary() {
+            let sut = makeSUT(today: makeUTCDate(year: 2026, month: 12, day: 31))
+
+            #expect(sut.defaultNextPayday == makeUTCDate(year: 2027, month: 1, day: 1))
+        }
+
+        @Test func whenCurrencyIsUSDollar_thenDefaultIncomeAmountIsTheUSBaseline() {
+            let sut = makeSUT()
+
+            #expect(sut.defaultIncomeAmount(forCurrency: "USD") == 3500)
+        }
+
+        @Test func whenCurrencyHasLocalScale_thenDefaultIncomeAmountReadsLikeALocalSalary() {
+            let sut = makeSUT()
+
+            let czechScale: Decimal = 18
+            #expect(sut.defaultIncomeAmount(forCurrency: "CZK") == 3500 * czechScale)
+        }
+
+        @Test func whenCurrencyIsUnknown_thenDefaultIncomeAmountFallsBackToUSBaseline() {
+            let sut = makeSUT()
+
+            #expect(sut.defaultIncomeAmount(forCurrency: "XXX") == 3500)
+        }
+    }
+
     @Suite("commit")
     @MainActor
     struct Commit {
@@ -260,8 +302,12 @@ private let utcCalendar: Calendar = {
     return calendar
 }()
 
-private let march10: Date = utcCalendar.date(from: DateComponents(year: 2026, month: 3, day: 10)) ?? Date()
+private let march10: Date = makeUTCDate(year: 2026, month: 3, day: 10)
 private let anyDate = march10
+
+private func makeUTCDate(year: Int, month: Int, day: Int) -> Date {
+    utcCalendar.date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
+}
 
 private let rentPreset = OnboardingBillPreset.all.first { $0.id == "rent" } ?? OnboardingBillPreset.all[0]
 private let gymPreset = OnboardingBillPreset.all.first { $0.id == "gym" } ?? OnboardingBillPreset.all[1]

@@ -31,6 +31,8 @@ enum AnalyticsEvent: Sendable {
     case onboardingBillPresetRemoved(category: String)
     /// Fired once when quick-setup drafts are saved into the production store.
     case onboardingSetupCommitted(billCount: Int, hasIncome: Bool)
+    /// The income step's "Why we ask" privacy disclosure was expanded.
+    case onboardingIncomeWhyWeAskExpanded
     /// CloudKit data from a previous install arrived mid-flow — onboarding ended early.
     case onboardingSkippedForReturningUser
     /// `outcome` ∈ purchased | dismissed | already_pro | skipped_by_policy.
@@ -123,6 +125,7 @@ extension AnalyticsEvent {
         case .onboardingBillPresetAdded: "onboarding bill preset added"
         case .onboardingBillPresetRemoved: "onboarding bill preset removed"
         case .onboardingSetupCommitted: "onboarding setup committed"
+        case .onboardingIncomeWhyWeAskExpanded: "onboarding income why we ask expanded"
         case .onboardingSkippedForReturningUser: "onboarding skipped for returning user"
         case .onboardingCompleted: "onboarding completed"
 
@@ -172,7 +175,7 @@ extension AnalyticsEvent {
 
     var properties: [String: Any] {
         switch self {
-        case .onboardingStarted, .onboardingSkippedForReturningUser,
+        case .onboardingStarted, .onboardingIncomeWhyWeAskExpanded, .onboardingSkippedForReturningUser,
              .incomeOccurrenceSkipped, .incomeOccurrenceAmountEdited, .incomeOccurrenceDeleted,
              .customCategoryCreated, .customCategoryDeleted:
             return [:]

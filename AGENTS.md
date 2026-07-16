@@ -76,8 +76,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - Avoid destructive git operations unless the user requests them directly
 - When unsure or need to make a significant decision ASK the user for guidance
 - Early development phase: data migrations/backfills are not required; it's acceptable to delete the app and start with freshly created data. Still warn when a change would require migration/legacy handling in a production or beta scenario.
-
----
+- **macOS 26 (Tahoe) Catalyst platform bugs** (verified on macOS 26.3.1, empirically diagnosed): (1) SwiftUI sheet dismissal never reaches UIKit — the binding nils and the parent re-renders, but the presented controller stays on screen (buttons dead) until the app deactivates. Workaround: dismiss by clearing the presentation binding, then complete the teardown with a Catalyst-only UIKit sweep (`OnboardingBillSetupStepView.dismissAdjustSheet`); other sheets (`MarkPaidSheet`, `DayDetailSheet`, `BillEditView`, …) likely need the same treatment before a macOS release. (2) SwiftData `context.save()` can crash (EXC_BREAKPOINT in a `_SwiftData_SwiftUI` didSave observer, subcode 0x…3be451c4) — reproduced via `PaymentRecorder.recordPayment` on Catalyst and previously via onboarding's showcase container; iOS is unaffected. Root cause unresolved — investigate before shipping the Mac build.
 
 ## Billo-Specific Context
 
