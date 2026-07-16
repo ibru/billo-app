@@ -12,6 +12,16 @@ struct IncomeDetailView: View {
     @State private var showingDeleteAlert = false
 
     var body: some View {
+        DeletedModelGuard(
+            model: income,
+            notFoundTitle: "Income Not Found",
+            notFoundDescription: "This income may have been deleted"
+        ) {
+            content
+        }
+    }
+
+    private var content: some View {
         List {
             Section {
                 HStack {

@@ -16,6 +16,16 @@ struct PaymentDetailView: View {
     }
 
     var body: some View {
+        DeletedModelGuard(
+            model: payment,
+            notFoundTitle: "Payment Not Found",
+            notFoundDescription: "This payment may have been deleted"
+        ) {
+            content
+        }
+    }
+
+    private var content: some View {
         Form {
             Section("Payment") {
                 HStack {

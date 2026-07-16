@@ -113,7 +113,16 @@ struct DayDetailSheet: View {
     }
 
     private func skipOccurrence(_ occurrenceID: PersistentIdentifier) {
-        guard let occurrence = modelContext.model(for: occurrenceID) as? IncomeOccurrence else {
+        // Store-verified resolution: `model(for:)` would return a zombie for a
+        // record deleted out-of-band (CloudKit) and trap on first property read.
+        let occurrence: IncomeOccurrence?
+        do {
+            occurrence = try modelContext.existingModel(for: occurrenceID, of: IncomeOccurrence.self)
+        } catch {
+            Logger.log("Failed to resolve IncomeOccurrence for skip: \(error)", level: .error)
+            return
+        }
+        guard let occurrence else {
             Logger.log("Could not resolve IncomeOccurrence for skip", level: .warning)
             return
         }

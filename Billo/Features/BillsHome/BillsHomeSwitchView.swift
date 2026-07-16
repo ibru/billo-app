@@ -68,6 +68,9 @@ struct BillsHomeSwitchView: View {
         .onChange(of: selection) { _, _ in
             detailPath.removeAll()
         }
+        .onChange(of: billsModel.refreshGeneration) { _, _ in
+            pruneDeletedDestinations()
+        }
         .sheet(isPresented: $showingAddBill) {
             BillEditView(mode: .adding)
                 .environment(billsModel)
@@ -234,11 +237,56 @@ struct BillsHomeSwitchView: View {
         selection = destination
     }
 
+    /// Every mutation funnels through `BillsModel.refresh()`, so after each
+    /// generation bump drop navigation state that points at deleted records.
+    /// Without this, the split-view detail column keeps showing (and on the
+    /// next body evaluation rebuilding) a view around an invalidated model,
+    /// which crashes on its first property read. `dismiss()` inside detail
+    /// views only pops the compact stack — it cannot clear `selection`.
+    private func pruneDeletedDestinations() {
+        let pruned = HomeDetailDestination.prunedNavigation(
+            selection: selection,
+            path: detailPath,
+            isValid: { $0.isValid(in: modelContext) }
+        )
+        if pruned.path != detailPath {
+            detailPath = pruned.path
+        }
+        if pruned.selection != selection {
+            selection = pruned.selection
+        }
+    }
+
+    /// Store-verified destination resolution for `destinationView(for:)`:
+    /// deleted records resolve to `nil` (rendering the "Not Found" fallback),
+    /// and fetch failures are logged instead of silently masquerading as
+    /// deletions.
+    private func resolveDestinationModel<T: PersistentModel>(
+        _ identifier: PersistentIdentifier,
+        of type: T.Type
+    ) -> T? {
+        do {
+            return try modelContext.existingModel(for: identifier, of: type)
+        } catch {
+            Logger.log("Failed to resolve \(T.self) destination: \(error)", level: .error)
+            return nil
+        }
+    }
+
+    private func resolveVisibleIncomeOccurrence(_ identifier: PersistentIdentifier) -> IncomeOccurrence? {
+        do {
+            return try HomeDetailDestination.visibleIncomeOccurrence(for: identifier, in: modelContext)
+        } catch {
+            Logger.log("Failed to resolve IncomeOccurrence destination: \(error)", level: .error)
+            return nil
+        }
+    }
+
     @ViewBuilder
     private func destinationView(for destination: HomeDetailDestination) -> some View {
         switch destination {
         case .bill(let billID):
-            if let bill = modelContext.model(for: billID) as? Bill {
+            if let bill = resolveDestinationModel(billID, of: Bill.self) {
                 BillDetailView(bill: bill)
                     .environment(BillModel(bill: bill, modelContext: modelContext))
             } else {
@@ -250,7 +298,7 @@ struct BillsHomeSwitchView: View {
             }
 
         case .occurrence(let occurrenceID):
-            if let occurrence = modelContext.model(for: occurrenceID) as? IssuedOccurrence {
+            if let occurrence = resolveDestinationModel(occurrenceID, of: IssuedOccurrence.self) {
                 OccurrenceDetailView(occurrence: occurrence)
             } else {
                 ContentUnavailableView(
@@ -264,7 +312,7 @@ struct BillsHomeSwitchView: View {
             PaymentHistoryView()
 
         case .payment(let paymentID):
-            if let payment = modelContext.model(for: paymentID) as? PaymentEntry {
+            if let payment = resolveDestinationModel(paymentID, of: PaymentEntry.self) {
                 PaymentDetailView(payment: payment)
             } else {
                 ContentUnavailableView(
@@ -278,7 +326,7 @@ struct BillsHomeSwitchView: View {
             IncomeListView()
 
         case .income(let incomeID):
-            if let income = modelContext.model(for: incomeID) as? Income {
+            if let income = resolveDestinationModel(incomeID, of: Income.self) {
                 IncomeDetailView(income: income)
             } else {
                 ContentUnavailableView(
@@ -289,7 +337,7 @@ struct BillsHomeSwitchView: View {
             }
 
         case .incomeOccurrence(let occurrenceID):
-            if let occurrence = modelContext.model(for: occurrenceID) as? IncomeOccurrence {
+            if let occurrence = resolveVisibleIncomeOccurrence(occurrenceID) {
                 IncomeOccurrenceDetailView(occurrence: occurrence)
             } else {
                 ContentUnavailableView(

@@ -34,7 +34,11 @@ struct IncomeOccurrenceDetailView: View {
 
     init(occurrence: IncomeOccurrence) {
         self.occurrence = occurrence
-        _draftAmount = State(initialValue: occurrence.incomeAmount)
+        // `init` runs before `DeletedModelGuard` can intervene, so check the
+        // invalidation-safe reads before touching a persisted property — a
+        // zombie occurrence (deleted out-of-band) would trap here otherwise.
+        let isInvalidated = occurrence.isDeleted || occurrence.modelContext == nil
+        _draftAmount = State(initialValue: isInvalidated ? 0 : occurrence.incomeAmount)
     }
 
     private var currencyCode: String { occurrence.incomeCurrencyCode }
@@ -42,6 +46,16 @@ struct IncomeOccurrenceDetailView: View {
     private var canSaveAmount: Bool { draftAmount > 0 && hasAmountChange && !isPersistingAmount }
 
     var body: some View {
+        DeletedModelGuard(
+            model: occurrence,
+            notFoundTitle: "Income Occurrence Not Found",
+            notFoundDescription: "This occurrence may have been deleted"
+        ) {
+            content
+        }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(spacing: DesignSystem.Spacing.large) {
                 pastIncomeBanner

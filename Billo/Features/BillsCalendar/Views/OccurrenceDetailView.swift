@@ -32,6 +32,16 @@ struct OccurrenceDetailView: View {
     }
 
     var body: some View {
+        DeletedModelGuard(
+            model: occurrence,
+            notFoundTitle: "Occurrence Not Found",
+            notFoundDescription: "This occurrence may have been deleted"
+        ) {
+            content
+        }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(spacing: DesignSystem.Spacing.large) {
                 titleSection

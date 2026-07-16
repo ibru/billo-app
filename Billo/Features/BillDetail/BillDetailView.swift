@@ -17,6 +17,16 @@ struct BillDetailView: View {
     let bill: Bill
 
     var body: some View {
+        DeletedModelGuard(
+            model: bill,
+            notFoundTitle: "Bill Not Found",
+            notFoundDescription: "This bill may have been deleted"
+        ) {
+            content
+        }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(spacing: DesignSystem.Spacing.large) {
                 billNameTitle
@@ -293,11 +303,13 @@ struct BillDetailView: View {
 
 #Preview("Upcoming Bill") {
     let preview = BilloPreviewContainer.withSampleData()
-    let bill = preview.bills.first ?? Bill(
-        name: "Preview Bill",
-        amount: 100,
-        dueDate: Date()
-    )
+    // Fallback must live in the store — `DeletedModelGuard` renders an
+    // uninserted model (modelContext == nil) as "Bill Not Found".
+    let bill = preview.bills.first ?? {
+        let fallback = Bill(name: "Preview Bill", amount: 100, dueDate: Date())
+        preview.context.insert(fallback)
+        return fallback
+    }()
 
     return NavigationStack {
         BillDetailView(bill: bill)
@@ -308,11 +320,11 @@ struct BillDetailView: View {
 
 #Preview("Paid Bill") {
     let preview = BilloPreviewContainer.withSampleData()
-    let bill = preview.bills.last ?? Bill(
-        name: "Paid Preview",
-        amount: 50,
-        dueDate: Date()
-    )
+    let bill = preview.bills.last ?? {
+        let fallback = Bill(name: "Paid Preview", amount: 50, dueDate: Date())
+        preview.context.insert(fallback)
+        return fallback
+    }()
 
     return NavigationStack {
         BillDetailView(bill: bill)
