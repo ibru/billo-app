@@ -5,8 +5,7 @@ enum PostHogKeys {
     // Analytics disabled in debug by default; set BILLO_ENABLE_ANALYTICS=1 to test
     static let projectToken = "__no_analytics_in_debug_mode__"
     #else
-    // TODO: Create the Billo PostHog project and paste the real token before release.
-    static let projectToken = "__billo_posthog_token__"
+    static let projectToken = "phc_pWs6A6Rt7qyunTkaawE7kdpSdhhkc3FgFWPKZKJcTHEy"
     #endif
     static let host = "https://us.i.posthog.com"
 }
