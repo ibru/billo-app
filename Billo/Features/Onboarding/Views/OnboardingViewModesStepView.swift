@@ -124,6 +124,7 @@ private struct HomeShowcaseView: View {
             // Isolated noop analytics — the embedded real views apply
             // `.analyticsScreen`, which must not pollute the funnel.
             .environment(AnalyticsModel())
+            .environment(showcase.reviewPrompts)
             .modelContainer(showcase.container)
             .frame(width: canvasSize.width, height: canvasSize.height)
             .scaleEffect(scale, anchor: .top)
@@ -194,6 +195,11 @@ private struct HomeShowcaseEnvironment {
     let container: ModelContainer
     let billsModel: BillsModel
     let appSettingsModel: AppSettingsModel
+    /// Isolated like the noop analytics below: the embedded real views read
+    /// `ReviewPromptModel` from the environment, and the showcase must never
+    /// prompt or persist review state — disabled outright rather than relying
+    /// on the miniature's `allowsHitTesting(false)` two layers up.
+    let reviewPrompts = ReviewPromptModel(isEnabled: false)
 
     init() {
         let schema = Schema([

@@ -1,11 +1,14 @@
 //  Created by Jiri Urbasek on 11/26/25.
 
+import StoreKit
 import SwiftUI
 
 struct MarkPaidSheet: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(StoreKitManager.self) private var storeKit
     @Environment(AnalyticsModel.self) private var analytics
+    @Environment(ReviewPromptModel.self) private var reviewPrompts
+    @Environment(\.requestReview) private var requestReview
     @Environment(\.dismiss) private var dismiss
 
     let bill: Bill
@@ -217,7 +220,11 @@ struct MarkPaidSheet: View {
                     source: .sheet
                 )
                 // markPaid already calls refresh() internally
+                let shouldRequestReview = reviewPrompts.notePaymentRecorded(isCaughtUp: billsModel.isCaughtUp)
                 dismiss()
+                if shouldRequestReview {
+                    await requestReview.requestAfterSettleDelay()
+                }
             } catch {
                 Logger.log("Failed to mark bill as paid: \(error)", level: .error)
             }

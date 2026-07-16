@@ -415,6 +415,9 @@ struct OnboardingFlowView: View {
         .environment(flow)
         .environment(storeKit)
         .environment(AnalyticsModel())
+        .environment(ReviewPromptModel(
+            persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-reviews-\(UUID().uuidString)") ?? .standard)
+        ))
         .modelContainer(preview.container)
 }
 #endif

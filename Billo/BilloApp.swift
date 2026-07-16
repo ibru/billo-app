@@ -61,6 +61,7 @@ struct BilloApp: App {
     @State private var appFlowModel: AppFlowModel?
     @State private var storeKitManager: StoreKitManager?
     @State private var analyticsModel: AnalyticsModel?
+    @State private var reviewPromptModel: ReviewPromptModel?
     @State private var didInitialNotificationRefresh = false
     private let notificationDelegate = NotificationDelegate()
     private let appNotificationRefresher = AppNotificationRefresher()
@@ -76,7 +77,7 @@ struct BilloApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel, let appFlowModel, let storeKitManager, let analyticsModel {
+                if let billsModel, let notificationCoordinator, let preferencesStore, let appSettingsModel, let appFlowModel, let storeKitManager, let analyticsModel, let reviewPromptModel {
                     AppRootView()
                         .environment(billsModel)
                         .environment(notificationCoordinator)
@@ -85,6 +86,7 @@ struct BilloApp: App {
                         .environment(appFlowModel)
                         .environment(storeKitManager)
                         .environment(analyticsModel)
+                        .environment(reviewPromptModel)
                         .bindAnalyticsContext(
                             analytics: analyticsModel,
                             billsModel: billsModel,
@@ -209,6 +211,15 @@ struct BilloApp: App {
 #endif
 
                         let flow = AppFlowModel()
+#if SCREENSHOTS
+                        // The system rating dialog must never pop over a
+                        // capture — same isolation idea as the Noop analytics.
+                        let reviewPrompts = ReviewPromptModel(isEnabled: false)
+#else
+                        let reviewPrompts = ReviewPromptModel(
+                            analyticsCapture: { event in analytics.capture(event) }
+                        )
+#endif
 
                         if settings.currencyCode != nil {
                             flow.completeOnboarding()
@@ -228,6 +239,7 @@ struct BilloApp: App {
                             appFlowModel = flow
                             storeKitManager = storeKit
                             analyticsModel = analytics
+                            reviewPromptModel = reviewPrompts
 
 #if !SCREENSHOTS && !ONBOARDING
                             // Start AFTER the state is published so the ready

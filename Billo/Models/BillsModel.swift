@@ -147,6 +147,21 @@ final class BillsModel {
         )
     }
 
+    /// True when nothing visible is due today or overdue — the "all caught
+    /// up" relief moment the review prompt keys on. Derived from `sections`
+    /// (unpaid occurrences only), so a partially-paid occurrence due today
+    /// still counts as not caught up.
+    ///
+    /// Visible-set scope is safe here: `visibleBills` ranks overdue bills
+    /// first, so an overdue bill can only be hidden when 15 more-overdue
+    /// bills fill the free-tier cap — a state that is already not caught up.
+    var isCaughtUp: Bool {
+        let today = calendar.startOfDay(for: currentDate())
+        return sections.occurrencesBySection.values.allSatisfy { occurrences in
+            occurrences.contains { calendar.startOfDay(for: $0.dueDate) <= today } == false
+        }
+    }
+
     /// Single source of truth for "what income occurrences should I show for range X?".
     /// Returns persisted past rows (frozen snapshots) and computed future views,
     /// de-duplicated by `occurrenceKey` so CloudKit-induced duplicates collapse to one.

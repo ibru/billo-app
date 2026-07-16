@@ -1,5 +1,6 @@
 //  Created by Jiri Urbasek on 11/26/25.
 
+import StoreKit
 import SwiftData
 import SwiftUI
 
@@ -7,6 +8,8 @@ struct BillsListView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettingsModel
     @Environment(AnalyticsModel.self) private var analytics
+    @Environment(ReviewPromptModel.self) private var reviewPrompts
+    @Environment(\.requestReview) private var requestReview
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
@@ -137,10 +140,16 @@ struct BillsListView: View {
         .padding(.vertical, DesignSystem.Spacing.medium)
     }
 
+    /// Currently unreferenced: the row swipe action was lost in the
+    /// List → ScrollView refactor and is planned to be reintroduced — keep
+    /// this (and `PaymentEventSource.listSwipe`) wired for that.
     private func markPaid(_ occurrence: BillOccurrence) {
         Task {
             do {
                 try await billsModel.markPaid(occurrence, source: .listSwipe)
+                if reviewPrompts.notePaymentRecorded(isCaughtUp: billsModel.isCaughtUp) {
+                    await requestReview.requestAfterSettleDelay()
+                }
             } catch {
                 Logger.log("Failed to mark bill as paid: \(error)", level: .error)
             }

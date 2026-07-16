@@ -1,5 +1,6 @@
 //  Created by Jiri Urbasek on 12/05/25.
 
+import StoreKit
 import SwiftData
 import SwiftUI
 
@@ -14,6 +15,8 @@ struct BillsCalendarView: View {
 
     @Environment(BillsModel.self) private var billsModel
     @Environment(AppSettingsModel.self) private var appSettings
+    @Environment(ReviewPromptModel.self) private var reviewPrompts
+    @Environment(\.requestReview) private var requestReview
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
     // Fetch all payments directly so orphaned entries (bill deleted → IssuedOccurrence nullified)
     // still surface in past months. Going through `bills.flatMap(\.allPaymentEntries)` misses them.
@@ -466,11 +469,23 @@ struct BillsCalendarView: View {
         })
     }
 
-    private func markPaid(_ occurrence: BillOccurrence) async {
+    /// Returns whether the payment was actually recorded so the day sheet can
+    /// dismiss only on success.
+    private func markPaid(_ occurrence: BillOccurrence) async -> Bool {
         do {
             try await billsModel.markPaid(occurrence, source: .calendar)
+            if reviewPrompts.notePaymentRecorded(isCaughtUp: billsModel.isCaughtUp) {
+                // Unstructured on purpose: the caller (day sheet) awaits this
+                // method and then dismisses — the settle delay must neither
+                // hold up that dismissal nor die with the sheet's task.
+                Task {
+                    await requestReview.requestAfterSettleDelay()
+                }
+            }
+            return true
         } catch {
             Logger.log("Failed to mark paid: \(error)", level: .error)
+            return false
         }
     }
 
@@ -584,7 +599,7 @@ private struct MonthSectionHeader: View {
 
 private struct DayDetailPresentationModifier: ViewModifier {
     @Binding var dayData: CalendarDayData?
-    let onMarkPaid: (BillOccurrence) async -> Void
+    let onMarkPaid: (BillOccurrence) async -> Bool
     let onSkipIncome: () async -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -615,7 +630,7 @@ private struct DayDetailPresentationModifier: ViewModifier {
 private extension View {
     func dayDetailPresentation(
         dayData: Binding<CalendarDayData?>,
-        onMarkPaid: @escaping (BillOccurrence) async -> Void,
+        onMarkPaid: @escaping (BillOccurrence) async -> Bool,
         onSkipIncome: @escaping () async -> Void
     ) -> some View {
         modifier(DayDetailPresentationModifier(

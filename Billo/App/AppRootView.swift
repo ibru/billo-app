@@ -37,7 +37,8 @@ struct AppRootView: View {
 #if DEBUG && targetEnvironment(simulator)
 #Preview {
     let preview = BilloPreviewContainer.empty()
-    let flow = AppFlowModel(persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-root") ?? .standard))
+    let previewDefaults = UserDefaults(suiteName: "preview-root") ?? .standard
+    let flow = AppFlowModel(persistence: AppPersistence(defaults: previewDefaults))
     let storeKit = StoreKitManager(isPro: false)
 
     return AppRootView()
@@ -48,5 +49,10 @@ struct AppRootView: View {
         .environment(flow)
         .environment(storeKit)
         .environment(AnalyticsModel())
+        // Unique suite per render — a fixed one would persist review-prompt
+        // counters on the dev machine across preview sessions.
+        .environment(ReviewPromptModel(
+            persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-reviews-\(UUID().uuidString)") ?? .standard)
+        ))
 }
 #endif

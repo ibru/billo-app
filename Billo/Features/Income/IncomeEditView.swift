@@ -1,5 +1,6 @@
 //  Created by Jiri Urbasek on 12/10/25.
 
+import StoreKit
 import SwiftUI
 import SwiftData
 
@@ -8,6 +9,8 @@ struct IncomeEditView: View {
     @Environment(AppSettingsModel.self) private var appSettingsModel
     @Environment(AnalyticsModel.self) private var analytics
     @Environment(StoreKitManager.self) private var storeKit
+    @Environment(ReviewPromptModel.self) private var reviewPrompts
+    @Environment(\.requestReview) private var requestReview
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -150,7 +153,12 @@ struct IncomeEditView: View {
 
                     // Centralized add path (insert + save + refresh + analytics).
                     try await billsModel.addIncome(income)
+                    // addIncome refreshed the model, so totalIncomeCount is current.
+                    let shouldRequestReview = reviewPrompts.noteIncomeSaved(totalIncomeCount: billsModel.totalIncomeCount)
                     dismiss()
+                    if shouldRequestReview {
+                        await requestReview.requestAfterSettleDelay()
+                    }
                 } catch {
                     // Stay in the form so the user can correct + retry. Mirrors
                     // DayDetailSheet.skipOccurrence: dismiss only on success.

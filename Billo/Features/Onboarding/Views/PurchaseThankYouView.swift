@@ -6,7 +6,7 @@ import SwiftUI
 struct PurchaseThankYouView: View {
     @Environment(\.requestReview) private var requestReview
     @Environment(AppFlowModel.self) private var flow
-    @Environment(AnalyticsModel.self) private var analytics
+    @Environment(ReviewPromptModel.self) private var reviewPrompts
 
     let onContinue: () -> Void
 
@@ -76,7 +76,9 @@ struct PurchaseThankYouView: View {
             }
         }
         .task {
-            try? await Task.sleep(for: .seconds(1))
+            // Abort on cancellation (user tapped Continue within the delay) —
+            // firing the dialog mid-navigation is worse than skipping it.
+            guard (try? await Task.sleep(for: .seconds(1))) != nil else { return }
             triggerRatingIfNeeded()
         }
     }
@@ -87,9 +89,11 @@ struct PurchaseThankYouView: View {
 
         didTriggerReview = true
         flow.markRatingPrompted()
-        Logger.log("Rating prompt requested", level: .info)
-        analytics.capture(.ratingPromptRequested)
-        requestReview()
+        // Captures the analytics event (trigger: onboarding_purchase);
+        // false only when review prompts are disabled (SCREENSHOTS).
+        if reviewPrompts.noteOnboardingPurchaseCompleted() {
+            requestReview()
+        }
     }
 }
 
@@ -118,9 +122,13 @@ private struct ThankYouBenefitRow: View {
 
 #if DEBUG && targetEnvironment(simulator)
 #Preview {
-    let flow = AppFlowModel(persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-thanks") ?? .standard))
+    // Unique suite per render: this preview auto-fires the rating flow after
+    // 1 s — a fixed suite would persist `didAskForRating` and the prompt
+    // counters on the dev machine, making every later render skip the flow.
+    let previewDefaults = UserDefaults(suiteName: "preview-thanks-\(UUID().uuidString)") ?? .standard
+    let flow = AppFlowModel(persistence: AppPersistence(defaults: previewDefaults))
     return PurchaseThankYouView(onContinue: {})
         .environment(flow)
-        .environment(AnalyticsModel())
+        .environment(ReviewPromptModel(persistence: AppPersistence(defaults: previewDefaults)))
 }
 #endif

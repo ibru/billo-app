@@ -477,6 +477,11 @@ extension View {
             .environment(preview.appSettingsModel)
             .environment(AnalyticsModel())
             .environment(StoreKitManager(isPro: isPro))
+            // Unique suite per render: a fixed one would persist review-prompt
+            // counters on the dev machine across preview sessions.
+            .environment(ReviewPromptModel(
+                persistence: AppPersistence(defaults: UserDefaults(suiteName: "preview-reviews-\(UUID().uuidString)") ?? .standard)
+            ))
             .modelContainer(preview.container)
             .preferredColorScheme(colorScheme)
     }

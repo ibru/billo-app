@@ -57,6 +57,114 @@ struct BillsModelTests {
     }
 
     @MainActor
+    @Suite("isCaughtUp")
+    struct IsCaughtUp {
+        @Test func whenAllBillsDueInFuture_thenIsCaughtUp() throws {
+            let (sut, _, _, _, _) = try makeSUT(billCount: 2)
+
+            try sut.refresh()
+
+            #expect(sut.isCaughtUp)
+        }
+
+        @Test func whenBillOverdue_thenIsNotCaughtUp() throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today)
+            insertBill(dueDate: makeDate(day: 14), into: context)
+
+            try sut.refresh()
+
+            #expect(sut.isCaughtUp == false)
+        }
+
+        @Test func whenBillDueToday_thenIsNotCaughtUp() throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today)
+            insertBill(dueDate: today, into: context)
+
+            try sut.refresh()
+
+            #expect(sut.isCaughtUp == false)
+        }
+
+        @Test func whenOnlyOverdueBillMarkedPaid_thenIsCaughtUp() async throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today)
+            let overdueBill = insertBill(dueDate: makeDate(day: 14), into: context)
+            try sut.refresh()
+
+            try await sut.markPaid(makeOccurrence(for: overdueBill), source: .sheet)
+
+            #expect(sut.isCaughtUp)
+        }
+
+        @Test func whenBillDueTodayOnlyPartiallyPaid_thenIsNotCaughtUp() async throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today)
+            let bill = insertBill(amount: 100, dueDate: today, into: context)
+            try sut.refresh()
+
+            try await sut.markPaid(makeOccurrence(for: bill), amount: 40, source: .sheet)
+
+            #expect(sut.isCaughtUp == false)
+        }
+
+        @Test func whenRecurringBillHasOverdueOccurrence_thenIsNotCaughtUp() throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today)
+            insertBill(dueDate: makeDate(day: 10), recurrenceRule: makeMonthlyRule(dayOfMonth: 10), into: context)
+
+            try sut.refresh()
+
+            #expect(sut.isCaughtUp == false)
+        }
+
+        @Test func whenRecurringBillCurrentOccurrencePaid_thenFutureOccurrencesDoNotBlockCaughtUp() async throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today)
+            let recurringBill = insertBill(
+                dueDate: makeDate(day: 10),
+                recurrenceRule: makeMonthlyRule(dayOfMonth: 10),
+                into: context
+            )
+            try sut.refresh()
+
+            try await sut.markPaid(makeOccurrence(for: recurringBill), source: .sheet)
+
+            #expect(sut.isCaughtUp)
+        }
+
+        // Pins the visible-set guarantee `isCaughtUp` relies on: `visibleBills`
+        // ranks soonest-due first, so the free-tier cap can never hide an
+        // overdue bill behind future ones — a ranking change that broke this
+        // would silently break the caught-up review prompt.
+        @Test func whenFreeTierCapExceededWithOneOverdueBill_thenOverdueStaysVisibleAndBlocksCaughtUp() throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today, isPro: false)
+            insertBill(named: "Overdue", dueDate: makeDate(day: 14), into: context)
+            for futureDay in 0..<FreeTierLimits.billLimit {
+                insertBill(named: "Future \(futureDay)", dueDate: makeDate(day: 16 + futureDay), into: context)
+            }
+
+            try sut.refresh()
+
+            #expect(sut.hiddenBillCount == 1 && sut.isCaughtUp == false)
+        }
+
+        @Test func whenFreeTierCapHidesOnlyFutureBills_thenIsCaughtUp() throws {
+            let today = makeDate(day: 15)
+            let (sut, _, context, _, _) = try makeSUT(billCount: 0, referenceDate: today, isPro: false)
+            for futureDay in 0...FreeTierLimits.billLimit {
+                insertBill(named: "Future \(futureDay)", dueDate: makeDate(day: 16 + futureDay), into: context)
+            }
+
+            try sut.refresh()
+
+            #expect(sut.hiddenBillCount == 1 && sut.isCaughtUp)
+        }
+    }
+
+    @MainActor
     @Suite("markPaid")
     struct MarkPaid {
         @Test func when_markPaidCalled_then_occurrenceStatusUpdated() async throws {
@@ -1810,7 +1918,8 @@ private func makeSUT(
         cal.locale = Locale(identifier: "en_US")
         return cal
     }(),
-    analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in }
+    analyticsCapture: @escaping (AnalyticsEvent) -> Void = { _ in },
+    isPro: Bool = true
 ) throws -> (
     BillsModel,
     [Bill],
@@ -1859,7 +1968,8 @@ private func makeSUT(
         currentDate: { referenceDate },
         notificationCoordinator: coordinator,
         notificationPreferences: preferences,
-        analyticsCapture: analyticsCapture
+        analyticsCapture: analyticsCapture,
+        isPro: { isPro }
     )
 
     return (sut, bills, modelContext, coordinator, preferences)
@@ -1895,6 +2005,25 @@ private func makeDateTime(year: Int = 2025, month: Int = 1, day: Int, hour: Int,
 @MainActor
 private func makeOccurrence(for bill: Bill, dueDate: Date? = nil) -> BillOccurrence {
     BillOccurrence(bill: bill, dueDate: dueDate ?? bill.dueDate)
+}
+
+@MainActor
+@discardableResult
+private func insertBill(
+    named name: String = "Bill",
+    amount: Decimal = 100,
+    dueDate: Date,
+    recurrenceRule: RecurrenceRule? = nil,
+    into context: ModelContext
+) -> Bill {
+    let bill = Bill(name: name, amount: amount, dueDate: dueDate, calendar: utcCalendar())
+    context.insert(bill)
+    bill.recurrenceRule = recurrenceRule
+    return bill
+}
+
+private func makeMonthlyRule(dayOfMonth: Int) -> RecurrenceRule {
+    RecurrenceRule(pattern: .monthly, frequency: 1, dayOfMonth: dayOfMonth)
 }
 
 private func utcCalendar() -> Calendar {

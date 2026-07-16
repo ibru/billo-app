@@ -1,5 +1,6 @@
 //  Created by Jiri Urbasek on 11/26/25.
 
+import StoreKit
 import SwiftUI
 import SwiftData
 
@@ -8,6 +9,8 @@ struct BillEditView: View {
     @Environment(AppSettingsModel.self) private var appSettingsModel
     @Environment(StoreKitManager.self) private var storeKit
     @Environment(AnalyticsModel.self) private var analytics
+    @Environment(ReviewPromptModel.self) private var reviewPrompts
+    @Environment(\.requestReview) private var requestReview
     @Environment(\.dismiss) private var dismiss
 
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
@@ -258,7 +261,12 @@ struct BillEditView: View {
                 )
                 bill.recurrenceRule = buildRecurrenceRule()
                 try await billsModel.addBill(bill)
+                // addBill refreshed the model, so totalBillCount is current.
+                let shouldRequestReview = reviewPrompts.noteBillSaved(totalBillCount: billsModel.totalBillCount)
                 dismiss()
+                if shouldRequestReview {
+                    await requestReview.requestAfterSettleDelay()
+                }
             } catch {
                 activeAlert = .saveError(error.localizedDescription)
                 Logger.log("Failed to save bill: \(error)", level: .error)

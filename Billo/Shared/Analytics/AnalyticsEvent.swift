@@ -56,7 +56,9 @@ enum AnalyticsEvent: Sendable {
     /// `charts` it means "upgrade button tapped" — blurred-screen exposure is
     /// deliberately not counted (tab switches would inflate it).
     case proGateHit(feature: String)
-    case ratingPromptRequested
+    /// `trigger` names the pleasant moment that earned the ask — see
+    /// `ReviewPromptTrigger` for the full set.
+    case ratingPromptRequested(trigger: ReviewPromptTrigger)
 
     // MARK: Bills & payments
     case billCreated(
@@ -170,10 +172,13 @@ extension AnalyticsEvent {
 
     var properties: [String: Any] {
         switch self {
-        case .onboardingStarted, .onboardingSkippedForReturningUser, .ratingPromptRequested,
+        case .onboardingStarted, .onboardingSkippedForReturningUser,
              .incomeOccurrenceSkipped, .incomeOccurrenceAmountEdited, .incomeOccurrenceDeleted,
              .customCategoryCreated, .customCategoryDeleted:
             return [:]
+
+        case .ratingPromptRequested(let trigger):
+            return ["trigger": trigger.rawValue]
 
         case .onboardingStepContinued(let step), .onboardingStepSkipped(let step):
             return ["step": step]

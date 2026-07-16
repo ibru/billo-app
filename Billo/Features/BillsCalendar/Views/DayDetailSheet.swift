@@ -5,7 +5,7 @@ import SwiftUI
 
 struct DayDetailSheet: View {
     let dayData: CalendarDayData
-    let onMarkPaid: (BillOccurrence) async -> Void
+    let onMarkPaid: (BillOccurrence) async -> Bool
     /// Called after a successful skip so the presenting calendar can rebuild
     /// its local state. `BillsModel.skipIncomeOccurrence` mutates the model's
     /// `incomeOccurrences` array contents (sets `isExcluded`) without
@@ -59,12 +59,29 @@ struct DayDetailSheet: View {
 
                 if !dayData.bills.isEmpty {
                     Section("Bills") {
+                        // Every displayed bill is unpaid by construction
+                        // (fully-paid occurrences only appear as payments),
+                        // so the swipe needs no paid-state guard.
                         ForEach(dayData.bills) { display in
                             BillRowView(
                                 occurrence: display.occurrence,
                                 customCategories: customCategories,
                                 section: billSection(for: display)
                             )
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    markPaid(display.occurrence)
+                                } label: {
+                                    Label(
+                                        String(
+                                            localized: "Mark Paid",
+                                            comment: "Day detail: swipe action to mark a bill occurrence as paid"
+                                        ),
+                                        systemImage: "checkmark.circle"
+                                    )
+                                }
+                                .tint(DesignSystem.Color.green)
+                            }
                         }
                     }
                 }
@@ -83,6 +100,16 @@ struct DayDetailSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+    }
+
+    private func markPaid(_ occurrence: BillOccurrence) {
+        Task {
+            // Dismiss only on success, like the skip flow below: a failed
+            // save must not look like a recorded payment — a believed-paid
+            // but unpaid bill is the exact anxiety this app exists to prevent.
+            guard await onMarkPaid(occurrence) else { return }
+            dismiss()
+        }
     }
 
     private func skipOccurrence(_ occurrenceID: PersistentIdentifier) {

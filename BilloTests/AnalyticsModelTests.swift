@@ -114,7 +114,7 @@ struct AnalyticsModelTests {
         // Iterates allCases so a future context can't skip this contract.
         let expectedKeys = [
             "first_launch", "bill_limit", "income_limit", "partial_payment", "custom_recurrence", "charts", "data_export",
-            "hidden_bills", "hidden_incomes"
+            "hidden_bills", "hidden_incomes", "settings"
         ]
 
         #expect(PaywallContext.allCases.map(\.analyticsKey) == expectedKeys)
