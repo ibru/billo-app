@@ -13,7 +13,7 @@ nonisolated enum FreeTierLimits {
     /// Stored `Bill` records (one per series). Deliberately generous —
     /// low caps (3–5) are the #1 "fake free tier" 1★ driver in competitor
     /// reviews. Deleting a bill frees a slot.
-    static let billLimit = 15
+    static let billLimit = 12
 
     static func canAddBill(currentCount: Int, isPro: Bool) -> Bool {
         isPro || currentCount < billLimit
