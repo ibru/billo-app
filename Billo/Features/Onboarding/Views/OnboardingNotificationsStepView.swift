@@ -28,7 +28,8 @@ struct OnboardingNotificationsStepView: View {
             primaryState: isRequesting ? .loading : .enabled,
             onPrimary: { Task { await enableReminders() } },
             secondaryTitle: "Not now",
-            onSecondary: { finish(remindersEnabled: false, didSkip: true) }
+            onSecondary: { finish(remindersEnabled: false, didSkip: true) },
+            secondaryStyle: .prominent
         ) {
             VStack(spacing: DesignSystem.Spacing.extraLarge) {
                 OnboardingNotificationBannerMock(

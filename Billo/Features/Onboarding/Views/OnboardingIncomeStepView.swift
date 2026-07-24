@@ -45,7 +45,8 @@ struct OnboardingIncomeStepView: View {
             primaryState: canContinue ? .enabled : .disabled,
             onPrimary: saveAndContinue,
             secondaryTitle: "Skip for now",
-            onSecondary: onSkip
+            onSecondary: onSkip,
+            secondaryStyle: .prominent
         ) {
             VStack(spacing: DesignSystem.Spacing.large) {
                 VStack(spacing: DesignSystem.Spacing.small) {

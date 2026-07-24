@@ -41,7 +41,8 @@ struct OnboardingBillSetupStepView: View {
             primaryState: setupModel.billCount > 0 ? .enabled : .disabled,
             onPrimary: onContinue,
             secondaryTitle: setupModel.billCount == 0 ? "I’ll add bills later" : nil,
-            onSecondary: setupModel.billCount == 0 ? onSkip : nil
+            onSecondary: setupModel.billCount == 0 ? onSkip : nil,
+            secondaryStyle: .prominent
         ) {
             VStack(spacing: DesignSystem.Spacing.large) {
                 VStack(spacing: DesignSystem.Spacing.small) {

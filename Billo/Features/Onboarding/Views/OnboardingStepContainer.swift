@@ -13,12 +13,21 @@ struct OnboardingStepContainer<Content: View>: View {
         case loading
     }
 
+    enum SecondaryButtonStyle {
+        /// Understated text link — for de-emphasized escapes ("Not now").
+        case plain
+        /// Full-width tinted text button (no background) — for skips that
+        /// should read as a real alternative to the primary action.
+        case prominent
+    }
+
     let progressIndex: Int?
     let primaryTitle: LocalizedStringKey
     var primaryState: PrimaryButtonState = .enabled
     let onPrimary: () -> Void
     var secondaryTitle: LocalizedStringKey?
     var onSecondary: (() -> Void)?
+    var secondaryStyle: SecondaryButtonStyle = .plain
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -74,17 +83,31 @@ struct OnboardingStepContainer<Content: View>: View {
                 }
 
                 if let secondaryTitle, let onSecondary {
-                    Button(action: onSecondary) {
-                        Text(secondaryTitle)
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
                     // While the primary action is in flight, a live secondary
                     // would open a second completion path (e.g. "Not now"
                     // racing an awaited permission request).
-                    .disabled(primaryState == .loading)
-                    .accessibilityIdentifier("onboarding_secondary")
+                    switch secondaryStyle {
+                    case .plain:
+                        Button(action: onSecondary) {
+                            Text(secondaryTitle)
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .disabled(primaryState == .loading)
+                        .accessibilityIdentifier("onboarding_secondary")
+                    case .prominent:
+                        Button(action: onSecondary) {
+                            Text(secondaryTitle)
+                                .font(.headline)
+                                .foregroundStyle(.tint)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(primaryState == .loading)
+                        .accessibilityIdentifier("onboarding_secondary")
+                    }
                 }
             }
             .frame(maxWidth: 560)

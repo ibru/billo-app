@@ -34,12 +34,12 @@ struct OnboardingEmpathyStepView: View {
                     .padding(.top, DesignSystem.Spacing.large)
 
                 VStack(spacing: DesignSystem.Spacing.small) {
-                    Text("It’s not you — it’s the system", comment: "Onboarding empathy title")
+                    Text("Nobody can juggle a dozen due dates", comment: "Onboarding empathy title")
                         .font(.title.bold())
                         .multilineTextAlignment(.center)
 
                     Text(
-                        "Nobody can hold a dozen due dates in their head. Missed bills aren’t a discipline problem — they’re a visibility problem.",
+                        "Missed bills aren’t a discipline problem — they’re a visibility problem.",
                         comment: "Onboarding empathy subtitle"
                     )
                     .font(.title3)

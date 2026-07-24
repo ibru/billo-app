@@ -17,7 +17,7 @@ struct OnboardingPainBubblesStepView: View {
     var body: some View {
         OnboardingStepContainer(
             progressIndex: OnboardingStep.painBubbles.progressIndex,
-            primaryTitle: "Sounds familiar",
+            primaryTitle: "Clear my head",
             onPrimary: onContinue
         ) {
             VStack(spacing: DesignSystem.Spacing.extraLarge) {
@@ -25,12 +25,12 @@ struct OnboardingPainBubblesStepView: View {
                     .padding(.top, DesignSystem.Spacing.large)
 
                 VStack(spacing: DesignSystem.Spacing.small) {
-                    Text("Bills you keep in your head", comment: "Onboarding pain (bubbles) title")
+                    Text("Bills shouldn’t live in your head", comment: "Onboarding pain (bubbles) title")
                         .font(.title.bold())
                         .multilineTextAlignment(.center)
 
                     Text(
-                        "Due dates scattered across emails, letters, and apps — and the quiet worry you’ve missed one.",
+                        "No more due dates scattered across emails and apps — and no more wondering if one slipped past you.",
                         comment: "Onboarding pain (bubbles) subtitle"
                     )
                     .font(.title3)
