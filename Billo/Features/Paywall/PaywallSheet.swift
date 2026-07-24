@@ -22,6 +22,8 @@ extension View {
 private struct PaywallSheetModifier: ViewModifier {
     @Environment(\.requestReview) private var requestReview
     @Environment(ReviewPromptModel.self) private var reviewPrompts
+    @Environment(StoreKitManager.self) private var storeKit
+    @Environment(AnalyticsModel.self) private var analytics
 
     @Binding var context: PaywallContext?
     @State private var didPurchase = false
@@ -38,6 +40,12 @@ private struct PaywallSheetModifier: ViewModifier {
                     }
                 }
             )
+            // Mac Catalyst drops @Observable environment values at the sheet
+            // boundary (see AppEnvironmentModels) — re-inject what
+            // PaywallView reads. Captured here, at the presenting level,
+            // where the environment is intact.
+            .environment(storeKit)
+            .environment(analytics)
         }
     }
 

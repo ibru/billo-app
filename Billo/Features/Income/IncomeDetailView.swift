@@ -7,6 +7,7 @@ struct IncomeDetailView: View {
 
     @Environment(BillsModel.self) private var billsModel
     @Environment(\.dismiss) private var dismiss
+    var appModels = AppEnvironmentModels()
 
     @State private var showingEditSheet = false
     @State private var showingDeleteAlert = false
@@ -85,6 +86,7 @@ struct IncomeDetailView: View {
         }
         .sheet(isPresented: $showingEditSheet) {
             IncomeEditView(mode: .editing(income))
+                .appEnvironment(appModels)
         }
         .alert("Delete Income?", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) { }

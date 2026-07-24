@@ -6,6 +6,7 @@ import SwiftUI
 struct IncomeListView: View {
     @Environment(BillsModel.self) private var billsModel
     @Environment(AnalyticsModel.self) private var analytics
+    var appModels = AppEnvironmentModels()
 
     @State private var showingAddIncome = false
     @State private var paywallContext: PaywallContext?
@@ -47,6 +48,7 @@ struct IncomeListView: View {
         }
         .sheet(isPresented: $showingAddIncome) {
             IncomeEditView(mode: .adding)
+                .appEnvironment(appModels)
         }
     }
 

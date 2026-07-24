@@ -13,6 +13,7 @@ struct BillsHomeSwitchView: View {
     @Environment(AnalyticsModel.self) private var analytics
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    var appModels = AppEnvironmentModels()
 
     @State private var showingAddBill = false
     @State private var showingSettings = false
@@ -73,7 +74,7 @@ struct BillsHomeSwitchView: View {
         }
         .sheet(isPresented: $showingAddBill) {
             BillEditView(mode: .adding)
-                .environment(billsModel)
+                .appEnvironment(appModels)
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
@@ -109,6 +110,7 @@ struct BillsHomeSwitchView: View {
                     }
                 }
             }
+            .appEnvironment(appModels)
         }
     }
 

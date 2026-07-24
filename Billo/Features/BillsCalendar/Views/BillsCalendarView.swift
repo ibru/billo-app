@@ -603,6 +603,7 @@ private struct DayDetailPresentationModifier: ViewModifier {
     let onSkipIncome: () async -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    var appModels = AppEnvironmentModels()
 
     func body(content: Content) -> some View {
 #if os(iOS)
@@ -613,6 +614,7 @@ private struct DayDetailPresentationModifier: ViewModifier {
                     onMarkPaid: onMarkPaid,
                     onSkipIncome: onSkipIncome
                 )
+                .appEnvironment(appModels)
             }
 #else
         content
@@ -622,6 +624,7 @@ private struct DayDetailPresentationModifier: ViewModifier {
                     onMarkPaid: onMarkPaid,
                     onSkipIncome: onSkipIncome
                 )
+                .appEnvironment(appModels)
             }
 #endif
     }

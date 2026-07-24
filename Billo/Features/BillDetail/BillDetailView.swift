@@ -7,6 +7,7 @@ struct BillDetailView: View {
     @Environment(BillModel.self) private var billModel
     @Environment(BillsModel.self) private var billsModel
     @Environment(\.dismiss) private var dismiss
+    var appModels = AppEnvironmentModels()
     @Query(sort: \CustomCategory.name) private var customCategories: [CustomCategory]
 
     @State private var showingEditSheet = false
@@ -66,11 +67,11 @@ struct BillDetailView: View {
         .sheet(isPresented: $showingEditSheet) {
             BillEditView(mode: .editing(bill))
                 .environment(billModel)
-                .environment(billsModel)
+                .appEnvironment(appModels)
         }
         .sheet(isPresented: $showingMarkPaidSheet) {
             MarkPaidSheet(bill: bill)
-                .environment(billsModel)
+                .appEnvironment(appModels)
         }
     }
 

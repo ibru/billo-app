@@ -14,6 +14,7 @@ struct CategoryQuickPicker: View {
     let usageCounts: [CategoryIdentifier: Int]
     let customCategories: [CustomCategory]
 
+    @Environment(AnalyticsModel.self) private var analytics
     @State private var showsFullPicker = false
 
     private var quickPicks: [CategoryDisplayInfo] {
@@ -76,6 +77,10 @@ struct CategoryQuickPicker: View {
         .accessibilityHint(Text("Selects a category. More… shows all categories", comment: "Accessibility hint for the category picker row"))
         .sheet(isPresented: $showsFullPicker) {
             CategoryPickerSheet(selection: $selection)
+                // Mac Catalyst drops @Observable environment values at the
+                // sheet boundary (see AppEnvironmentModels) — re-inject the
+                // one model the picker sheet reads.
+                .environment(analytics)
         }
         .onAppear {
             // A bill can reference a custom category that was deleted since.
@@ -111,4 +116,5 @@ struct CategoryQuickPicker: View {
             )
         }
     }
+    .environment(AnalyticsModel())
 }
