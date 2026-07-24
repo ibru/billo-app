@@ -138,5 +138,8 @@ Temporary Items
 # Claude Code
 .claude/
 
+# PostHog CLI credentials (Billo project API key)
+.posthog.env
+
 # Temporary files
 tmp/
