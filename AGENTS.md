@@ -9,6 +9,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - `@ai-rules/rule-loading.md` — always load this first; it selects the right rule pack for the task.
 - `@ai-rules/general.md` — baseline rules for Swift, and SwiftUI work in this codebase.
 - `@ai-rules/testing.md` — testing-specific rules distilled from our TDD playbook. Required when touching tests or test fixtures.
+- `@ai-rules/localization.md` — end-to-end playbook for adding a new locale: keyword research (astro + `/aso`), App Store listing packs and `../appstore/` file structure, in-app xcstrings translation + review, `ScreenshotMockData` market datasets, screenshot capture + Figma designs (`/figma-shot-localizer`), and the `asc` push to App Store Connect. Required for any localization/ASO/screenshot task.
 - Deep dives live under `@docs/`, you can read it if you need longer-form architectural or product context.
 
 ## Repository Overview
@@ -34,7 +35,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - **Screaming Architecture**: Feature-based folders (`Features/<Feature_1>/`, `Features/<Feature_2>/`) that communicate the app's purpose at a glance.
 - **Subscription system**: StoreKit 2 with `StoreKitManager` singleton for Pro feature gating across the app.
 - **Data flow**: User input → @Observable model class -> SwiftData models -> automatic UI updates -> CloudKit sync.
-- **Localization**: Not set up yet. Strings live in `Billo/Localizable.xcstrings` (English only for now); multi-language support is planned later.
+- **Localization**: Live. `Billo/Localizable.xcstrings` carries full it, es (single neutral Spanish), and pt-BR translations; App Store metadata additionally ships en-GB, es-ES, es-MX regional listings. Adding a language or touching any localized copy → follow `@ai-rules/localization.md`.
 
 ## Key Integration Points
 - **PostHog Analytics**: `Billo/Shared/Analytics/` — `AnalyticsModel` (`@Observable`, injected via `.environment()`) over an `AnalyticsClient` protocol (`PostHogAnalyticsClient` in Release, `NoopAnalyticsClient` in tests/previews/SCREENSHOTS; DEBUG needs `BILLO_ENABLE_ANALYTICS=1`). Events are typed cases in `AnalyticsEvent` (names lowercase-space, property keys snake_case, categories via `CategoryIdentifier.analyticsKey` — never user text). **Monetary amounts are never tracked** (user decision — too sensitive); only non-amount dimensions like `currency_code`, `is_partial`, `days_from_due`. Screens tracked manually with `.analyticsScreen(_:)`. Data mutations capture inside `BillsModel` (services get an `analyticsCapture` closure); UI-only events capture in views. **Session replay is ON with global text masking OFF — any new view showing an amount, user-entered name/note, account ID, provider URL, or confirmation number MUST be covered by `.replayMaskSensitive()`. Granularity matters: in scrolling lists apply ONE mask on the list container, never per row — each mask injects PostHog tag UIViews whose setup re-walks the view hierarchy (profiled as the dominant cause of launch and scrolling hangs). Masked containers today: bills list ScrollView, calendar list ScrollView, DayDetailSheet list, PaymentHistoryView list; the row views inside (`BillRowView`, `PaymentRowView`, calendar rows, `CategoryCaptionLabel`) deliberately carry no masks and must only be used inside a masked container. One-off detail/edit screens keep per-view masks.** Exemption: compile-time-constant illustrative figures (e.g. mock amounts in onboarding explanation illustrations) carry no user data and deliberately stay unmasked.
@@ -51,7 +52,7 @@ Explain clearly your reasoning behind your decisions and pros/cons of chosen sol
 - Avoid force unwraps except in guarded test helpers; prefer `guard let` with logged failures.
 - Single source of truth: Use one `@State` variable per logical concern (prefer optional types or enums over multiple boolean flags).
 - File headers: Always use `//  Created by Jiri Urbasek on ...` (never Claude Code, Codex etc).
-- Keep user-facing copy extractable (use `Text`/`String(localized:)` with comments) so it lands in `Billo/Localizable.xcstrings`. No translation workflow exists yet.
+- Keep user-facing copy extractable (use `Text`/`String(localized:)` with comments) so it lands in `Billo/Localizable.xcstrings` — components must never take display text as plain `String` (it silently skips extraction). New strings ship English-only until translated into it/es/pt-BR; the translation workflow is in `@ai-rules/localization.md`.
 
 ## Workflow
 - Ask for clarification when requirements are ambiguous; surface 2–3 options when trade-offs matter

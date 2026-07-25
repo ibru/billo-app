@@ -65,6 +65,17 @@ Rules are under the `ai-rules` folder. If the folder exists in the local project
 
 **Keywords:** View Model, Observable, state management, business logic, user action
 
+### 🌍 localization.md - New Locale / App Store Localization Playbook
+**Load when:**
+- Adding a new language or App Store locale
+- Doing ASO/keyword research for a market
+- Writing or updating App Store listings, descriptions, keywords, or screenshot captions
+- Translating or reviewing Localizable.xcstrings content
+- Capturing localized screenshots or preparing Figma screenshot designs
+- Pushing metadata or screenshots to App Store Connect
+
+**Keywords:** localization, locale, language, translation, ASO, keywords, App Store listing, metadata, screenshots, captions, Figma, asc, astro, xcstrings
+
 ### 📚 rules.md - Rule File Creation
 **Load when:**
 - Creating new rule files
