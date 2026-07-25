@@ -10,9 +10,27 @@ import SwiftData
 import UserNotifications
 import PostHog
 
+#if SCREENSHOTS
+/// `-screenshotLandscape` locks the app to landscape so iPad App Store frames
+/// can be captured headlessly — simctl/AXe cannot rotate a simulator, but an
+/// orientation-locked app renders (and screenshots) in landscape regardless
+/// of the device's physical orientation.
+final class ScreenshotAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        supportedInterfaceOrientationsFor window: UIWindow?
+    ) -> UIInterfaceOrientationMask {
+        ProcessInfo.processInfo.arguments.contains("-screenshotLandscape") ? .landscapeRight : .all
+    }
+}
+#endif
+
 @main
 struct BilloApp: App {
     @Environment(\.scenePhase) private var scenePhase
+#if SCREENSHOTS
+    @UIApplicationDelegateAdaptor(ScreenshotAppDelegate.self) private var screenshotAppDelegate
+#endif
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -130,7 +148,22 @@ struct BilloApp: App {
 
                         // Set up notification system
 #if SCREENSHOTS
-                        let center: UNNotificationCenterProtocol = ScreenshotNoopNotificationCenter()
+                        // Screenshot runs normally use the Noop center so no
+                        // permission prompt ever pops over a capture. The
+                        // `-screenshotRealNotifications` launch argument opts a
+                        // run back into the real center and requests
+                        // authorization, so `simctl push` can render localized
+                        // lock-screen notifications for the App Store frames.
+                        let center: UNNotificationCenterProtocol
+                        if ProcessInfo.processInfo.arguments.contains("-screenshotRealNotifications") {
+                            center = UNUserNotificationCenter.current()
+                            Task {
+                                _ = try? await UNUserNotificationCenter.current()
+                                    .requestAuthorization(options: [.alert, .badge, .sound])
+                            }
+                        } else {
+                            center = ScreenshotNoopNotificationCenter()
+                        }
 #else
                         let center = UNUserNotificationCenter.current()
 #endif

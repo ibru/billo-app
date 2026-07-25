@@ -22,7 +22,10 @@ struct BillDetailRecurrenceSection: View {
 
         if !nextDates.isEmpty {
             VStack(spacing: 0) {
-                BillDetailSectionHeader(title: "Upcoming Occurrences")
+                BillDetailSectionHeader(title: String(
+                    localized: "Upcoming Occurrences",
+                    comment: "Bill detail: section header listing the next due dates"
+                ))
 
                 VStack(spacing: 0) {
                     ForEach(Array(nextDates.enumerated()), id: \.element) { index, date in
@@ -92,7 +95,10 @@ struct BillDetailPaymentHistorySection: View {
         let hasMore = billModel.paymentsSortedDescending.count > 3
 
         VStack(spacing: 0) {
-            BillDetailSectionHeader(title: "Recent Payments")
+            BillDetailSectionHeader(title: String(
+                localized: "Recent Payments",
+                comment: "Bill detail: section header for the latest payment history entries"
+            ))
 
             BillDetailCard {
                 ForEach(Array(payments.enumerated()), id: \.element.persistentModelID) { index, payment in
