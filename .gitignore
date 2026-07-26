@@ -143,3 +143,6 @@ Temporary Items
 
 # Temporary files
 tmp/
+# asc CLI transient outputs (keep ExportOptions.plist tracked)
+.asc/artifacts/
+.asc/reports/
