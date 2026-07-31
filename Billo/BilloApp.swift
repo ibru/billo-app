@@ -287,6 +287,9 @@ struct BilloApp: App {
                 }
             }
             .tint(DesignSystem.Color.green)
+            .onAppear {
+                MacWindowDefaults.applyIfFirstLaunch()
+            }
         }
         .modelContainer(sharedModelContainer)
         .onChange(of: billsModel != nil) { _, isReady in

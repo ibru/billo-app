@@ -132,15 +132,23 @@ appstore/
   `billo-screenshot-automation` auto-memory (iPad landscape trick, device-portrait
   coordinate transform, closed-loop chart scrolling, notification `thread-id`s,
   iPadOS 26 "Full Screen Apps" mode, status-bar 9:41 pinning).
-- Devices and orientation are fixed: **iPhone 17 Pro in portrait** (1206×2622) and
-  **iPad (A16) in landscape** (2360×1640, via `-screenshotLandscape` + `sips -r 270`).
-  Both simulators MUST run an **iOS 26+ runtime — Liquid Glass UI is required**; older
-  runtimes (18.x) render the pre-Liquid-Glass chrome and the captures are unusable.
+- Devices and orientation are fixed: **iPhone 17 Pro in portrait** (1206×2622),
+  **iPad (A16) in landscape** (2360×1640, via `-screenshotLandscape` + `sips -r 270`),
+  and **macOS via Mac Catalyst** on the host Mac (928×792 window, captured with drop
+  shadow at 2080×1808). Both simulators MUST run an **iOS 26+ runtime — Liquid Glass
+  UI is required**; older runtimes (18.x) render the pre-Liquid-Glass chrome and the
+  captures are unusable.
 - Frames per locale: iPhone 2-bills-list, 3-calendar, 4-bill-detail (the electricity
   bill), 5-charts (scrolled to category card + on-time + trend header — match the EN
   raw), 6-notifications (lock screen, localized push payloads); iPad same minus 6, with
   a bill ALWAYS selected in the detail pane (verify via describe-ui before capturing —
-  never ship the empty "select a bill" placeholder).
+  never ship the empty "select a bill" placeholder); macOS mirrors the iPad set
+  (same four states and file names, `<locale>/mac/`).
+- macOS captures are fully scripted: `scripts/capture-appstore-mac-shots.sh --all`.
+  The shot catalogue, window geometry, and every Catalyst capture trap (menu items
+  ignore synthetic clicks, frame restoration, PID-vs-app-name targeting, wheel-event
+  linearity) are documented in `docs/appstore-shots.md` — read it before changing
+  the script or re-shooting.
 - Captions: add the locale to `screenshot-captions.md` (aligned with the listing's
   keyword vocabulary, `**accent**` markers mirroring the EN two-tone design, ~10% length
   budget) and to `job.json`/`job-ipad.json`. Serve the version folder with the PLUGIN'S server —
