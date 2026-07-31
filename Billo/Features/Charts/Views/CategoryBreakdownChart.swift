@@ -7,14 +7,24 @@ struct CategoryBreakdownChart: View {
     let data: CategoryBreakdownData
     var currencyCode: String = Locale.current.currency?.identifier ?? "USD"
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
-            header
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    private var donutSize: CGFloat {
+        horizontalSizeClass == .regular ? 220 : 140
+    }
+
+    var body: some View {
+        Group {
             if data.slices.isEmpty {
-                emptyState
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+                    header
+
+                    emptyState
+                }
+            } else if horizontalSizeClass == .regular {
+                regularChartContent
             } else {
-                chartContent
+                compactChartContent
             }
         }
         .chartCardStyle()
@@ -60,11 +70,31 @@ struct CategoryBreakdownChart: View {
             .padding(.vertical, DesignSystem.Spacing.large)
     }
 
-    private var chartContent: some View {
+    private var compactChartContent: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+            header
+
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.large) {
+                donutChart
+
+                compactLegend
+            }
+        }
+    }
+
+    private var regularChartContent: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.large) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+                header
+
+                legend
+            }
+
+            Spacer(minLength: 0)
+
             donutChart
 
-            legend
+            Spacer(minLength: 0)
         }
     }
 
@@ -77,12 +107,27 @@ struct CategoryBreakdownChart: View {
             )
             .foregroundStyle(slice.display.color)
         }
-        .frame(width: 140, height: 140)
+        .frame(width: donutSize, height: donutSize)
         .chartLegend(.hidden)
     }
 
-    private var legend: some View {
+    private var compactLegend: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+            ForEach(data.slices) { slice in
+                CompactCategoryLegendRow(
+                    slice: slice,
+                    currencyCode: currencyCode
+                )
+            }
+        }
+    }
+
+    private var legend: some View {
+        Grid(
+            alignment: .leading,
+            horizontalSpacing: DesignSystem.Spacing.medium,
+            verticalSpacing: DesignSystem.Spacing.small
+        ) {
             ForEach(data.slices) { slice in
                 CategoryLegendRow(
                     slice: slice,
@@ -93,7 +138,7 @@ struct CategoryBreakdownChart: View {
     }
 }
 
-private struct CategoryLegendRow: View {
+private struct CompactCategoryLegendRow: View {
     let slice: CategorySlice
     let currencyCode: String
 
@@ -112,6 +157,30 @@ private struct CategoryLegendRow: View {
             Text(slice.amount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct CategoryLegendRow: View {
+    let slice: CategorySlice
+    let currencyCode: String
+
+    var body: some View {
+        GridRow {
+            HStack(spacing: DesignSystem.Spacing.small) {
+                Circle()
+                    .fill(slice.display.color)
+                    .frame(width: 10, height: 10)
+
+                Text(slice.display.name)
+                    .font(.caption)
+                    .lineLimit(1)
+            }
+
+            Text(slice.amount, format: .currency(code: currencyCode).precision(.fractionLength(0)))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .gridColumnAlignment(.trailing)
         }
     }
 }
