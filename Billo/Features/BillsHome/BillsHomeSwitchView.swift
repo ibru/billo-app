@@ -201,16 +201,12 @@ struct BillsHomeSwitchView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if usesStackNavigation || viewModeBinding.wrappedValue == .calendar {
-                    HomeFloatingBottomBarView(
-                        showToday: viewModeBinding.wrappedValue == .calendar && !calendarIsAtCurrentMonth,
-                        usesStackNavigation: usesStackNavigation,
-                        onToday: { calendarScrollToTodayToken += 1 },
-                        onOpen: openSelection
-                    )
-                } else {
-                    EmptyView()
-                }
+                HomeFloatingBottomBarView(
+                    showToday: viewModeBinding.wrappedValue == .calendar && !calendarIsAtCurrentMonth,
+                    usesStackNavigation: usesStackNavigation,
+                    onToday: { calendarScrollToTodayToken += 1 },
+                    onOpen: openSelection
+                )
             }
     }
 
