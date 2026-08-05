@@ -119,19 +119,26 @@ appstore/
 
 - Add a market dataset to `Billo/App/ScreenshotMockData.swift`: 12 monthly bills + 1
   yearly + 2 incomes with local brands, currency, and pay cadence, keeping the SAME
-  day-of-month spread (1,3,5,8,9,12,15,18,20,22,25,27) so list sections stay populated.
+  `dueInDays` offset spread (0,3,6,9,11,13,16,18,23,25,27,30) and array order so every
+  capture — on any date — renders one bill due today (Spotify Premium, the automation's
+  brand-name anchor), two in the next 7 days, the rest in the next 30.
   Market selection: `SCREENSHOT_MARKET` env var, fallback = run locale's region — so
   setting the simulator locale picks both language AND dataset.
 - Capture-automation launch args (SCREENSHOTS builds; documented in AGENTS.md):
   `-billsDefaultView list|calendar`, `-screenshotRealNotifications`, `-screenshotLandscape`.
+- New locale checklists in the capture scripts: add the locale to the label maps in
+  `scripts/capture-appstore-{iphone,ipad}-shots.sh` (Charts menu item, category-card
+  a11y prefix, electricity bill name, Allow button, notification payload copy).
 
 ## Phase 5 — Raw captures + Figma designs
 
-- Drive the whole capture → captions → job.json → plugin flow with the
-  **`/figma-shot-localizer`** skill; simulator/AXe recipes and all gotchas live in the
-  `billo-screenshot-automation` auto-memory (iPad landscape trick, device-portrait
-  coordinate transform, closed-loop chart scrolling, notification `thread-id`s,
-  iPadOS 26 "Full Screen Apps" mode, status-bar 9:41 pinning).
+- ALL THREE devices are fully scripted — `scripts/capture-appstore-iphone-shots.sh`,
+  `scripts/capture-appstore-ipad-shots.sh`, `scripts/capture-appstore-mac-shots.sh`
+  (each: `--all`, or `--only <shot> --locales <list>` for re-shoots). The shot
+  catalogue, the required screen states (bills list NEVER scrolled — hero card
+  visible; calendar's due-today row second from the bottom; charts framed on the
+  category card), and every platform trap are documented in `docs/appstore-shots.md` —
+  read it before changing a script or re-shooting.
 - Devices and orientation are fixed: **iPhone 17 Pro in portrait** (1206×2622),
   **iPad (A16) in landscape** (2360×1640, via `-screenshotLandscape` + `sips -r 270`),
   and **macOS via Mac Catalyst** on the host Mac (928×792 window, captured with drop
@@ -139,16 +146,13 @@ appstore/
   UI is required**; older runtimes (18.x) render the pre-Liquid-Glass chrome and the
   captures are unusable.
 - Frames per locale: iPhone 2-bills-list, 3-calendar, 4-bill-detail (the electricity
-  bill), 5-charts (scrolled to category card + on-time + trend header — match the EN
-  raw), 6-notifications (lock screen, localized push payloads); iPad same minus 6, with
-  a bill ALWAYS selected in the detail pane (verify via describe-ui before capturing —
-  never ship the empty "select a bill" placeholder); macOS mirrors the iPad set
-  (same four states and file names, `<locale>/mac/`).
-- macOS captures are fully scripted: `scripts/capture-appstore-mac-shots.sh --all`.
-  The shot catalogue, window geometry, and every Catalyst capture trap (menu items
-  ignore synthetic clicks, frame restoration, PID-vs-app-name targeting, wheel-event
-  linearity) are documented in `docs/appstore-shots.md` — read it before changing
-  the script or re-shooting.
+  bill), 5-charts, 6-notifications (lock screen, localized push payloads); iPad same
+  minus 6, with a bill ALWAYS selected in the detail pane (never ship the empty
+  "select a bill" placeholder); macOS mirrors the iPad set (same four states and
+  file names, `<locale>/mac/`).
+- Drive the capture → captions → job.json → plugin flow with the
+  **`/figma-shot-localizer`** skill; extra recipes live in the
+  `billo-screenshot-automation` auto-memory.
 - Captions: add the locale to `screenshot-captions.md` (aligned with the listing's
   keyword vocabulary, `**accent**` markers mirroring the EN two-tone design, ~10% length
   budget) and to `job.json`/`job-ipad.json`. Serve the version folder with the PLUGIN'S server —

@@ -10,15 +10,15 @@ struct FreeTierLimitsTests {
     // MARK: - Bill cap
 
     @Test func whenBelowBillLimit_thenCanAddBill() {
-        #expect(FreeTierLimits.canAddBill(currentCount: 14, isPro: false))
+        #expect(FreeTierLimits.canAddBill(currentCount: FreeTierLimits.billLimit - 1, isPro: false))
     }
 
     @Test func whenAtBillLimit_thenCannotAddBill() {
-        #expect(FreeTierLimits.canAddBill(currentCount: 15, isPro: false) == false)
+        #expect(FreeTierLimits.canAddBill(currentCount: FreeTierLimits.billLimit, isPro: false) == false)
     }
 
     @Test func whenAtBillLimitAndPro_thenCanAddBill() {
-        #expect(FreeTierLimits.canAddBill(currentCount: 15, isPro: true))
+        #expect(FreeTierLimits.canAddBill(currentCount: FreeTierLimits.billLimit, isPro: true))
     }
 
     @Test func whenOverBillLimit_thenCannotAddBill() {

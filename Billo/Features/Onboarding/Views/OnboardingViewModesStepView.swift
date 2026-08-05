@@ -119,7 +119,7 @@ private struct HomeShowcaseView: View {
         ))
         .task {
             if showcase == nil {
-                showcase = HomeShowcaseEnvironment()
+                showcase = HomeShowcaseEnvironment.shared
             }
             guard autoCycles else { return }
             // Endless demo loop: zoom the toolbar pill in (to the front),
@@ -221,10 +221,27 @@ private struct HomeShowcaseView: View {
 /// A self-contained SwiftData stack (in-memory, no CloudKit, noop
 /// notifications, noop analytics) seeding a handful of realistic bills and an
 /// income, so the embedded real views have something representative to show.
-/// Follows the `BilloPreviewContainer` pattern; lives for the step's lifetime
-/// and is discarded with it.
+/// Follows the `BilloPreviewContainer` pattern.
+///
+/// Lives for the PROCESS lifetime via `shared` — deliberately never
+/// deallocated. The embedded real views register `@Query` observers
+/// (`_SwiftData_SwiftUI.QueryController`) for context-did-save notifications
+/// that are NOT scoped to this container: they fire on every save in the
+/// process and resolve their context's `container` through a weak reference.
+/// When this container deallocated with the step view, a surviving observer
+/// force-unwrapped that nil container on the NEXT save anywhere in the app —
+/// Billo's #1 production crash (EXC_BREAKPOINT in `ModelContext.container
+/// .getter` under `QueryController.didSaveChange`, blaming whatever innocent
+/// save ran first, e.g. `BillsModel.deleteIncome`). Keeping the tiny
+/// in-memory store alive is the fix; the stale observers then no-op
+/// harmlessly. Never let a container whose views used `@Query` deallocate
+/// while the process keeps saving elsewhere.
 @MainActor
 private struct HomeShowcaseEnvironment {
+    /// First touch must stay inside `.task` (see `HomeShowcaseView.showcase`):
+    /// constructing the stack runs `context.save()` mid-view-update otherwise.
+    static let shared = HomeShowcaseEnvironment()
+
     let container: ModelContainer
     let billsModel: BillsModel
     let appSettingsModel: AppSettingsModel
@@ -297,9 +314,16 @@ private struct HomeShowcaseEnvironment {
         context.insert(settings)
         try? context.save()
 
-        let preferences = NotificationPreferencesStore(
-            userDefaults: UserDefaults(suiteName: "onboarding-showcase") ?? .standard
-        )
+        // Throwaway prefs: the showcase never persists user choices, but a
+        // named suite still writes a plist that would survive across
+        // launches — wipe the domain on creation so nothing accumulates.
+        // (Guarded so a suite-creation failure can never wipe .standard.)
+        let suiteName = "onboarding-showcase"
+        let showcaseDefaults = UserDefaults(suiteName: suiteName) ?? .standard
+        if showcaseDefaults !== UserDefaults.standard {
+            showcaseDefaults.removePersistentDomain(forName: suiteName)
+        }
+        let preferences = NotificationPreferencesStore(userDefaults: showcaseDefaults)
         let coordinator = NotificationCoordinator(
             notificationCenter: ShowcaseNoopNotificationCenter(),
             preferences: preferences

@@ -59,16 +59,18 @@ SCROLL_TICK=20
 #
 # Nothing here is language-dependent: targets are full-width rows, fixed
 # toolbar buttons, or menu items whose position doesn't move with label width.
-# The seed datasets share one day-of-month spread (1,3,5,8,9,12,15,18,20,22,
-# 25,27), so row indexes hold across markets.
+# The seed datasets share one due-in-days offset spread (0,3,6,9,11,13,16,
+# 18,23,25,27,30 — one bill today, two in the next 7 days, the rest in the
+# next 30), so the list shape — and every row coordinate — is identical
+# across markets AND capture dates.
 
 SHOT_IDS=(2-bills-list 3-calendar 4-bill-detail 5-charts)
 
 shot_description() {
   case "$1" in
-    2-bills-list)  echo "Split view, bills list scrolled to Next 7 Days, electric bill (day 15) selected" ;;
-    3-calendar)    echo "July grid + list at month boundary (income row, August sums), day-1 bill selected" ;;
-    4-bill-detail) echo "Same sidebar as 2, the due-in-2-days bill (day 1) selected" ;;
+    2-bills-list)  echo "Split view, bills list at rest (hero card visible), due-today bill selected" ;;
+    3-calendar)    echo "Current-month grid (today circled), list with the due-today row second from the bottom and selected" ;;
+    4-bill-detail) echo "Same sidebar at rest, the 6-day electricity bill selected" ;;
     5-charts)      echo "Charts detail scrolled so Spending by Category tops the pane, sidebar at top" ;;
     *)             echo "unknown shot" ;;
   esac
@@ -81,10 +83,9 @@ shot_view_mode() {
   esac
 }
 
-# Capture-pixel regions (window body starts at +112+76, 2 px per point) used
-# to verify that a click actually landed: the calendar month label, and the
-# detail pane where a row selection replaces the placeholder.
-MONTH_LABEL_REGION="500x80+232+192"
+# Capture-pixel region (window body starts at +112+76, 2 px per point) used
+# to verify that a click actually landed: the detail pane, where a row
+# selection replaces the placeholder.
 DETAIL_PANE_REGION="800x600+912+376"
 
 region_hash() {
@@ -107,44 +108,93 @@ click_verified() {
   return 1
 }
 
-# Post-launch input, per shot. Selection clicks happen at the at-rest scroll
-# position; scrolls come after, so every coordinate is measured against a
-# freshly launched window.
+# The due-today row is the only row with a RED left accent bar (paid history
+# is green/gray, upcoming rows are yellow/orange). Scanning the sidebar
+# gutter column for it gives a closed-loop scroll anchor that is immune to
+# how much history the current month happens to have (biweekly incomes add
+# 2-3 rows depending on the capture weekday; it/es/br have no paycheck-today
+# row at all). Prints the bar's center as a window-relative point y.
+find_due_today_row_y() {
+  screencapture -x -r -t png -l "$WINDOW_ID" "$WORKDIR/gutter.png" 2>/dev/null || return 1
+  # Accent-bar column only (px 134-139), list area only (pt >= 340 — the
+  # red traffic light lives at pt 9-22 and must not match). The due-today
+  # salmon (239,152,141) is told apart from the orange upcoming bar
+  # (243,183,137) by r-g spread, and from it by g~b.
+  magick "$WORKDIR/gutter.png" -crop "6x904+134+756" +repage -resize "1x452!" -depth 8 txt:- 2>/dev/null \
+    | python3 -c "
+import sys, re
+ys = []
+for line in sys.stdin:
+    m = re.match(r'0,(\d+):\s*\((\d+),(\d+),(\d+)', line)
+    if not m:
+        continue
+    y, r, g, b = map(int, m.groups())
+    if r > 210 and r - g >= 70 and abs(g - b) <= 25:
+        ys.append(340 + y)
+if not ys:
+    raise SystemExit(1)
+print((min(ys) + max(ys)) // 2)
+"
+}
+
+# Scrolls the calendar list until the due-today row sits second from the
+# bottom of the sidebar (center ~700 pt; the last visible row below it is
+# cut by the window edge, mirroring the iPhone design frame). Sets
+# TODAY_ROW_Y to the final measured position for the selection click.
+TODAY_TARGET_Y=700
+TODAY_ROW_Y=""
+position_due_today_row() {
+  local y diff ticks delta attempt
+  # The row usually starts below the fold — page down until its red bar
+  # enters the viewport.
+  for attempt in 1 2 3 4 5 6 7 8; do
+    y="$(find_due_today_row_y)" && break
+    swift "$WHEEL_SWIFT" $((WIN_X + 340)) $((WIN_Y + 500)) 12 -"$SCROLL_TICK" >/dev/null 2>&1 || true
+    sleep 1.2
+  done
+  [[ -z "${y:-}" ]] && return 1
+  # Fine-position: move the bar to the target, re-measure, iterate.
+  for attempt in 1 2 3 4; do
+    diff=$((TODAY_TARGET_Y - y))
+    [[ "${diff#-}" -le 12 ]] && { TODAY_ROW_Y="$y"; return 0; }
+    ticks=$(( (${diff#-} + SCROLL_TICK / 2) / SCROLL_TICK ))
+    [[ "$ticks" -lt 1 ]] && ticks=1
+    delta="$SCROLL_TICK"
+    [[ "$diff" -lt 0 ]] && delta="-$SCROLL_TICK"
+    swift "$WHEEL_SWIFT" $((WIN_X + 340)) $((WIN_Y + 500)) "$ticks" "$delta" >/dev/null 2>&1 || true
+    sleep 1.2
+    y="$(find_due_today_row_y)" || return 1
+  done
+  # Never converged — better to fail the shot than click a random row.
+  return 1
+}
+
+# Post-launch input, per shot. The bills list keeps its at-rest scroll
+# position in every shot — the hero summary card must stay fully visible —
+# so selection coordinates are constants measured against a fresh launch.
 shot_actions() {
   case "$1" in
     2-bills-list)
-      # Electric bill row (day 15, "Next 30 Days" section) at rest, then pull
-      # the list up so the first "Next 7 Days" row sits under the toolbar.
-      peekaboo click --pid "$APP_PID" --coords 184,588 >/dev/null 2>&1 || true
-      sleep 1.5
-      swift "$WHEEL_SWIFT" $((WIN_X + 240)) $((WIN_Y + 420)) 7 -"$SCROLL_TICK" >/dev/null 2>&1 || true
+      # Due-today bill (offset 0, the only "Today" row): detail pane shows
+      # the due-today banner. No scroll — hero card stays visible.
+      click_verified 184 240 "$DETAIL_PANE_REGION" \
+        || { FAILURES+=("$locale/$shot: due-today row click never registered"); return 0; }
       ;;
     4-bill-detail)
-      # First "Next 7 Days" row (day-1 bill, due in 2 days), same scroll as 2.
-      peekaboo click --pid "$APP_PID" --coords 184,240 >/dev/null 2>&1 || true
-      sleep 1.5
-      swift "$WHEEL_SWIFT" $((WIN_X + 240)) $((WIN_Y + 420)) 7 -"$SCROLL_TICK" >/dev/null 2>&1 || true
+      # The 6-day electricity bill (offset 6, second "Next 7 Days" row) —
+      # the richest detail pane (account ID). No scroll.
+      click_verified 184 381 "$DETAIL_PANE_REGION" \
+        || { FAILURES+=("$locale/$shot: electricity row click never registered"); return 0; }
       ;;
     3-calendar)
-      # ">" anchors the list at next month's top — a deterministic scroll
-      # anchor (grid-day clicks open the DayDetail sheet instead; avoid
-      # sheets, Catalyst can't dismiss them cleanly). Select the day-1 bill
-      # there, "<" back to the current month (today stays circled), then
-      # scroll the list 720pt (~10 rows) to the month boundary: tail bills,
-      # income row, next month's header with sums, and the selected bill.
-      #
-      # Every click is verified against a region that must change (a missed
-      # month-nav click otherwise cascades: the selection still lands via the
-      # current month's list, "<" then steps into the PREVIOUS month, and the
-      # capture passes every whole-shot assertion while showing June).
-      click_verified 334 85 "$MONTH_LABEL_REGION" \
-        || { FAILURES+=("$locale/$shot: '>' month-nav click never registered"); return 0; }
-      click_verified 250 419 "$DETAIL_PANE_REGION" \
-        || { FAILURES+=("$locale/$shot: day-1 row click never registered"); return 0; }
-      click_verified 28 85 "$MONTH_LABEL_REGION" \
-        || { FAILURES+=("$locale/$shot: '<' month-nav click never registered"); return 0; }
-      sleep 1
-      swift "$WHEEL_SWIFT" $((WIN_X + 240)) $((WIN_Y + 420)) 36 -"$SCROLL_TICK" >/dev/null 2>&1 || true
+      # Scroll the list so the due-today row sits second from the bottom
+      # (current month's paid history + the today pill above it, one row
+      # peeking below), then select it. Grid-day clicks would open the
+      # DayDetail sheet — avoid sheets, Catalyst can't dismiss them cleanly.
+      position_due_today_row \
+        || { FAILURES+=("$locale/$shot: due-today row never found in the list gutter"); return 0; }
+      click_verified 250 "$TODAY_ROW_Y" "$DETAIL_PANE_REGION" \
+        || { FAILURES+=("$locale/$shot: due-today row click never registered"); return 0; }
       ;;
     5-charts)
       # Charts lives in the sidebar's ellipsis menu. A synthetic click only

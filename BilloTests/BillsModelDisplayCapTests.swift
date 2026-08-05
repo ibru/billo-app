@@ -19,7 +19,7 @@ struct BillsModelDisplayCapTests {
             try sut.refresh()
 
             #expect(sut.bills.count == FreeTierLimits.billLimit)
-            #expect(sut.hiddenBillCount == 5)
+            #expect(sut.hiddenBillCount == 20 - FreeTierLimits.billLimit)
             #expect(sut.totalBillCount == 20)
         }
 
@@ -34,18 +34,19 @@ struct BillsModelDisplayCapTests {
         }
 
         @Test func whenBillCountWithinLimitAndNotPro_thenPublishesAllBills() throws {
-            let (sut, _, _, _) = try makeSUT(billCount: 15, isPro: false)
+            let (sut, _, _, _) = try makeSUT(billCount: FreeTierLimits.billLimit, isPro: false)
 
             try sut.refresh()
 
-            #expect(sut.bills.count == 15)
+            #expect(sut.bills.count == FreeTierLimits.billLimit)
             #expect(sut.hiddenBillCount == 0)
         }
 
         @Test func whenOverLimit_thenSoonestDueBillsAreVisible() throws {
-            // 15 bills due within days of the reference date + one due in 60
-            // days. The far-future bill must lose the slot race.
-            let (sut, _, context, _) = try makeSUT(billCount: 15, isPro: false)
+            // A full free tier of bills due within days of the reference
+            // date + one due in 60 days. The far-future bill must lose the
+            // slot race.
+            let (sut, _, context, _) = try makeSUT(billCount: FreeTierLimits.billLimit, isPro: false)
             insertBill(named: "Far Future", dueInDays: 60, in: context)
             try context.save()
 
@@ -57,7 +58,7 @@ struct BillsModelDisplayCapTests {
         }
 
         @Test func whenOverLimit_thenOverdueBillVisibleAndFarFutureHidden() throws {
-            let (sut, _, context, _) = try makeSUT(billCount: 15, isPro: false)
+            let (sut, _, context, _) = try makeSUT(billCount: FreeTierLimits.billLimit, isPro: false)
             insertBill(named: "Overdue", dueInDays: -10, in: context)
             try context.save()
 
@@ -67,13 +68,13 @@ struct BillsModelDisplayCapTests {
             // latest-due of the seeded bills drops out instead.
             #expect(sut.bills.map(\.name).contains("Overdue"))
             #expect(sut.hiddenBillCount == 1)
-            #expect(sut.bills.map(\.name).contains("Bill 15") == false)
+            #expect(sut.bills.map(\.name).contains("Bill \(FreeTierLimits.billLimit)") == false)
         }
 
         @Test func whenOverLimit_thenFullyPaidOneTimeBillRanksAfterUnpaidBills() async throws {
             // A dead (fully paid, one-time) bill must never consume a free
             // slot ahead of a live one, even though its due date is earliest.
-            let (sut, _, context, _) = try makeSUT(billCount: 15, isPro: false)
+            let (sut, _, context, _) = try makeSUT(billCount: FreeTierLimits.billLimit, isPro: false)
             let paidBill = insertBill(named: "Paid Off", dueInDays: -30, in: context)
             try context.save()
             try sut.refresh()
@@ -86,16 +87,17 @@ struct BillsModelDisplayCapTests {
         }
 
         @Test func whenBillsShareNextUnpaidDate_thenTiebreakIsCreatedDateThenStableID() throws {
-            // 16 bills all due the same day and sharing the anchor dueDate:
-            // the ranking must fall through to createdDate (earlier wins),
-            // then stableID — pinning the cross-launch order contract.
+            // One bill more than the free limit, all due the same day and
+            // sharing the anchor dueDate: the ranking must fall through to
+            // createdDate (earlier wins), then stableID — pinning the
+            // cross-launch order contract.
             let (_, _, context, _) = try makeSUT(billCount: 0, isPro: false)
             let oldest = insertBill(named: "Oldest", dueInDays: 3, stableID: "z-oldest", in: context)
             oldest.createdDate = makeDate(year: 2025, month: 1, day: 1)
             let newest = insertBill(named: "Newest", dueInDays: 3, stableID: "a-newest", in: context)
             newest.createdDate = makeDate(year: 2025, month: 2, day: 1)
             var fillers: [Bill] = []
-            for index in 1...14 {
+            for index in 1...(FreeTierLimits.billLimit - 1) {
                 let filler = insertBill(
                     named: "Filler \(index)",
                     dueInDays: 3,
@@ -116,7 +118,7 @@ struct BillsModelDisplayCapTests {
 
             // createdDate beats stableID: "Newest" (alphabetically first ID)
             // still ranks last and is the one hidden.
-            let expectedOrder = ["Oldest"] + (1...14).map { "Filler \($0)" }
+            let expectedOrder = ["Oldest"] + (1...(FreeTierLimits.billLimit - 1)).map { "Filler \($0)" }
             #expect(visible.map(\.name) == expectedOrder)
             #expect(visible.map(\.name).contains("Newest") == false)
         }
@@ -141,7 +143,7 @@ struct BillsModelDisplayCapTests {
         }
 
         @Test func whenOverLimit_thenSectionsContainOnlyVisibleBills() throws {
-            let (sut, _, context, _) = try makeSUT(billCount: 15, isPro: false)
+            let (sut, _, context, _) = try makeSUT(billCount: FreeTierLimits.billLimit, isPro: false)
             insertBill(named: "Far Future", dueInDays: 60, in: context)
             try context.save()
 
@@ -154,7 +156,7 @@ struct BillsModelDisplayCapTests {
         }
 
         @Test func whenOverLimit_thenNotificationRefreshReceivesOnlyVisibleBills() async throws {
-            let (sut, _, context, coordinator) = try makeSUT(billCount: 15, isPro: false)
+            let (sut, _, context, coordinator) = try makeSUT(billCount: FreeTierLimits.billLimit, isPro: false)
             insertBill(named: "Far Future", dueInDays: 60, in: context)
             try context.save()
             try sut.refresh()
@@ -185,7 +187,7 @@ struct BillsModelDisplayCapTests {
             try sut.refresh()
 
             #expect(sut.bills.count == FreeTierLimits.billLimit)
-            #expect(sut.hiddenBillCount == 5)
+            #expect(sut.hiddenBillCount == 20 - FreeTierLimits.billLimit)
         }
     }
 
