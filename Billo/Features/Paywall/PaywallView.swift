@@ -81,7 +81,7 @@ struct PaywallView: View {
     }
 
     private enum FallbackPricing {
-        static let monthlyPrice: Decimal = 4.99
+        static let monthlyPrice: Decimal = 5.99
         static let yearlyPrice: Decimal = 29.99
         static let lifetimePrice: Decimal = 69.99
     }
